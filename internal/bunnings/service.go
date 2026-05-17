@@ -13,6 +13,7 @@ type Product struct {
 	ItemNumber  string
 	Title       string
 	Description string
+	Unit        string
 	ImageURL    string
 	Price       float64
 	RawItem     *gobunnings.Item
@@ -117,11 +118,16 @@ func productFromItem(item *gobunnings.Item) Product {
 	if desc == "" {
 		desc = strings.TrimSpace(item.Description.SectionDescription)
 	}
+	image := strings.TrimSpace(item.ImageURL)
+	if image == "" {
+		image = imageURL(item.Raw)
+	}
 	return Product{
 		ItemNumber:  strings.TrimSpace(item.ItemNumber),
 		Title:       strings.TrimSpace(item.Description.SectionDescription),
 		Description: desc,
-		ImageURL:    imageURL(item.Raw),
+		Unit:        strings.TrimSpace(item.SaleUnitOfMeasure),
+		ImageURL:    image,
 		RawItem:     item,
 	}
 }
