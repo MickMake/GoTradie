@@ -12,12 +12,32 @@ The goal is deliberately modest: refresh Invoice Ninja products from Bunnings pr
 - Local checkout of `GoBunnings`
 - Local checkout of `GoInvoiceNinja` v0.2 or later
 
-`go.mod` expects these local paths:
+## Multi-repo development
 
-```go
-replace github.com/MickMake/GoBunnings => /Volumes/home/mick/Documents/GoLang/Tradie/GoBunnings
-replace github.com/MickMake/GoInvoiceNinja => /Volumes/home/mick/Documents/GoLang/Tradie/GoInvoiceNinja
+Develop the three repos side by side in one parent folder with a local Go workspace:
+
+```text
+GoNinjaWorkspace/
+├── go.work
+├── GoBunnings/
+├── GoInvoiceNinja/
+└── GoBunningsNinja/
 ```
+
+From the parent folder:
+
+```bash
+git clone git@github.com:MickMake/GoBunnings.git
+git clone git@github.com:MickMake/GoInvoiceNinja.git
+git clone git@github.com:MickMake/GoBunningsNinja.git
+
+go work init ./GoBunnings ./GoInvoiceNinja ./GoBunningsNinja
+go work sync
+```
+
+The local `go.work` file replaces the old committed absolute-path `replace` directives. Keep `go.mod` portable and use the workspace for local multi-repo editing.
+
+See `ECOSYSTEM.md` for the dependency rules and release workflow.
 
 ## Build
 
