@@ -1,23 +1,31 @@
-# Workspace layout
+# Repository architecture
 
-This Codex environment may contain three sibling repositories:
+This repository contains three independent Go modules.
 
-- `/workspace/GoBunningsNinja`
-- `/workspace/GoBunnings`
-- `/workspace/GoInvoiceNinja`
+Modules:
+- apps/GoBunningsNinja
+- apps/GoBunnings
+- apps/GoInvoiceNinja
 
-Treat `/workspace/GoBunningsNinja` as the primary repository unless told otherwise.
+Allowed dependencies:
+- GoBunningsNinja -> GoBunnings
+- GoBunningsNinja -> GoInvoiceNinja
 
-When changes span repositories:
-- show `git status --short` in each repo
-- show `git diff --stat` in each repo
-- do not commit until the changed repo list is confirmed
-- do not push unless explicitly requested
+Forbidden dependencies:
+- GoBunnings -> GoBunningsNinja
+- GoInvoiceNinja -> GoBunningsNinja
+- GoBunnings <-> GoInvoiceNinja
 
-Use Go 1.22.
+Rules:
+- Preserve module boundaries.
+- Do not refactor across module boundaries unless explicitly instructed.
+- Do not move code between modules unless explicitly instructed.
+- Do not introduce new cross-module imports unless explicitly instructed.
+- Each module has its own AGENTS.md containing local operational rules.
+- Run tests separately for each changed module.
+- Summarise changes module-by-module.
+- Use Go 1.22.
 
-Run tests with:
-
-```bash
-go test ./...
-```
+Repository intent:
+- GoBunningsNinja is the primary application/orchestration module.
+- GoBunnings and GoInvoiceNinja are standalone reusable modules.
