@@ -75,6 +75,10 @@ func (c Config) Validate() error {
 	if err := c.ValidateInvoiceNinja(); err != nil {
 		return err
 	}
+	return c.ValidateBunnings()
+}
+
+func (c Config) ValidateBunnings() error {
 	var missing []string
 	if c.BunningsClientID == "" {
 		missing = append(missing, "BUNNINGS_CLIENT_ID")

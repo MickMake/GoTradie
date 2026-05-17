@@ -2,7 +2,7 @@
 
 `GoBunningsNinja` is a small CLI client that connects the local `GoBunnings` and `GoInvoiceNinja` packages.
 
-Version: `v0.3`
+Version: `v0.5`
 
 The goal is deliberately modest: refresh Invoice Ninja products from Bunnings product data, add selected Bunnings products safely, and export/import selected Invoice Ninja CSV data without turning the accounts into a surprised octopus.
 
@@ -10,7 +10,7 @@ The goal is deliberately modest: refresh Invoice Ninja products from Bunnings pr
 
 - Go `1.22`
 - Local checkout of `GoBunnings`
-- Local checkout of `GoInvoiceNinja` v0.2 or later
+- Local checkout of `GoInvoiceNinja` v0.5 or later
 
 ## Multi-repo development
 
@@ -217,4 +217,4 @@ ID, Client ID, Client Name, Invoice ID, Invoice Number, Date, Amount, Applied, R
 
 ## Notes
 
-For complete Invoice Ninja exports, this version uses `GoInvoiceNinja` v0.2 `ListAll` helpers rather than single-page `List` calls.
+For complete Invoice Ninja exports, this version uses `GoInvoiceNinja` v0.5 `ListAll` helpers rather than single-page `List` calls.

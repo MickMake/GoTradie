@@ -1,5 +1,13 @@
 # Changes
 
+## v0.5
+
+- Aligned app version metadata/docs to `v0.5` and updated SDK dependency targets to `GoBunnings v0.5.0` and `GoInvoiceNinja v0.5.0`.
+- Added `bunnings` command namespace with `find`, `get`, and `lookup`.
+- Retired advertised top-level `search`; moved guarded cross-system behavior under `sync search` and introduced `sync refresh` / `sync import`.
+- Kept compatibility for legacy `add-in` command with deprecation notice.
+
+
 ## v0.4
 
 - Added `CHATGPT_CONTEXT.md` to document the app role, dependency boundaries, Go version, and local multi-repo workflow.

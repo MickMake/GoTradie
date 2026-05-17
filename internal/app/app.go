@@ -16,7 +16,7 @@ import (
 	"github.com/MickMake/GoBunningsNinja/internal/syncer"
 )
 
-const version = "v0.3"
+const version = "v0.5"
 
 type App struct {
 	Out io.Writer
@@ -57,7 +57,7 @@ func (a App) Run(ctx context.Context, args []string) int {
 		return 2
 	}
 	switch args[0] {
-	case "sync", "add-in", "search":
+	case "sync", "add-in":
 		if err := cfg.Validate(); err != nil {
 			fmt.Fprintln(a.Err, "config error:", err)
 			return 2
@@ -75,12 +75,27 @@ func (a App) Run(ctx context.Context, args []string) int {
 		svc := syncer.Service{Bunnings: bn, Ninja: nj, BunningsCustom: cfg.BunningsCustom}
 		switch args[0] {
 		case "sync":
-			return a.runSync(ctx, svc, args[1:])
+			return a.runSyncNamespace(ctx, svc, args[1:])
 		case "add-in":
+			fmt.Fprintln(a.Err, "deprecated: `add-in` moved to `sync import <IN>`")
 			return a.runAddIN(ctx, svc, args[1:])
 		case "search":
 			return a.runSearch(ctx, svc, args[1:])
 		}
+	case "bunnings":
+		if err := cfg.ValidateBunnings(); err != nil {
+			fmt.Fprintln(a.Err, "config error:", err)
+			return 2
+		}
+		bn, err := bunnings.New(cfg)
+		if err != nil {
+			fmt.Fprintln(a.Err, "bunnings client error:", err)
+			return 2
+		}
+		return a.runBunnings(ctx, bn, args[1:])
+	case "search":
+		fmt.Fprintln(a.Err, "deprecated: top-level search moved to `sync search` (guarded import workflow) or `bunnings find` (product discovery)")
+		return 2
 	case "ninja":
 		if err := cfg.ValidateInvoiceNinja(); err != nil {
 			fmt.Fprintln(a.Err, "config error:", err)
@@ -122,6 +137,22 @@ func parseGlobals(args []string) (globalOptions, []string, error) {
 		}
 	}
 	return opts, rest, nil
+}
+
+func (a App) runSyncNamespace(ctx context.Context, svc syncer.Service, args []string) int {
+	if len(args) == 0 {
+		return a.runSync(ctx, svc, args)
+	}
+	switch args[0] {
+	case "refresh":
+		return a.runSync(ctx, svc, args[1:])
+	case "import":
+		return a.runAddIN(ctx, svc, args[1:])
+	case "search":
+		return a.runSearch(ctx, svc, args[1:])
+	default:
+		return a.runSync(ctx, svc, args)
+	}
 }
 
 func (a App) runSync(ctx context.Context, svc syncer.Service, args []string) int {
@@ -197,6 +228,75 @@ func (a App) runSearch(ctx context.Context, svc syncer.Service, args []string) i
 	results := svc.AddProducts(ctx, selected)
 	printResults(a.Out, results)
 	return exitCode(results)
+}
+
+func (a App) runBunnings(ctx context.Context, svc *bunnings.Service, args []string) int {
+	if len(args) < 1 {
+		fmt.Fprintln(a.Err, "usage: bunnings-ninja bunnings <find|get|lookup> ...")
+		return 2
+	}
+	switch args[0] {
+	case "find":
+		fs := flag.NewFlagSet("bunnings find", flag.ContinueOnError)
+		fs.SetOutput(a.Err)
+		limit := fs.Int("limit", 10, "maximum results (default 10, max 25)")
+		if err := fs.Parse(args[1:]); err != nil {
+			return 2
+		}
+		if fs.NArg() < 1 {
+			fmt.Fprintln(a.Err, "usage: bunnings-ninja bunnings find [--limit=10] <query>")
+			return 2
+		}
+		products, err := svc.Search(ctx, strings.Join(fs.Args(), " "), *limit)
+		if err != nil {
+			fmt.Fprintln(a.Err, "find error:", err)
+			return 1
+		}
+		hydrated := make([]bunnings.Product, 0, len(products))
+		for _, p := range products {
+			hp, err := svc.Hydrate(ctx, p)
+			if err == nil {
+				hydrated = append(hydrated, hp)
+			} else {
+				hydrated = append(hydrated, p)
+			}
+		}
+		printProductsCSV(a.Out, hydrated)
+		return 0
+	case "get":
+		if len(args[1:]) < 1 {
+			fmt.Fprintln(a.Err, "usage: bunnings-ninja bunnings get <IN...>")
+			return 2
+		}
+		rows := make([]bunnings.Product, 0, len(args[1:]))
+		for _, item := range args[1:] {
+			p, err := svc.GetProduct(ctx, item)
+			if err != nil {
+				rows = append(rows, bunnings.Product{ItemNumber: item, Description: err.Error()})
+				continue
+			}
+			rows = append(rows, p)
+		}
+		printProductsCSV(a.Out, rows)
+		return 0
+	case "lookup":
+		if len(args[1:]) < 1 {
+			fmt.Fprintln(a.Err, "usage: bunnings-ninja bunnings lookup <IN...>")
+			return 2
+		}
+		for _, item := range args[1:] {
+			p, err := svc.GetProduct(ctx, item)
+			if err != nil {
+				fmt.Fprintf(a.Out, "IN: %s\nError: %v\n\n", item, err)
+				continue
+			}
+			printProductDetail(a.Out, p)
+		}
+		return 0
+	default:
+		fmt.Fprintln(a.Err, "unknown bunnings subcommand:", args[0])
+		return 2
+	}
 }
 
 func (a App) runNinja(ctx context.Context, svc *ninja.Service, args []string) int {
@@ -425,6 +525,23 @@ func selectProducts(products []bunnings.Product, csv string, all bool) []bunning
 	return selected
 }
 
+func printProductsCSV(w io.Writer, products []bunnings.Product) {
+	fmt.Fprintln(w, "IN,Description,Unit,PricePerUnit,ImageURL")
+	for _, p := range products {
+		fmt.Fprintf(w, "%s,%s,%s,%.2f,%s\n", p.ItemNumber, sanitizeCSV(p.Description), sanitizeCSV(p.Unit), p.Price, sanitizeCSV(p.ImageURL))
+	}
+}
+
+func printProductDetail(w io.Writer, p bunnings.Product) {
+	fmt.Fprintf(w, "IN: %s\nTitle: %s\nDescription: %s\nUnit: %s\nPricePerUnit: %.2f\nImageURL: %s\n\n", p.ItemNumber, p.Title, p.Description, p.Unit, p.Price, p.ImageURL)
+}
+
+func sanitizeCSV(v string) string {
+	v = strings.TrimSpace(v)
+	v = strings.ReplaceAll(v, "\"", "\"\"")
+	return strings.ReplaceAll(v, ",", " ")
+}
+
 func printProducts(w io.Writer, products []bunnings.Product) {
 	fmt.Fprintln(w, "Bunnings search results")
 	fmt.Fprintln(w, "IN\tTitle")
@@ -458,16 +575,19 @@ func exitCode(results []syncer.Result) int {
 func (a App) usage() {
 	fmt.Fprintln(a.Out, `bunnings-ninja syncs Bunnings products into Invoice Ninja.
 
-Version: v0.3
+Version: v0.5
 
 Global options:
   --config <path>       Optional key=value config file. File values override environment variables.
                         If omitted, GOBUNNINGSNINJA_CONFIG is used, then ./gobunningsninja.conf if present.
 
 Commands:
-  sync                                  Refresh existing Invoice Ninja products linked to Bunnings INs.
-  add-in <IN>                           Add or refresh one product by Bunnings item number.
-  search <query>                        Preview Bunnings search results; optionally import selected results.
+  bunnings find <query>                 Fuzzy Bunnings discovery (CSV output).
+  bunnings get <IN...>                  Exact Bunnings lookup (CSV output).
+  bunnings lookup <IN...>               Exact Bunnings lookup (human-readable output).
+  sync refresh                          Refresh existing Invoice Ninja products linked to Bunnings INs.
+  sync import <IN>                      Add or refresh one product by Bunnings item number.
+  sync search <query>                   Guarded Bunnings search/import workflow for Invoice Ninja.
   ninja export products <file|->        Export Invoice Ninja products as CSV.
   ninja import products <file|->        Import product CSV changes; dry-run by default.
   ninja export clients <file|->         Export Invoice Ninja clients as CSV.
@@ -478,11 +598,13 @@ Commands:
   version                               Print version.
 
 Examples:
-  bunnings-ninja --config ./gobunningsninja.conf sync
-  bunnings-ninja sync --dry-run=false
-  bunnings-ninja add-in --dry-run=false 0123456
-  bunnings-ninja search "merbau decking" --limit=10
-  bunnings-ninja search "merbau decking" --create --select=0123456,0987654 --dry-run=false
+  bunnings-ninja bunnings find "merbau decking" --limit=10
+  bunnings-ninja bunnings get 0123456 0987654
+  bunnings-ninja bunnings lookup 0123456
+  bunnings-ninja sync refresh --dry-run=false
+  bunnings-ninja sync import --dry-run=false 0123456
+  bunnings-ninja sync search "merbau decking" --limit=10
+  bunnings-ninja sync search "merbau decking" --create --select=0123456,0987654 --dry-run=false
   bunnings-ninja ninja export products products.csv
   bunnings-ninja ninja export products -
   bunnings-ninja ninja export products products.csv --force
@@ -497,7 +619,7 @@ Examples:
 Required configuration for ninja commands:
   INVOICE_NINJA_TOKEN
 
-Additional required configuration for Bunnings sync/search commands:
+Additional required configuration for Bunnings and sync commands:
   BUNNINGS_CLIENT_ID
   BUNNINGS_CLIENT_SECRET
 
