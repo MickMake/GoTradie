@@ -1,5 +1,12 @@
 # Changes
 
+## v0.4
+
+- Added `CHATGPT_CONTEXT.md` to document the app role, dependency boundaries, Go version, and local multi-repo workflow.
+- Added `ECOSYSTEM.md` documenting the three-repo workspace structure, dependency direction, local `go.work` setup, release order, and boundary checklist.
+- Removed committed absolute-path `replace` directives from `go.mod`.
+- Updated `README.md` to describe local development with a parent-folder `go.work` workspace instead of machine-specific `replace` paths.
+
 ## v0.3
 
 - Updated the project version to `v0.3`.
