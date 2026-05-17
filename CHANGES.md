@@ -6,6 +6,8 @@
 - Added `ECOSYSTEM.md` documenting the three-repo workspace structure, dependency direction, local `go.work` setup, release order, and boundary checklist.
 - Removed committed absolute-path `replace` directives from `go.mod`.
 - Updated `README.md` to describe local development with a parent-folder `go.work` workspace instead of machine-specific `replace` paths.
+- Updated `README.md` to describe local development with a parent-folder `go.work` workspace.
+- Preserved relative local `replace` directives in `go.mod` for simple single-machine development.
 
 ## v0.3
 

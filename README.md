@@ -36,6 +36,7 @@ go work sync
 ```
 
 The local `go.work` file replaces the old committed absolute-path `replace` directives. Keep `go.mod` portable and use the workspace for local multi-repo editing.
+The local `go.work` file is the preferred way to develop the three repos together. `GoBunningsNinja/go.mod` may also use relative local `replace` directives for simple single-machine development.
 
 See `ECOSYSTEM.md` for the dependency rules and release workflow.
 
