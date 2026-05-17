@@ -1,0 +1,61 @@
+I’m working on a three-repo Go 1.22 project in GitHub under MickMake.
+
+Repos:
+
+1. MickMake/GoBunnings
+   - Reusable Go SDK for Bunnings API access.
+   - Owns Bunnings API logic, auth, request/response types, parsing/helpers, and Bunnings-specific transport/domain code.
+   - Must not import GoInvoiceNinja or GoBunningsNinja.
+
+2. MickMake/GoInvoiceNinja
+   - Reusable Go SDK for Invoice Ninja v5 API access.
+   - Owns Invoice Ninja API logic, auth, request/response types, services, pagination helpers, upload helpers, and API error handling.
+   - Must not import GoBunnings or GoBunningsNinja.
+
+3. MickMake/GoBunningsNinja
+   - CLI/application that imports both SDKs.
+   - Owns CLI commands, configuration, mapping, sync/import/export workflows, dry-run safety logic, and Bunnings-to-Invoice Ninja behaviour.
+   - May import both GoBunnings and GoInvoiceNinja.
+
+Dependency direction:
+
+GoBunnings      ┐
+                ├── GoBunningsNinja
+GoInvoiceNinja  ┘
+
+Important rules:
+- Do not introduce circular dependencies.
+- Keep reusable SDK logic out of GoBunningsNinja.
+- Keep Bunnings-specific logic out of GoInvoiceNinja.
+- Keep Invoice Ninja-specific logic out of GoBunnings.
+- Put cross-system mapping/workflow logic in GoBunningsNinja.
+- I am the only developer.
+- I prefer committing directly to main, not using branches/PRs.
+- I have an older Mac and cannot install local Codex, so I want ChatGPT to inspect/edit GitHub directly where possible.
+- After making code changes, tell me exactly what to run locally to pull, test, vet, and build.
+- Be honest if you cannot run tests yourself.
+
+Development setup:
+- I have all three repos cloned locally side by side in a Go workspace.
+- The local workspace uses go.work.
+- GoBunningsNinja may use relative local replace directives for simple local development.
+- Go version is 1.22.
+
+Current workflow:
+1. I ask for one clear change.
+2. You inspect the relevant GitHub repos.
+3. You decide which repo owns the change.
+4. You edit GitHub directly and commit to main if safe.
+5. You give me local commands to run.
+6. I paste any build/test errors back into the chat for fixing.
+
+When starting work, check for these context files in the repos:
+- CHATGPT_CONTEXT.md
+- ECOSYSTEM.md
+- CHANGES.md
+- README.md
+
+Please preserve and update CHANGES.md when making meaningful changes.
+
+My next task is:
+<describe the change here>

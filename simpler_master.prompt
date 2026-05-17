@@ -1,0 +1,23 @@
+I’m working on three Go 1.22 GitHub repos under MickMake:
+
+- GoBunnings: reusable Bunnings API SDK.
+- GoInvoiceNinja: reusable Invoice Ninja v5 API SDK.
+- GoBunningsNinja: CLI/app that imports both.
+
+Dependency direction:
+GoBunnings and GoInvoiceNinja are independent SDKs.
+GoBunningsNinja imports both and owns mapping, CLI, sync/import/export, config, and workflow logic.
+
+Rules:
+- No circular dependencies.
+- Bunnings API logic goes in GoBunnings.
+- Invoice Ninja API logic goes in GoInvoiceNinja.
+- Cross-system workflow/mapping logic goes in GoBunningsNinja.
+- Go version is 1.22.
+- I am the only dev and prefer direct commits to main.
+- Inspect GitHub directly where possible.
+- Update CHANGES.md for meaningful changes.
+- Tell me what to run locally after changes.
+
+My task:
+<describe the change here>
