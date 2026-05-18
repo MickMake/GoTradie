@@ -94,21 +94,21 @@ See `gobunningsninja.conf.example`.
 
 ## Commands
 
-All write-capable commands preview by default. Add `--apply` when you want to update Invoice Ninja.
+All write-capable commands preview or refuse risky writes by default. Add `--commit` when you want to make a persistent change.
 
 ### Sync existing Invoice Ninja products
 
 ```bash
 bunnings-ninja sync
 bunnings-ninja sync refresh
-bunnings-ninja sync refresh --apply
+bunnings-ninja sync refresh --commit
 ```
 
 ### Add or refresh by Bunnings IN
 
 ```bash
 bunnings-ninja sync import 0123456
-bunnings-ninja sync import --apply 0123456
+bunnings-ninja sync import --commit 0123456
 ```
 
 The old `add-in` command still routes to `sync import`, but new usage should prefer the grouped `sync import` form.
@@ -130,10 +130,10 @@ bunnings-ninja sync search "merbau decking" --create --select=0123456,0987654
 Import selected results:
 
 ```bash
-bunnings-ninja sync search "merbau decking" --create --select=0123456,0987654 --apply
+bunnings-ninja sync search "merbau decking" --create --select=0123456,0987654 --commit
 ```
 
-Bulk importing all returned search results requires `--all --yes --apply` and remains hard-capped by the search limit.
+Bulk importing all returned search results requires `--all --yes --commit` and remains hard-capped by the search limit.
 
 ## Invoice Ninja CSV commands
 
@@ -151,10 +151,10 @@ bunnings-ninja ninja export products products.csv
 bunnings-ninja ninja export products -
 ```
 
-Exports do not overwrite files unless `--force` is used:
+Exports do not overwrite files unless `--commit` is used:
 
 ```bash
-bunnings-ninja ninja export products products.csv --force
+bunnings-ninja ninja export products products.csv --commit
 ```
 
 Imports use a positional source:
@@ -164,11 +164,11 @@ bunnings-ninja ninja import products products.csv
 cat products.csv | bunnings-ninja ninja import products -
 ```
 
-Imports preview by default. Use `--apply` to update Invoice Ninja:
+Imports preview by default. Use `--commit` to update Invoice Ninja:
 
 ```bash
 bunnings-ninja ninja import products products.csv
-bunnings-ninja ninja import products --apply products.csv
+bunnings-ninja ninja import products --commit products.csv
 ```
 
 Available export targets:
