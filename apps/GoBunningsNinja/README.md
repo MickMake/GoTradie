@@ -94,35 +94,46 @@ See `gobunningsninja.conf.example`.
 
 ## Commands
 
+All write-capable commands preview by default. Add `--apply` when you want to update Invoice Ninja.
+
 ### Sync existing Invoice Ninja products
 
 ```bash
 bunnings-ninja sync
-bunnings-ninja sync --dry-run=false
+bunnings-ninja sync refresh
+bunnings-ninja sync refresh --apply
 ```
 
 ### Add or refresh by Bunnings IN
 
 ```bash
-bunnings-ninja add-in 0123456
-bunnings-ninja add-in --dry-run=false 0123456
+bunnings-ninja sync import 0123456
+bunnings-ninja sync import --apply 0123456
 ```
+
+The old `add-in` command still routes to `sync import`, but new usage should prefer the grouped `sync import` form.
 
 ### Search Bunnings products safely
 
 Preview only:
 
 ```bash
-bunnings-ninja search "merbau decking"
+bunnings-ninja sync search "merbau decking"
+```
+
+Preview selected results for import:
+
+```bash
+bunnings-ninja sync search "merbau decking" --create --select=0123456,0987654
 ```
 
 Import selected results:
 
 ```bash
-bunnings-ninja search "merbau decking" --create --select=0123456,0987654 --dry-run=false
+bunnings-ninja sync search "merbau decking" --create --select=0123456,0987654 --apply
 ```
 
-Bulk importing all returned search results requires `--all --yes` and remains hard-capped by the search limit.
+Bulk importing all returned search results requires `--all --yes --apply` and remains hard-capped by the search limit.
 
 ## Invoice Ninja CSV commands
 
@@ -153,11 +164,11 @@ bunnings-ninja ninja import products products.csv
 cat products.csv | bunnings-ninja ninja import products -
 ```
 
-Imports default to dry-run:
+Imports preview by default. Use `--apply` to update Invoice Ninja:
 
 ```bash
 bunnings-ninja ninja import products products.csv
-bunnings-ninja ninja import products products.csv --dry-run=false
+bunnings-ninja ninja import products --apply products.csv
 ```
 
 Available export targets:
