@@ -14,7 +14,7 @@ Repos:
 
 3. MickMake/GoBunningsNinja
    - CLI/application that imports both SDKs.
-   - Owns CLI commands, configuration, mapping, sync/import/export workflows, dry-run safety logic, and Bunnings-to-Invoice Ninja behaviour.
+   - Owns CLI commands, configuration, mapping, sync/import/export workflows, preview-by-default safety logic, --apply write behaviour, and Bunnings-to-Invoice Ninja behaviour.
    - May import both GoBunnings and GoInvoiceNinja.
 
 Dependency direction:
@@ -29,6 +29,7 @@ Important rules:
 - Keep Bunnings-specific logic out of GoInvoiceNinja.
 - Keep Invoice Ninja-specific logic out of GoBunnings.
 - Put cross-system mapping/workflow logic in GoBunningsNinja.
+- Write-capable CLI commands should preview by default and only change Invoice Ninja when --apply is supplied.
 - I am the only developer.
 - I prefer committing directly to main, not using branches/PRs.
 - I have an older Mac and cannot install local Codex, so I want ChatGPT to inspect/edit GitHub directly where possible.
