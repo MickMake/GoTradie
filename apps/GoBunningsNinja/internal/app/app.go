@@ -158,15 +158,15 @@ func (a App) runSyncNamespace(ctx context.Context, svc syncer.Service, args []st
 func (a App) runSync(ctx context.Context, svc syncer.Service, args []string) int {
 	fs := flag.NewFlagSet("sync", flag.ContinueOnError)
 	fs.SetOutput(a.Err)
-	apply := fs.Bool("apply", false, "apply changes to Invoice Ninja")
+	commit := fs.Bool("commit", false, "commit changes to Invoice Ninja")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if fs.NArg() != 0 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja sync refresh [--apply]")
+		fmt.Fprintln(a.Err, "usage: bunnings-ninja sync refresh [--commit]")
 		return 2
 	}
-	svc.DryRun = !*apply
+	svc.DryRun = !*commit
 	results, err := svc.SyncExisting(ctx)
 	if err != nil {
 		fmt.Fprintln(a.Err, "sync error:", err)
@@ -179,15 +179,15 @@ func (a App) runSync(ctx context.Context, svc syncer.Service, args []string) int
 func (a App) runAddIN(ctx context.Context, svc syncer.Service, args []string) int {
 	fs := flag.NewFlagSet("add-in", flag.ContinueOnError)
 	fs.SetOutput(a.Err)
-	apply := fs.Bool("apply", false, "apply changes to Invoice Ninja")
+	commit := fs.Bool("commit", false, "commit changes to Invoice Ninja")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if fs.NArg() != 1 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja sync import [--apply] <bunnings-in>")
+		fmt.Fprintln(a.Err, "usage: bunnings-ninja sync import [--commit] <bunnings-in>")
 		return 2
 	}
-	svc.DryRun = !*apply
+	svc.DryRun = !*commit
 	res := svc.AddByIN(ctx, fs.Arg(0))
 	printResults(a.Out, []syncer.Result{res})
 	return exitCode([]syncer.Result{res})
@@ -201,12 +201,12 @@ func (a App) runSearch(ctx context.Context, svc syncer.Service, args []string) i
 	selectCSV := fs.String("select", "", "comma-separated Bunnings item numbers to import from the search results")
 	all := fs.Bool("all", false, "import all returned results up to --limit; requires --yes")
 	yes := fs.Bool("yes", false, "confirm a guarded bulk import")
-	apply := fs.Bool("apply", false, "apply selected product changes to Invoice Ninja")
+	commit := fs.Bool("commit", false, "commit selected product changes to Invoice Ninja")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if fs.NArg() < 1 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja sync search [--limit=10] [--create --select=IN1,IN2 --apply] <query>")
+		fmt.Fprintln(a.Err, "usage: bunnings-ninja sync search [--limit=10] [--create --select=IN1,IN2 --commit] <query>")
 		return 2
 	}
 	query := strings.Join(fs.Args(), " ")
@@ -228,7 +228,7 @@ func (a App) runSearch(ctx context.Context, svc syncer.Service, args []string) i
 		fmt.Fprintln(a.Err, "refusing --all without --yes; the goblin at the gate is doing its job")
 		return 2
 	}
-	svc.DryRun = !*apply
+	svc.DryRun = !*commit
 	results := svc.AddProducts(ctx, selected)
 	printResults(a.Out, results)
 	return exitCode(results)
@@ -322,17 +322,17 @@ func (a App) runNinja(ctx context.Context, svc *ninja.Service, args []string) in
 
 func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, args []string) int {
 	if len(args) < 1 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja ninja export <products|clients|quotes|invoices|payments> <file|-> [--force]")
+		fmt.Fprintln(a.Err, "usage: bunnings-ninja ninja export <products|clients|quotes|invoices|payments> <file|-> [--commit]")
 		return 2
 	}
 	kind := args[0]
-	outPath, force, err := parseExportArgs(args[1:])
+	outPath, commit, err := parseExportArgs(args[1:])
 	if err != nil {
 		fmt.Fprintln(a.Err, err)
-		fmt.Fprintf(a.Err, "usage: bunnings-ninja ninja export %s <file|-> [--force]\n", kind)
+		fmt.Fprintf(a.Err, "usage: bunnings-ninja ninja export %s <file|-> [--commit]\n", kind)
 		return 2
 	}
-	w, closeFn, err := writerFor(outPath, a.Out, force)
+	w, closeFn, err := writerFor(outPath, a.Out, commit)
 	if err != nil {
 		fmt.Fprintln(a.Err, "output error:", err)
 		return 1
@@ -363,14 +363,14 @@ func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, args []stri
 
 func (a App) runNinjaImport(ctx context.Context, svc *ninja.Service, args []string) int {
 	if len(args) < 1 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja ninja import <products|clients> <file|-> [--apply]")
+		fmt.Fprintln(a.Err, "usage: bunnings-ninja ninja import <products|clients> <file|-> [--commit]")
 		return 2
 	}
 	kind := args[0]
 	inPath, dryRun, err := parseImportArgs(args[1:])
 	if err != nil {
 		fmt.Fprintln(a.Err, err)
-		fmt.Fprintf(a.Err, "usage: bunnings-ninja ninja import %s <file|-> [--apply]\n", kind)
+		fmt.Fprintf(a.Err, "usage: bunnings-ninja ninja import %s <file|-> [--commit]\n", kind)
 		return 2
 	}
 	r, closeFn, err := readerFor(inPath, os.Stdin)
@@ -401,25 +401,22 @@ func (a App) runNinjaImport(ctx context.Context, svc *ninja.Service, args []stri
 }
 
 func parseExportArgs(args []string) (string, bool, error) {
-	force := false
+	commit := false
 	var paths []string
 	for _, arg := range args {
-		switch arg {
-		case "--force", "-force":
-			force = true
+		switch {
+		case arg == "--commit":
+			commit = true
+		case strings.HasPrefix(arg, "-"):
+			return "", false, fmt.Errorf("unknown export flag %q", arg)
 		default:
-			if strings.HasPrefix(arg, "--force=") {
-				v := strings.TrimPrefix(arg, "--force=")
-				force = v == "true" || v == "1" || strings.EqualFold(v, "yes")
-				continue
-			}
 			paths = append(paths, arg)
 		}
 	}
 	if len(paths) != 1 {
 		return "", false, fmt.Errorf("expected exactly one export path, got %d", len(paths))
 	}
-	return paths[0], force, nil
+	return paths[0], commit, nil
 }
 
 func parseImportArgs(args []string) (string, bool, error) {
@@ -427,7 +424,7 @@ func parseImportArgs(args []string) (string, bool, error) {
 	var paths []string
 	for _, arg := range args {
 		switch {
-		case arg == "--apply":
+		case arg == "--commit":
 			dryRun = false
 		case strings.HasPrefix(arg, "-"):
 			return "", true, fmt.Errorf("unknown import flag %q", arg)
@@ -458,7 +455,7 @@ func readerFor(path string, stdin io.Reader) (io.Reader, func(), error) {
 	return f, func() { _ = f.Close() }, nil
 }
 
-func writerFor(path string, stdout io.Writer, force bool) (io.Writer, func(), error) {
+func writerFor(path string, stdout io.Writer, commit bool) (io.Writer, func(), error) {
 	if path == "-" {
 		return stdout, func() {}, nil
 	}
@@ -466,7 +463,7 @@ func writerFor(path string, stdout io.Writer, force bool) (io.Writer, func(), er
 		return nil, func() {}, fmt.Errorf("export path is required")
 	}
 	flags := os.O_WRONLY | os.O_CREATE
-	if force {
+	if commit {
 		flags |= os.O_TRUNC
 	} else {
 		flags |= os.O_EXCL
@@ -474,7 +471,7 @@ func writerFor(path string, stdout io.Writer, force bool) (io.Writer, func(), er
 	f, err := os.OpenFile(path, flags, 0644)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
-			return nil, func() {}, fmt.Errorf("refusing to overwrite existing file %s; use --force", path)
+			return nil, func() {}, fmt.Errorf("refusing to overwrite existing file %s; use --commit", path)
 		}
 		return nil, func() {}, fmt.Errorf("open export file %s: %w", path, err)
 	}
@@ -544,7 +541,7 @@ func printProducts(w io.Writer, products []bunnings.Product) {
 	for _, p := range products {
 		fmt.Fprintf(w, "%s\t%s\n", p.ItemNumber, p.Title)
 	}
-	fmt.Fprintln(w, "\nPreview only. To import, re-run with --create --select=IN1,IN2 --apply")
+	fmt.Fprintln(w, "\nPreview only. To import, re-run with --create --select=IN1,IN2 --commit")
 }
 
 func printResults(w io.Writer, results []syncer.Result) {
@@ -581,33 +578,33 @@ Commands:
   bunnings find <query>                 Fuzzy Bunnings discovery (CSV output).
   bunnings get <IN...>                  Exact Bunnings lookup (CSV output).
   bunnings lookup <IN...>               Exact Bunnings lookup (human-readable output).
-  sync refresh                          Preview linked product refresh; use --apply to update.
-  sync import <IN>                      Preview one product import; use --apply to update.
+  sync refresh                          Preview linked product refresh; use --commit to update.
+  sync import <IN>                      Preview one product import; use --commit to update.
   sync search <query>                   Guarded Bunnings search/import workflow for Invoice Ninja.
-  ninja export products <file|->        Export Invoice Ninja products as CSV.
-  ninja import products <file|->        Preview product CSV changes; use --apply to update.
-  ninja export clients <file|->         Export Invoice Ninja clients as CSV.
-  ninja import clients <file|->         Preview client CSV changes; use --apply to update.
-  ninja export quotes <file|->          Export Invoice Ninja quotes as CSV.
-  ninja export invoices <file|->        Export Invoice Ninja invoices as CSV.
-  ninja export payments <file|->        Export Invoice Ninja payments as CSV.
+  ninja export products <file|->        Export Invoice Ninja products as CSV; use --commit to overwrite.
+  ninja import products <file|->        Preview product CSV changes; use --commit to update.
+  ninja export clients <file|->         Export Invoice Ninja clients as CSV; use --commit to overwrite.
+  ninja import clients <file|->         Preview client CSV changes; use --commit to update.
+  ninja export quotes <file|->          Export Invoice Ninja quotes as CSV; use --commit to overwrite.
+  ninja export invoices <file|->        Export Invoice Ninja invoices as CSV; use --commit to overwrite.
+  ninja export payments <file|->        Export Invoice Ninja payments as CSV; use --commit to overwrite.
   version                               Print version.
 
 Examples:
   bunnings-ninja bunnings find "merbau decking" --limit=10
   bunnings-ninja bunnings get 0123456 0987654
   bunnings-ninja bunnings lookup 0123456
-  bunnings-ninja sync refresh --apply
-  bunnings-ninja sync import --apply 0123456
+  bunnings-ninja sync refresh --commit
+  bunnings-ninja sync import --commit 0123456
   bunnings-ninja sync search "merbau decking" --limit=10
-  bunnings-ninja sync search "merbau decking" --create --select=0123456,0987654 --apply
+  bunnings-ninja sync search "merbau decking" --create --select=0123456,0987654 --commit
   bunnings-ninja ninja export products products.csv
   bunnings-ninja ninja export products -
-  bunnings-ninja ninja export products products.csv --force
+  bunnings-ninja ninja export products products.csv --commit
   bunnings-ninja ninja import products products.csv
-  bunnings-ninja ninja import products --apply products.csv
+  bunnings-ninja ninja import products --commit products.csv
   bunnings-ninja ninja export clients clients.csv
-  bunnings-ninja ninja import clients --apply clients.csv
+  bunnings-ninja ninja import clients --commit clients.csv
   bunnings-ninja ninja export quotes quotes.csv
   bunnings-ninja ninja export invoices invoices.csv
   bunnings-ninja ninja export payments payments.csv
