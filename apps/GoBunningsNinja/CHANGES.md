@@ -6,7 +6,7 @@
 - Added `bunnings` command namespace with `find`, `get`, and `lookup`.
 - Retired advertised top-level `search`; moved guarded cross-system behavior under `sync search` and introduced `sync refresh` / `sync import`.
 - Kept compatibility for legacy `add-in` command with deprecation notice.
-- Replaced write-command `--dry-run` usage with the safer `--apply` convention: commands preview by default and only update Invoice Ninja when `--apply` is supplied.
+- Consolidated write/overwrite confirmation onto one `--commit` flag: commands preview or refuse risky writes by default, and only persist changes when `--commit` is supplied.
 
 
 ## v0.4
@@ -35,10 +35,9 @@
   - `ninja export payments <file|->`
 - Removed the `--out` flag from export commands.
 - Export commands now take `-` for stdout or a filename for file output.
-- Export commands now refuse to overwrite existing files unless `--force` is supplied.
+- Export commands refuse to overwrite existing files unless the explicit commit flag is supplied.
 - Import commands now take `-` for stdin or a filename for file input.
 - Import commands now fail clearly if the requested import file does not exist.
-- Added a reusable `--force` pattern for commands that need explicit overwrite behaviour.
 - Kept product and client imports as preview-by-default operations.
 - Marked quote, invoice, and payment CSV handling as export-only.
 
