@@ -359,14 +359,14 @@ func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, args []stri
 
 func (a App) runNinjaImport(ctx context.Context, svc *ninja.Service, args []string) int {
 	if len(args) < 1 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja ninja import <products|clients> <file|-> [--dry-run=false]")
+		fmt.Fprintln(a.Err, "usage: bunnings-ninja ninja import <products|clients> <file|-> [--apply]")
 		return 2
 	}
 	kind := args[0]
 	inPath, dryRun, err := parseImportArgs(args[1:])
 	if err != nil {
 		fmt.Fprintln(a.Err, err)
-		fmt.Fprintf(a.Err, "usage: bunnings-ninja ninja import %s <file|-> [--dry-run=false]\n", kind)
+		fmt.Fprintf(a.Err, "usage: bunnings-ninja ninja import %s <file|-> [--apply]\n", kind)
 		return 2
 	}
 	r, closeFn, err := readerFor(inPath, os.Stdin)
@@ -421,20 +421,14 @@ func parseExportArgs(args []string) (string, bool, error) {
 func parseImportArgs(args []string) (string, bool, error) {
 	dryRun := true
 	var paths []string
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
+	for _, arg := range args {
 		switch {
-		case arg == "--dry-run" || arg == "-dry-run":
-			dryRun = true
-		case arg == "--dry-run=false" || arg == "-dry-run=false":
-			dryRun = false
-		case arg == "--dry-run=true" || arg == "-dry-run=true":
-			dryRun = true
-		case strings.HasPrefix(arg, "--dry-run="):
-			v := strings.TrimPrefix(arg, "--dry-run=")
-			dryRun = !(v == "false" || v == "0" || strings.EqualFold(v, "no"))
 		case arg == "--apply":
 			dryRun = false
+		case strings.HasPrefix(arg, "--dry-run") || strings.HasPrefix(arg, "-dry-run"):
+			return "", true, fmt.Errorf("--dry-run has been removed; imports preview by default, use --apply to update Invoice Ninja")
+		case strings.HasPrefix(arg, "-"):
+			return "", true, fmt.Errorf("unknown import flag %q", arg)
 		default:
 			paths = append(paths, arg)
 		}
@@ -589,9 +583,9 @@ Commands:
   sync import <IN>                      Add or refresh one product by Bunnings item number.
   sync search <query>                   Guarded Bunnings search/import workflow for Invoice Ninja.
   ninja export products <file|->        Export Invoice Ninja products as CSV.
-  ninja import products <file|->        Import product CSV changes; dry-run by default.
+  ninja import products <file|->        Preview product CSV changes; use --apply to update.
   ninja export clients <file|->         Export Invoice Ninja clients as CSV.
-  ninja import clients <file|->         Import client CSV changes; dry-run by default.
+  ninja import clients <file|->         Preview client CSV changes; use --apply to update.
   ninja export quotes <file|->          Export Invoice Ninja quotes as CSV.
   ninja export invoices <file|->        Export Invoice Ninja invoices as CSV.
   ninja export payments <file|->        Export Invoice Ninja payments as CSV.
@@ -609,9 +603,9 @@ Examples:
   bunnings-ninja ninja export products -
   bunnings-ninja ninja export products products.csv --force
   bunnings-ninja ninja import products products.csv
-  bunnings-ninja ninja import products --dry-run=false products.csv
+  bunnings-ninja ninja import products --apply products.csv
   bunnings-ninja ninja export clients clients.csv
-  bunnings-ninja ninja import clients --dry-run=false clients.csv
+  bunnings-ninja ninja import clients --apply clients.csv
   bunnings-ninja ninja export quotes quotes.csv
   bunnings-ninja ninja export invoices invoices.csv
   bunnings-ninja ninja export payments payments.csv
