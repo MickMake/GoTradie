@@ -68,7 +68,7 @@ Required for Invoice Ninja commands:
 INVOICE_NINJA_TOKEN
 ```
 
-Also required for Bunnings sync/search commands:
+Required for API-backed Bunnings sync/search commands:
 
 ```text
 BUNNINGS_CLIENT_ID
@@ -95,7 +95,6 @@ See `gobunningsninja.conf.example`.
 ## Commands
 
 All write-capable commands preview or refuse risky writes by default. Add `--commit` when you want to make a persistent change.
-> All write-capable commands preview or refuse risky writes by default. Add `--commit` when you want to make a persistent change.
 
 ## Bunnings data source
 
@@ -113,18 +112,6 @@ bunnings-ninja sync search "merbau decking" --web
 ```
 
 `--web` only changes the Bunnings data source. It does not imply `--commit`, does not modify Invoice Ninja by itself, and does not silently fall back to the API.
-
-Also change:
-
-```text
-Also required for Bunnings sync/search commands:
-```
-
-to:
-
-```text
-Required for API-backed Bunnings sync/search commands:
-```
 
 ### Sync existing Invoice Ninja products
 

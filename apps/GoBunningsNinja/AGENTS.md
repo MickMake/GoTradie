@@ -47,7 +47,7 @@ Do not add:
 Default Bunnings data source is the Bunnings API.
 
 --web means:
-Use the public Bunnings website instead of the Bunnings API.
+Use the website-derived Bunnings retrieval path instead of the Bunnings API.
 
 --web must not:
 - imply --commit
