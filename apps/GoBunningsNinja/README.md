@@ -27,8 +27,6 @@ GoNinjaWorkspace/
 From the parent folder:
 
 ```bash
-git clone git@github.com:MickMake/GoBunnings.git
-git clone git@github.com:MickMake/GoInvoiceNinja.git
 git clone git@github.com:MickMake/GoBunningsNinja.git
 
 go work init ./GoBunnings ./GoInvoiceNinja ./GoBunningsNinja
