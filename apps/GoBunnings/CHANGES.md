@@ -1,3 +1,5 @@
+
+- Added a reusable website-backed Bunnings retrieval helper (`WebsiteService`) for item lookup and search without API fallback.
 # GoBunnings Changes
 
 ## v0.5 - Workspace context documentation

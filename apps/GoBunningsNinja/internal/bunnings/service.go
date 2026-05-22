@@ -21,6 +21,8 @@ type Product struct {
 
 type Service struct {
 	client   *gobunnings.Client
+	website  *gobunnings.WebsiteService
+	useWeb   bool
 	country  gobunnings.CountryCode
 	location string
 }
@@ -34,13 +36,25 @@ func New(cfg config.Config) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Service{client: client, country: cfg.Country, location: cfg.LocationCode}, nil
+	return &Service{client: client, website: gobunnings.NewWebsiteService(client.HTTP), country: cfg.Country, location: cfg.LocationCode}, nil
+}
+
+func (s *Service) WithWeb(enabled bool) *Service {
+	s.useWeb = enabled
+	return s
 }
 
 func (s *Service) GetProduct(ctx context.Context, itemNumber string) (Product, error) {
 	itemNumber = strings.TrimSpace(itemNumber)
 	if itemNumber == "" {
 		return Product{}, fmt.Errorf("Bunnings item number is required")
+	}
+	if s.useWeb {
+		wp, err := s.website.Get(ctx, itemNumber)
+		if err != nil {
+			return Product{}, err
+		}
+		return Product{ItemNumber: wp.ItemNumber, Title: wp.Title, Description: wp.Description, Unit: wp.Unit, ImageURL: wp.ImageURL, Price: wp.Price}, nil
 	}
 	item, err := s.client.Item.Detail(ctx, s.country, itemNumber, gobunnings.QueryOptions{})
 	if err != nil {
@@ -67,6 +81,17 @@ func (s *Service) Search(ctx context.Context, query string, limit int) ([]Produc
 	}
 	if limit > 25 {
 		return nil, fmt.Errorf("search import guardrail: limit must be 25 or less")
+	}
+	if s.useWeb {
+		rows, err := s.website.Search(ctx, query, limit)
+		if err != nil {
+			return nil, err
+		}
+		products := make([]Product, 0, len(rows))
+		for _, r := range rows {
+			products = append(products, Product{ItemNumber: r.ItemNumber, Title: r.Title, Description: r.Description, Unit: r.Unit, ImageURL: r.ImageURL, Price: r.Price})
+		}
+		return products, nil
 	}
 	resp, err := s.client.Item.Search(ctx, s.country, gobunnings.ItemSearchRequest{Query: query}, "")
 	if err != nil {

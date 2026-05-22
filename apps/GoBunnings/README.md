@@ -187,3 +187,8 @@ fmt.Println(item.Raw) // fallback for Bunnings fields not yet modelled by the SD
 ```
 
 `Item.ImageURL` is populated from the best available Bunnings media field. The preferred source is `enrichedItem.picture.primaryAssetURL`, with fallbacks for related media URL fields.
+
+## Website retrieval
+
+Use `WebsiteService` when you need website-derived lookup/search data (without using the Bunnings API).
+

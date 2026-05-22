@@ -56,7 +56,7 @@ Top-level commands
 
 Bunnings commands
 
-  bunnings find <query> [--limit=N]
+  bunnings find <query> [--web] [--limit=N]
       Search Bunnings using a fuzzy/natural-ish query and print CSV.
       This is read-only discovery.
       It does not require Invoice Ninja credentials.
@@ -71,7 +71,7 @@ Bunnings commands
         0987654,140 x 19mm Merbau Decking LM,LM,11.20,https://...
         0456789,Merbau Screening 42 x 19mm LM,LM,4.80,https://...
 
-  bunnings get <IN...>
+  bunnings get <IN...> [--web]
       Fetch one or more exact Bunnings item numbers and print CSV.
       This is read-only exact lookup.
       Errors are returned as row data where practical so one bad item does not spoil the whole basket.
@@ -84,7 +84,7 @@ Bunnings commands
         0123456,90 x 19mm Merbau Decking LM,LM,7.45,https://...
         0987654,140 x 19mm Merbau Decking LM,LM,11.20,https://...
 
-  bunnings lookup <IN...>
+  bunnings lookup <IN...> [--web]
       Fetch one or more exact Bunnings item numbers and print human-readable detail blocks.
       This is the readable sibling of bunnings get.
       It does not produce CSV and does not accept --commit.
@@ -102,7 +102,7 @@ Bunnings commands
 
 Sync commands
 
-  sync refresh [--commit]
+  sync refresh [--web] [--commit]
       Refresh existing Invoice Ninja products already linked to Bunnings item numbers.
       Also allowed as shorthand:
         bunnings-ninja sync
@@ -126,7 +126,7 @@ Sync commands
         0123456   BUNNINGS-0123456  updated       price 7.20 -> 7.45
         0987654   BUNNINGS-0987654  unchanged
 
-  sync import <IN> [--commit]
+  sync import <IN> [--web] [--commit]
       Add or refresh a single Invoice Ninja product from a known Bunnings item number.
       Without --commit, this previews create/update behaviour only.
       With --commit, the matching Invoice Ninja product may be created or updated.
@@ -150,7 +150,7 @@ Sync commands
 
       The alias prints a deprecation notice and routes to sync import.
 
-  sync search <query> [--limit=N]
+  sync search <query> [--web] [--limit=N]
       Search Bunnings and show candidate products.
       This mode cannot update Invoice Ninja.
 

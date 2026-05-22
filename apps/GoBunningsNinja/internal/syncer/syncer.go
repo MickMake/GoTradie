@@ -15,6 +15,7 @@ type Bunnings interface {
 	GetProduct(context.Context, string) (bunnings.Product, error)
 	Search(context.Context, string, int) ([]bunnings.Product, error)
 	Hydrate(context.Context, bunnings.Product) (bunnings.Product, error)
+	WithWeb(bool) *bunnings.Service
 }
 
 type Ninja interface {

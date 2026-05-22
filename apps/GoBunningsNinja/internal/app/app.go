@@ -167,13 +167,15 @@ func (a App) runSync(ctx context.Context, svc syncer.Service, args []string) int
 	fs := flag.NewFlagSet("sync", flag.ContinueOnError)
 	fs.SetOutput(a.Err)
 	commit := fs.Bool("commit", false, "commit changes to Invoice Ninja")
+	web := fs.Bool("web", false, "use website-derived Bunnings data instead of the API")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if fs.NArg() != 0 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja sync refresh [--commit]")
+		fmt.Fprintln(a.Err, "usage: bunnings-ninja sync refresh [--web] [--commit]")
 		return 2
 	}
+	svc.Bunnings.WithWeb(*web)
 	svc.DryRun = !*commit
 	results, err := svc.SyncExisting(ctx)
 	if err != nil {
@@ -188,13 +190,15 @@ func (a App) runAddIN(ctx context.Context, svc syncer.Service, args []string) in
 	fs := flag.NewFlagSet("add-in", flag.ContinueOnError)
 	fs.SetOutput(a.Err)
 	commit := fs.Bool("commit", false, "commit changes to Invoice Ninja")
+	web := fs.Bool("web", false, "use website-derived Bunnings data instead of the API")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if fs.NArg() != 1 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja sync import [--commit] <bunnings-in>")
+		fmt.Fprintln(a.Err, "usage: bunnings-ninja sync import [--web] [--commit] <bunnings-in>")
 		return 2
 	}
+	svc.Bunnings.WithWeb(*web)
 	svc.DryRun = !*commit
 	res := svc.AddByIN(ctx, fs.Arg(0))
 	printResults(a.Out, []syncer.Result{res})
@@ -210,14 +214,16 @@ func (a App) runSearch(ctx context.Context, svc syncer.Service, args []string) i
 	all := fs.Bool("all", false, "import all returned results up to --limit; requires --yes")
 	yes := fs.Bool("yes", false, "confirm a guarded bulk import")
 	commit := fs.Bool("commit", false, "commit selected product changes to Invoice Ninja")
+	web := fs.Bool("web", false, "use website-derived Bunnings data instead of the API")
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
 	if fs.NArg() < 1 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja sync search [--limit=10] [--create --select=IN1,IN2 --commit] <query>")
+		fmt.Fprintln(a.Err, "usage: bunnings-ninja sync search [--web] [--limit=10] [--create --select=IN1,IN2 --commit] <query>")
 		return 2
 	}
 	query := strings.Join(fs.Args(), " ")
+	svc.Bunnings.WithWeb(*web)
 	products, err := svc.Search(ctx, query, *limit)
 	if err != nil {
 		fmt.Fprintln(a.Err, "search error:", err)
@@ -252,13 +258,15 @@ func (a App) runBunnings(ctx context.Context, svc *bunnings.Service, args []stri
 		fs := flag.NewFlagSet("bunnings find", flag.ContinueOnError)
 		fs.SetOutput(a.Err)
 		limit := fs.Int("limit", 10, "maximum results (default 10, max 25)")
+		web := fs.Bool("web", false, "use website-derived Bunnings data instead of the API")
 		if err := fs.Parse(args[1:]); err != nil {
 			return 2
 		}
 		if fs.NArg() < 1 {
-			fmt.Fprintln(a.Err, "usage: bunnings-ninja bunnings find [--limit=10] <query>")
+			fmt.Fprintln(a.Err, "usage: bunnings-ninja bunnings find [--web] [--limit=10] <query>")
 			return 2
 		}
+		svc.WithWeb(*web)
 		products, err := svc.Search(ctx, strings.Join(fs.Args(), " "), *limit)
 		if err != nil {
 			fmt.Fprintln(a.Err, "find error:", err)
@@ -276,12 +284,19 @@ func (a App) runBunnings(ctx context.Context, svc *bunnings.Service, args []stri
 		printProductsCSV(a.Out, hydrated)
 		return 0
 	case "get":
-		if len(args[1:]) < 1 {
-			fmt.Fprintln(a.Err, "usage: bunnings-ninja bunnings get <IN...>")
+		fs := flag.NewFlagSet("bunnings get", flag.ContinueOnError)
+		fs.SetOutput(a.Err)
+		web := fs.Bool("web", false, "use website-derived Bunnings data instead of the API")
+		if err := fs.Parse(args[1:]); err != nil {
 			return 2
 		}
-		rows := make([]bunnings.Product, 0, len(args[1:]))
-		for _, item := range args[1:] {
+		if fs.NArg() < 1 {
+			fmt.Fprintln(a.Err, "usage: bunnings-ninja bunnings get [--web] <IN...>")
+			return 2
+		}
+		svc.WithWeb(*web)
+		rows := make([]bunnings.Product, 0, fs.NArg())
+		for _, item := range fs.Args() {
 			p, err := svc.GetProduct(ctx, item)
 			if err != nil {
 				rows = append(rows, bunnings.Product{ItemNumber: item, Description: err.Error()})
@@ -292,11 +307,18 @@ func (a App) runBunnings(ctx context.Context, svc *bunnings.Service, args []stri
 		printProductsCSV(a.Out, rows)
 		return 0
 	case "lookup":
-		if len(args[1:]) < 1 {
-			fmt.Fprintln(a.Err, "usage: bunnings-ninja bunnings lookup <IN...>")
+		fs := flag.NewFlagSet("bunnings lookup", flag.ContinueOnError)
+		fs.SetOutput(a.Err)
+		web := fs.Bool("web", false, "use website-derived Bunnings data instead of the API")
+		if err := fs.Parse(args[1:]); err != nil {
 			return 2
 		}
-		for _, item := range args[1:] {
+		if fs.NArg() < 1 {
+			fmt.Fprintln(a.Err, "usage: bunnings-ninja bunnings lookup [--web] <IN...>")
+			return 2
+		}
+		svc.WithWeb(*web)
+		for _, item := range fs.Args() {
 			p, err := svc.GetProduct(ctx, item)
 			if err != nil {
 				fmt.Fprintf(a.Out, "IN: %s\nError: %v\n\n", item, err)
