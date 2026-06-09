@@ -1,12 +1,18 @@
 
 # Changes
 
-## v0.6
+## v0.6 planning docs
 
-- Added `--web` support for Bunnings-backed commands (`bunnings get|lookup|find`, `sync refresh|import|search`) to select website-derived Bunnings data with no silent API fallback.
+- Added supplier import overview document.
+- Added supplier import implementation prompt document.
+- Captured v0.6.x staged implementation plan for supplier CSV/XLSX price list import.
+- Captured proposed `supplier` command family: `init`, `check`, `import`, and `list`.
+- Captured YAML profile model using `input`, `aliases`, and `fields`.
+
 
 ## v0.5
 
+- Added `--web` support for Bunnings-backed commands (`bunnings get|lookup|find`, `sync refresh|import|search`) to select website-derived Bunnings data with no silent API fallback.
 - Aligned app version metadata/docs to `v0.5` and updated SDK dependency targets to `GoBunnings v0.5.0` and `GoInvoiceNinja v0.5.0`.
 - Added `bunnings` command namespace with `find`, `get`, and `lookup`.
 - Added top-level `commands` extended help, with `extended-help` and `manual` aliases, covering each command with example output.
@@ -23,6 +29,7 @@
 - Updated `README.md` to describe local development with a parent-folder `go.work` workspace instead of machine-specific `replace` paths.
 - Updated `README.md` to describe local development with a parent-folder `go.work` workspace.
 - Preserved relative local `replace` directives in `go.mod` for simple single-machine development.
+
 
 ## v0.3
 
@@ -46,6 +53,7 @@
 - Import commands now fail clearly if the requested import file does not exist.
 - Kept product and client imports as preview-by-default operations.
 - Marked quote, invoice, and payment CSV handling as export-only.
+
 
 ## v0.1
 
