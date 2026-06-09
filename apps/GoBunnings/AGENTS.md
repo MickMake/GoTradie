@@ -5,12 +5,12 @@ This module is an independent reusable library/application.
 This module MUST remain standalone.
 
 Forbidden imports:
-- apps/GoBunningsNinja
+- apps/GoTradie
 - apps/GoInvoiceNinja
 
 Rules:
 - Bunnings website lookup/search helpers belong in this module when they are reusable.
-- Website-backed retrieval must stay Bunnings-specific and must not depend on GoBunningsNinja.
+- Website-backed retrieval must stay Bunnings-specific and must not depend on GoTradie.
 - Prefer normal HTTP plus structured-data/HTML parsing before browser automation.
 - If browser automation is unavoidable, isolate it behind a small API so callers do not care how web data is retrieved.
 - Website-backed lookup/search must fail clearly when required product data cannot be retrieved.

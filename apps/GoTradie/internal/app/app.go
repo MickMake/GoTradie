@@ -10,10 +10,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/MickMake/GoBunningsNinja/internal/bunnings"
-	"github.com/MickMake/GoBunningsNinja/internal/config"
-	"github.com/MickMake/GoBunningsNinja/internal/ninja"
-	"github.com/MickMake/GoBunningsNinja/internal/syncer"
+	"github.com/MickMake/GoTradie/internal/bunnings"
+	"github.com/MickMake/GoTradie/internal/config"
+	"github.com/MickMake/GoTradie/internal/ninja"
+	"github.com/MickMake/GoTradie/internal/syncer"
 )
 
 const version = "v0.5"
@@ -116,7 +116,7 @@ func (a App) Run(ctx context.Context, args []string) int {
 		}
 		return a.runNinja(ctx, nj, args[1:])
 	case "ninja-products-export", "ninja-products-import", "ninja-clients-export", "ninja-clients-import":
-		fmt.Fprintln(a.Err, "this command form has been replaced; use `bunnings-ninja ninja export ...` or `bunnings-ninja ninja import ...`")
+		fmt.Fprintln(a.Err, "this command form has been replaced; use `GoTradie ninja export ...` or `GoTradie ninja import ...`")
 		return 2
 	default:
 		fmt.Fprintln(a.Err, "unknown command:", args[0])
@@ -172,7 +172,7 @@ func (a App) runSync(ctx context.Context, svc syncer.Service, args []string) int
 		return 2
 	}
 	if fs.NArg() != 0 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja sync refresh [--web] [--commit]")
+		fmt.Fprintln(a.Err, "usage: GoTradie sync refresh [--web] [--commit]")
 		return 2
 	}
 	svc.Bunnings.WithWeb(*web)
@@ -195,7 +195,7 @@ func (a App) runAddIN(ctx context.Context, svc syncer.Service, args []string) in
 		return 2
 	}
 	if fs.NArg() != 1 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja sync import [--web] [--commit] <bunnings-in>")
+		fmt.Fprintln(a.Err, "usage: GoTradie sync import [--web] [--commit] <bunnings-in>")
 		return 2
 	}
 	svc.Bunnings.WithWeb(*web)
@@ -219,7 +219,7 @@ func (a App) runSearch(ctx context.Context, svc syncer.Service, args []string) i
 		return 2
 	}
 	if fs.NArg() < 1 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja sync search [--web] [--limit=10] [--create --select=IN1,IN2 --commit] <query>")
+		fmt.Fprintln(a.Err, "usage: GoTradie sync search [--web] [--limit=10] [--create --select=IN1,IN2 --commit] <query>")
 		return 2
 	}
 	query := strings.Join(fs.Args(), " ")
@@ -250,7 +250,7 @@ func (a App) runSearch(ctx context.Context, svc syncer.Service, args []string) i
 
 func (a App) runBunnings(ctx context.Context, svc *bunnings.Service, args []string) int {
 	if len(args) < 1 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja bunnings <find|get|lookup> ...")
+		fmt.Fprintln(a.Err, "usage: GoTradie bunnings <find|get|lookup> ...")
 		return 2
 	}
 	switch args[0] {
@@ -263,7 +263,7 @@ func (a App) runBunnings(ctx context.Context, svc *bunnings.Service, args []stri
 			return 2
 		}
 		if fs.NArg() < 1 {
-			fmt.Fprintln(a.Err, "usage: bunnings-ninja bunnings find [--web] [--limit=10] <query>")
+			fmt.Fprintln(a.Err, "usage: GoTradie bunnings find [--web] [--limit=10] <query>")
 			return 2
 		}
 		svc.WithWeb(*web)
@@ -291,7 +291,7 @@ func (a App) runBunnings(ctx context.Context, svc *bunnings.Service, args []stri
 			return 2
 		}
 		if fs.NArg() < 1 {
-			fmt.Fprintln(a.Err, "usage: bunnings-ninja bunnings get [--web] <IN...>")
+			fmt.Fprintln(a.Err, "usage: GoTradie bunnings get [--web] <IN...>")
 			return 2
 		}
 		svc.WithWeb(*web)
@@ -314,7 +314,7 @@ func (a App) runBunnings(ctx context.Context, svc *bunnings.Service, args []stri
 			return 2
 		}
 		if fs.NArg() < 1 {
-			fmt.Fprintln(a.Err, "usage: bunnings-ninja bunnings lookup [--web] <IN...>")
+			fmt.Fprintln(a.Err, "usage: GoTradie bunnings lookup [--web] <IN...>")
 			return 2
 		}
 		svc.WithWeb(*web)
@@ -335,7 +335,7 @@ func (a App) runBunnings(ctx context.Context, svc *bunnings.Service, args []stri
 
 func (a App) runNinja(ctx context.Context, svc *ninja.Service, args []string) int {
 	if len(args) < 1 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja ninja <export|import> ...")
+		fmt.Fprintln(a.Err, "usage: GoTradie ninja <export|import> ...")
 		return 2
 	}
 	switch args[0] {
@@ -345,21 +345,21 @@ func (a App) runNinja(ctx context.Context, svc *ninja.Service, args []string) in
 		return a.runNinjaImport(ctx, svc, args[1:])
 	default:
 		fmt.Fprintln(a.Err, "unknown ninja subcommand:", args[0])
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja ninja <export|import> ...")
+		fmt.Fprintln(a.Err, "usage: GoTradie ninja <export|import> ...")
 		return 2
 	}
 }
 
 func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, args []string) int {
 	if len(args) < 1 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja ninja export <products|clients|quotes|invoices|payments> <file|-> [--commit]")
+		fmt.Fprintln(a.Err, "usage: GoTradie ninja export <products|clients|quotes|invoices|payments> <file|-> [--commit]")
 		return 2
 	}
 	kind := args[0]
 	outPath, commit, err := parseExportArgs(args[1:])
 	if err != nil {
 		fmt.Fprintln(a.Err, err)
-		fmt.Fprintf(a.Err, "usage: bunnings-ninja ninja export %s <file|-> [--commit]\n", kind)
+		fmt.Fprintf(a.Err, "usage: GoTradie ninja export %s <file|-> [--commit]\n", kind)
 		return 2
 	}
 	w, closeFn, err := writerFor(outPath, a.Out, commit)
@@ -393,14 +393,14 @@ func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, args []stri
 
 func (a App) runNinjaImport(ctx context.Context, svc *ninja.Service, args []string) int {
 	if len(args) < 1 {
-		fmt.Fprintln(a.Err, "usage: bunnings-ninja ninja import <products|clients> <file|-> [--commit]")
+		fmt.Fprintln(a.Err, "usage: GoTradie ninja import <products|clients> <file|-> [--commit]")
 		return 2
 	}
 	kind := args[0]
 	inPath, dryRun, err := parseImportArgs(args[1:])
 	if err != nil {
 		fmt.Fprintln(a.Err, err)
-		fmt.Fprintf(a.Err, "usage: bunnings-ninja ninja import %s <file|-> [--commit]\n", kind)
+		fmt.Fprintf(a.Err, "usage: GoTradie ninja import %s <file|-> [--commit]\n", kind)
 		return 2
 	}
 	r, closeFn, err := readerFor(inPath, os.Stdin)
@@ -596,13 +596,13 @@ func exitCode(results []syncer.Result) int {
 }
 
 func (a App) usage() {
-	fmt.Fprintln(a.Out, `bunnings-ninja syncs Bunnings products into Invoice Ninja.
+	fmt.Fprintln(a.Out, `GoTradie syncs Bunnings products into Invoice Ninja.
 
 Version: v0.5
 
 Global options:
   --config <path>       Optional key=value config file. File values override environment variables.
-                        If omitted, GOBUNNINGSNINJA_CONFIG is used, then ./gobunningsninja.conf if present.
+                        If omitted, GOTRADIE_CONFIG is used, then ./gotradie.conf if present.
 
 Commands:
   bunnings find <query>                 Fuzzy Bunnings discovery (CSV output).
@@ -622,24 +622,24 @@ Commands:
   version                               Print version.
 
 Examples:
-  bunnings-ninja commands
-  bunnings-ninja bunnings find "merbau decking" --limit=10
-  bunnings-ninja bunnings get 0123456 0987654
-  bunnings-ninja bunnings lookup 0123456
-  bunnings-ninja sync refresh --commit
-  bunnings-ninja sync import --commit 0123456
-  bunnings-ninja sync search "merbau decking" --limit=10
-  bunnings-ninja sync search "merbau decking" --create --select=0123456,0987654 --commit
-  bunnings-ninja ninja export products products.csv
-  bunnings-ninja ninja export products -
-  bunnings-ninja ninja export products products.csv --commit
-  bunnings-ninja ninja import products products.csv
-  bunnings-ninja ninja import products --commit products.csv
-  bunnings-ninja ninja export clients clients.csv
-  bunnings-ninja ninja import clients --commit clients.csv
-  bunnings-ninja ninja export quotes quotes.csv
-  bunnings-ninja ninja export invoices invoices.csv
-  bunnings-ninja ninja export payments payments.csv
+  GoTradie commands
+  GoTradie bunnings find "merbau decking" --limit=10
+  GoTradie bunnings get 0123456 0987654
+  GoTradie bunnings lookup 0123456
+  GoTradie sync refresh --commit
+  GoTradie sync import --commit 0123456
+  GoTradie sync search "merbau decking" --limit=10
+  GoTradie sync search "merbau decking" --create --select=0123456,0987654 --commit
+  GoTradie ninja export products products.csv
+  GoTradie ninja export products -
+  GoTradie ninja export products products.csv --commit
+  GoTradie ninja import products products.csv
+  GoTradie ninja import products --commit products.csv
+  GoTradie ninja export clients clients.csv
+  GoTradie ninja import clients --commit clients.csv
+  GoTradie ninja export quotes quotes.csv
+  GoTradie ninja export invoices invoices.csv
+  GoTradie ninja export payments payments.csv
 
 Required configuration for ninja commands:
   INVOICE_NINJA_TOKEN

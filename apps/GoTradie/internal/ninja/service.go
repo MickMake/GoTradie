@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/MickMake/GoBunningsNinja/internal/config"
+	"github.com/MickMake/GoTradie/internal/config"
 	invoiceninja "github.com/MickMake/GoInvoiceNinja"
 )
 
@@ -16,7 +16,7 @@ type Service struct {
 }
 
 func New(cfg config.Config) (*Service, error) {
-	opts := []invoiceninja.Option{invoiceninja.WithUserAgent("GoBunningsNinja/v0.3")}
+	opts := []invoiceninja.Option{invoiceninja.WithUserAgent("GoTradie/v0.3")}
 	if cfg.InvoiceNinjaURL != "" {
 		opts = append(opts, invoiceninja.WithBaseURL(cfg.InvoiceNinjaURL))
 	}

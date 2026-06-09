@@ -1,4 +1,4 @@
-# GoBunningsNinja module
+# GoTradie module
 
 This is the primary application module.
 

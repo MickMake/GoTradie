@@ -8,7 +8,7 @@
 
 ## v0.4 - Sync-client compatibility improvements
 
-- Preserved `Item.Raw` and `Item.ImageURL` support from prior versions for GoBunningsNinja product syncing.
+- Preserved `Item.Raw` and `Item.ImageURL` support from prior versions for GoTradie product syncing.
 - Added `ProblemDetails.UnmarshalJSON` tests proving RFC7807 extension fields are captured in `ProblemDetails.Extra`.
 - Added API error coverage proving problem extension fields survive through HTTP error responses.
 - Removed the artificial `url.Values{}` import keepalive from `item.go` and cleaned imports.

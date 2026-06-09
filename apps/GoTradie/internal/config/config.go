@@ -11,7 +11,7 @@ import (
 	gobunnings "github.com/MickMake/GoBunnings"
 )
 
-const DefaultConfigPath = "gobunningsninja.conf"
+const DefaultConfigPath = "gotradie.conf"
 
 type Config struct {
 	InvoiceNinjaURL   string
@@ -37,7 +37,7 @@ func FromEnv() (Config, error) {
 func FromEnvAndFile(path string) (Config, error) {
 	cfg := defaultsFromEnv()
 	if path == "" {
-		path = strings.TrimSpace(os.Getenv("GOBUNNINGSNINJA_CONFIG"))
+		path = strings.TrimSpace(os.Getenv("GOTRADIE_CONFIG"))
 	}
 	if path == "" {
 		if _, err := os.Stat(DefaultConfigPath); err == nil {

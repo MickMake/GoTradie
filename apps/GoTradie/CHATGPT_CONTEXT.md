@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`GoBunningsNinja` is the application/CLI that composes `GoBunnings` and `GoInvoiceNinja`.
+`GoTradie` is the application/CLI that composes `GoBunnings` and `GoInvoiceNinja`.
 
 It owns the workflow that turns Bunnings product data into safe Invoice Ninja product updates/imports/exports.
 
@@ -11,16 +11,16 @@ It owns the workflow that turns Bunnings product data into safe Invoice Ninja pr
 ```text
 GoBunnings      -> reusable Bunnings API SDK
 GoInvoiceNinja  -> reusable Invoice Ninja API SDK
-GoBunningsNinja -> application/CLI that imports both SDKs
+GoTradie -> application/CLI that imports both SDKs
 ```
 
 ## Dependency rules
 
-- `GoBunningsNinja` may import `GoBunnings`.
-- `GoBunningsNinja` may import `GoInvoiceNinja`.
-- `GoBunnings` must not import `GoInvoiceNinja` or `GoBunningsNinja`.
-- `GoInvoiceNinja` must not import `GoBunnings` or `GoBunningsNinja`.
-- Mapping logic belongs in `GoBunningsNinja`, preferably under `internal/mapper` or the relevant workflow package.
+- `GoTradie` may import `GoBunnings`.
+- `GoTradie` may import `GoInvoiceNinja`.
+- `GoBunnings` must not import `GoInvoiceNinja` or `GoTradie`.
+- `GoInvoiceNinja` must not import `GoBunnings` or `GoTradie`.
+- Mapping logic belongs in `GoTradie`, preferably under `internal/mapper` or the relevant workflow package.
 
 ## Go version
 
@@ -32,7 +32,7 @@ Go `1.22`.
 go test ./...
 go vet ./...
 go mod tidy
-go build ./cmd/bunnings-ninja
+go build ./cmd/GoTradie
 ```
 
 ## Local multi-repo development
@@ -44,13 +44,13 @@ GoNinjaWorkspace/
 ├── go.work
 ├── GoBunnings/
 ├── GoInvoiceNinja/
-└── GoBunningsNinja/
+└── GoTradie/
 ```
 
 Create the workspace from the parent folder:
 
 ```bash
-go work init ./GoBunnings ./GoInvoiceNinja ./GoBunningsNinja
+go work init ./GoBunnings ./GoInvoiceNinja ./GoTradie
 go work sync
 ```
 

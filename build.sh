@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cd ./apps/GoBunningsNinja
+cd ./apps/GoTradie
 go test ./...
-go build -o ../../bunnings-ninja ./cmd/bunnings-ninja
+go build -o ../../GoTradie ./cmd/GoTradie
 

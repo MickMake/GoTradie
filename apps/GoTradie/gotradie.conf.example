@@ -1,4 +1,4 @@
-# GoBunningsNinja configuration.
+# GoTradie configuration.
 # Values in this file override environment variables.
 
 INVOICE_NINJA_URL=https://your.invoice-ninja.example

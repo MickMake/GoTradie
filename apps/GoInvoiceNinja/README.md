@@ -2,7 +2,7 @@
 
 Version: **v0.2**
 
-Idiomatic Go client for Invoice Ninja v5, focused on the endpoint groups needed by GoBunningsNinja:
+Idiomatic Go client for Invoice Ninja v5, focused on the endpoint groups needed by GoTradie:
 
 - Clients
 - Products
@@ -161,7 +161,7 @@ product, err := c.Products.Create(ctx, goinvoiceninja.CreateProductRequest{
 })
 ```
 
-For GoBunningsNinja CSV workflows, the preferred storage order is:
+For GoTradie CSV workflows, the preferred storage order is:
 
 1. Use `ProductImage` / `product_image` when your Invoice Ninja instance supports it.
 2. Also allow the sync client's configurable custom-field fallback, defaulting to `custom_value2`, for compatibility with older or stricter instances.

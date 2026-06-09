@@ -1,8 +1,8 @@
-# GoBunningsNinja command intention spec
+# GoTradie command intention spec
 
 Version: v0.6-draft
 
-This document defines intended CLI behaviour for `bunnings-ninja`.
+This document defines intended CLI behaviour for `GoTradie`.
 
 ## Core safety model
 

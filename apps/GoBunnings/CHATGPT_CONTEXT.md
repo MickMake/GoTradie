@@ -8,20 +8,20 @@ It should stay focused on Bunnings API transport, authentication, typed requests
 
 ## Role in the wider workspace
 
-`GoBunnings` is consumed by `GoBunningsNinja`.
+`GoBunnings` is consumed by `GoTradie`.
 
 ```text
 GoBunnings      -> reusable Bunnings API SDK
 GoInvoiceNinja  -> reusable Invoice Ninja API SDK
-GoBunningsNinja -> application/CLI that imports both SDKs
+GoTradie -> application/CLI that imports both SDKs
 ```
 
 ## Dependency rules
 
-- `GoBunnings` must not import `GoBunningsNinja`.
+- `GoBunnings` must not import `GoTradie`.
 - `GoBunnings` must not import `GoInvoiceNinja`.
 - Keep business workflow and mapping logic out of this package.
-- Bunnings-to-Invoice Ninja conversion belongs in `GoBunningsNinja`.
+- Bunnings-to-Invoice Ninja conversion belongs in `GoTradie`.
 
 ## Go version
 
@@ -55,4 +55,4 @@ Avoid:
 
 ## Development workflow
 
-When developing this repo together with `GoInvoiceNinja` and `GoBunningsNinja`, use a parent folder with a local `go.work` file. Do not commit local absolute-path `replace` directives to this repo.
+When developing this repo together with `GoInvoiceNinja` and `GoTradie`, use a parent folder with a local `go.work` file. Do not commit local absolute-path `replace` directives to this repo.

@@ -5,7 +5,7 @@ This module is an independent reusable library/application.
 This module MUST remain standalone.
 
 Forbidden imports:
-- apps/GoBunningsNinja
+- apps/GoTradie
 - apps/GoBunnings
 
 Rules:

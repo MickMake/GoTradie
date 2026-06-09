@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/MickMake/GoBunningsNinja/internal/bunnings"
+	"github.com/MickMake/GoTradie/internal/bunnings"
 	invoiceninja "github.com/MickMake/GoInvoiceNinja"
 )
 

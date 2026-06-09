@@ -3,17 +3,17 @@
 This repository contains three independent Go modules.
 
 Modules:
-- apps/GoBunningsNinja
+- apps/GoTradie
 - apps/GoBunnings
 - apps/GoInvoiceNinja
 
 Allowed dependencies:
-- GoBunningsNinja -> GoBunnings
-- GoBunningsNinja -> GoInvoiceNinja
+- GoTradie -> GoBunnings
+- GoTradie -> GoInvoiceNinja
 
 Forbidden dependencies:
-- GoBunnings -> GoBunningsNinja
-- GoInvoiceNinja -> GoBunningsNinja
+- GoBunnings -> GoTradie
+- GoInvoiceNinja -> GoTradie
 - GoBunnings <-> GoInvoiceNinja
 
 Rules:
@@ -27,5 +27,5 @@ Rules:
 - Use Go 1.22.
 
 Repository intent:
-- GoBunningsNinja is the primary application/orchestration module.
+- GoTradie is the primary application/orchestration module.
 - GoBunnings and GoInvoiceNinja are standalone reusable modules.

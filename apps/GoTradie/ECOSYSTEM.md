@@ -8,23 +8,23 @@ This ecosystem is made of three separate Go modules that are developed together 
 |---|---|---|
 | `GoBunnings` | Reusable Bunnings API SDK | Standard library and external SDK dependencies only |
 | `GoInvoiceNinja` | Reusable Invoice Ninja v5 API SDK | Standard library and external SDK dependencies only |
-| `GoBunningsNinja` | CLI/application that composes both SDKs | `GoBunnings`, `GoInvoiceNinja` |
+| `GoTradie` | CLI/application that composes both SDKs | `GoBunnings`, `GoInvoiceNinja` |
 
 ## Dependency direction
 
 ```text
 GoBunnings      ┐
-                ├── GoBunningsNinja
+                ├── GoTradie
 GoInvoiceNinja  ┘
 ```
 
 Rules:
 
-- `GoBunningsNinja` may import both SDKs.
+- `GoTradie` may import both SDKs.
 - `GoBunnings` must not import `GoInvoiceNinja`.
 - `GoInvoiceNinja` must not import `GoBunnings`.
-- Neither SDK should import `GoBunningsNinja`.
-- Bunnings-to-Invoice Ninja mapping belongs in `GoBunningsNinja`.
+- Neither SDK should import `GoTradie`.
+- Bunnings-to-Invoice Ninja mapping belongs in `GoTradie`.
 
 ## Local development layout
 
@@ -35,15 +35,15 @@ GoNinjaWorkspace/
 ├── go.work
 ├── GoBunnings/
 ├── GoInvoiceNinja/
-└── GoBunningsNinja/
+└── GoTradie/
 ```
 
 From the parent folder:
 
 ```bash
-git clone git@github.com:MickMake/GoBunningsNinja.git
+git clone git@github.com:MickMake/GoTradie.git
 
-go work init ./GoBunnings ./GoInvoiceNinja ./GoBunningsNinja
+go work init ./GoBunnings ./GoInvoiceNinja ./GoTradie
 go work sync
 ```
 
@@ -55,7 +55,7 @@ go 1.22
 use (
     ./GoBunnings
     ./GoInvoiceNinja
-    ./GoBunningsNinja
+    ./GoTradie
 )
 ```
 
@@ -67,9 +67,9 @@ When SDK changes are needed, release in dependency order:
 
 1. `GoBunnings`, when Bunnings SDK changes are required.
 2. `GoInvoiceNinja`, when Invoice Ninja SDK changes are required.
-3. `GoBunningsNinja`, after updating its `go.mod` to the tagged SDK versions.
+3. `GoTradie`, after updating its `go.mod` to the tagged SDK versions.
 
-During active development, the local `go.work` file lets `GoBunningsNinja` use local SDK checkouts without committed absolute-path `replace` directives.
+During active development, the local `go.work` file lets `GoTradie` use local SDK checkouts without committed absolute-path `replace` directives.
 
 ## Command checklist
 
@@ -84,7 +84,7 @@ go mod tidy
 For the app repo:
 
 ```bash
-go build ./cmd/bunnings-ninja
+go build ./cmd/GoTradie
 ```
 
 ## Boundary checklist
@@ -93,6 +93,6 @@ Before adding new code, ask:
 
 - Is this about Bunnings API behaviour? Put it in `GoBunnings`.
 - Is this about Invoice Ninja API behaviour? Put it in `GoInvoiceNinja`.
-- Is this about converting, syncing, importing, exporting, CLI behaviour, config, or safety guards? Put it in `GoBunningsNinja`.
+- Is this about converting, syncing, importing, exporting, CLI behaviour, config, or safety guards? Put it in `GoTradie`.
 
 If a package starts knowing too much about another package's private business, split it before it develops a hat and starts calling meetings.

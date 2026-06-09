@@ -3,7 +3,7 @@ package app
 import "fmt"
 
 func (a App) extendedUsage() {
-	fmt.Fprintln(a.Out, `bunnings-ninja extended command help
+	fmt.Fprintln(a.Out, `GoTradie extended command help
 
 Commands preview or refuse risky writes by default.
 Use --commit to make persistent changes.
@@ -17,14 +17,14 @@ Global options
 
       Config is loaded in this order:
         1. --config <path>
-        2. GOBUNNINGSNINJA_CONFIG
-        3. ./gobunningsninja.conf, if present
+        2. GOTRADIE_CONFIG
+        3. ./gotradie.conf, if present
 
       Config file values override environment variables.
       This option does not imply --commit.
 
       Example:
-        bunnings-ninja --config ./gobunningsninja.conf ninja export products products.csv
+        GoTradie --config ./gotradie.conf ninja export products products.csv
 
 Top-level commands
 
@@ -32,7 +32,7 @@ Top-level commands
       Show the short command summary.
 
       Example:
-        bunnings-ninja help
+        GoTradie help
 
   commands
       Show this extended command help.
@@ -42,14 +42,14 @@ Top-level commands
         manual
 
       Example:
-        bunnings-ninja commands
+        GoTradie commands
 
   version
       Print the application version.
       This command does not read config and does not require credentials.
 
       Example:
-        bunnings-ninja version
+        GoTradie version
 
       Example output:
         v0.5
@@ -63,7 +63,7 @@ Bunnings commands
       It does not accept --commit.
 
       Example:
-        bunnings-ninja bunnings find "merbau decking" --limit=3
+        GoTradie bunnings find "merbau decking" --limit=3
 
       Example output:
         IN,Description,Unit,PricePerUnit,ImageURL
@@ -77,7 +77,7 @@ Bunnings commands
       Errors are returned as row data where practical so one bad item does not spoil the whole basket.
 
       Example:
-        bunnings-ninja bunnings get 0123456 0987654
+        GoTradie bunnings get 0123456 0987654
 
       Example output:
         IN,Description,Unit,PricePerUnit,ImageURL
@@ -90,7 +90,7 @@ Bunnings commands
       It does not produce CSV and does not accept --commit.
 
       Example:
-        bunnings-ninja bunnings lookup 0123456
+        GoTradie bunnings lookup 0123456
 
       Example output:
         IN: 0123456
@@ -105,13 +105,13 @@ Sync commands
   sync refresh [--web] [--commit]
       Refresh existing Invoice Ninja products already linked to Bunnings item numbers.
       Also allowed as shorthand:
-        bunnings-ninja sync
+        GoTradie sync
 
       Without --commit, this previews changes only.
       With --commit, matching Invoice Ninja products may be updated.
 
       Example preview:
-        bunnings-ninja sync refresh
+        GoTradie sync refresh
 
       Example preview output:
         IN        ProductKey        Action        Changes/Error
@@ -119,7 +119,7 @@ Sync commands
         0987654   BUNNINGS-0987654  unchanged
 
       Example commit:
-        bunnings-ninja sync refresh --commit
+        GoTradie sync refresh --commit
 
       Example commit output:
         IN        ProductKey        Action        Changes/Error
@@ -132,21 +132,21 @@ Sync commands
       With --commit, the matching Invoice Ninja product may be created or updated.
 
       Example preview:
-        bunnings-ninja sync import 0123456
+        GoTradie sync import 0123456
 
       Example preview output:
         IN        ProductKey        Action        Changes/Error
         0123456   BUNNINGS-0123456  would-update  price 7.20 -> 7.45
 
       Example commit:
-        bunnings-ninja sync import --commit 0123456
+        GoTradie sync import --commit 0123456
 
       Example commit output:
         IN        ProductKey        Action        Changes/Error
         0123456   BUNNINGS-0123456  updated       price 7.20 -> 7.45
 
       Legacy alias:
-        bunnings-ninja add-in 0123456
+        GoTradie add-in 0123456
 
       The alias prints a deprecation notice and routes to sync import.
 
@@ -155,7 +155,7 @@ Sync commands
       This mode cannot update Invoice Ninja.
 
       Example:
-        bunnings-ninja sync search "merbau decking" --limit=3
+        GoTradie sync search "merbau decking" --limit=3
 
       Example output:
         Bunnings search results
@@ -171,7 +171,7 @@ Sync commands
       Without --commit, still preview only.
 
       Example preview:
-        bunnings-ninja sync search "merbau decking" --create --select=0123456,0987654
+        GoTradie sync search "merbau decking" --create --select=0123456,0987654
 
       Example preview output:
         IN        ProductKey        Action        Changes/Error
@@ -179,7 +179,7 @@ Sync commands
         0987654   BUNNINGS-0987654  would-update  description changed
 
       Example commit:
-        bunnings-ninja sync search "merbau decking" --create --select=0123456,0987654 --commit
+        GoTradie sync search "merbau decking" --create --select=0123456,0987654 --commit
 
       Example commit output:
         IN        ProductKey        Action        Changes/Error
@@ -191,7 +191,7 @@ Sync commands
       --all requires --yes, even with --commit, because bulk imports are where spreadsheet goblins learn to breed.
 
       Example:
-        bunnings-ninja sync search "merbau decking" --create --all --yes --commit
+        GoTradie sync search "merbau decking" --create --all --yes --commit
 
 Invoice Ninja export commands
 
@@ -201,13 +201,13 @@ Invoice Ninja export commands
       Refuses to overwrite an existing file unless --commit is supplied.
 
       Example:
-        bunnings-ninja ninja export products products.csv
+        GoTradie ninja export products products.csv
 
       Example stdout:
-        bunnings-ninja ninja export products -
+        GoTradie ninja export products -
 
       Example overwrite:
-        bunnings-ninja ninja export products products.csv --commit
+        GoTradie ninja export products products.csv --commit
 
       Example output:
         ID,Product,Description,Price,Default Quantity,Max Quantity,Image URL
@@ -219,7 +219,7 @@ Invoice Ninja export commands
       Refuses to overwrite an existing file unless --commit is supplied.
 
       Example:
-        bunnings-ninja ninja export clients clients.csv
+        GoTradie ninja export clients clients.csv
 
       Example output:
         ID,Name,Address,Contact 1 First Name,Contact 1 Last Name,Contact 1 Email,Contact 1 Phone
@@ -231,7 +231,7 @@ Invoice Ninja export commands
       Refuses to overwrite an existing file unless --commit is supplied.
 
       Example:
-        bunnings-ninja ninja export quotes quotes.csv
+        GoTradie ninja export quotes quotes.csv
 
       Example output:
         ID,Number,Client ID,Client Name,Status,Date,Valid Until,Subtotal,Discount,Tax,Total,Balance,Public Notes,Private Notes
@@ -243,7 +243,7 @@ Invoice Ninja export commands
       Refuses to overwrite an existing file unless --commit is supplied.
 
       Example:
-        bunnings-ninja ninja export invoices invoices.csv
+        GoTradie ninja export invoices invoices.csv
 
       Example output:
         ID,Number,Client ID,Client Name,Status,Date,Due Date,Subtotal,Discount,Tax,Total,Balance,Paid To Date,Public Notes,Private Notes
@@ -255,7 +255,7 @@ Invoice Ninja export commands
       Refuses to overwrite an existing file unless --commit is supplied.
 
       Example:
-        bunnings-ninja ninja export payments payments.csv
+        GoTradie ninja export payments payments.csv
 
       Example output:
         ID,Client ID,Client Name,Invoice ID,Invoice Number,Date,Amount,Applied,Refunded,Transaction Reference,Payment Type,Status,Private Notes
@@ -270,7 +270,7 @@ Invoice Ninja import commands
       Blank IDs are not created and product IDs are not guessed.
 
       Example preview:
-        bunnings-ninja ninja import products products.csv
+        GoTradie ninja import products products.csv
 
       Example preview output:
         ID        Name              Action        Changes/Error
@@ -278,7 +278,7 @@ Invoice Ninja import commands
         def456    BUNNINGS-0987654  unchanged
 
       Example commit:
-        bunnings-ninja ninja import products --commit products.csv
+        GoTradie ninja import products --commit products.csv
 
       Example commit output:
         ID        Name              Action        Changes/Error
@@ -286,7 +286,7 @@ Invoice Ninja import commands
         def456    BUNNINGS-0987654  unchanged
 
       Stdin example:
-        cat products.csv | bunnings-ninja ninja import products -
+        cat products.csv | GoTradie ninja import products -
 
   ninja import clients <file|-> [--commit]
       Preview or apply client/contact CSV changes into Invoice Ninja.
@@ -295,7 +295,7 @@ Invoice Ninja import commands
       Blank IDs are not created and client IDs are not guessed.
 
       Example preview:
-        bunnings-ninja ninja import clients clients.csv
+        GoTradie ninja import clients clients.csv
 
       Example preview output:
         ID        Name            Action        Changes/Error
@@ -303,7 +303,7 @@ Invoice Ninja import commands
         def456    Other Client    unchanged
 
       Example commit:
-        bunnings-ninja ninja import clients --commit clients.csv
+        GoTradie ninja import clients --commit clients.csv
 
       Example commit output:
         ID        Name            Action        Changes/Error
@@ -311,7 +311,7 @@ Invoice Ninja import commands
         def456    Other Client    unchanged
 
       Stdin example:
-        cat clients.csv | bunnings-ninja ninja import clients -
+        cat clients.csv | GoTradie ninja import clients -
 
 Deprecated or rejected command forms
 
@@ -325,8 +325,8 @@ Deprecated or rejected command forms
   ninja-products-export, ninja-products-import, ninja-clients-export, ninja-clients-import
       Rejected legacy forms.
       Use grouped commands instead:
-        bunnings-ninja ninja export ...
-        bunnings-ninja ninja import ...
+        GoTradie ninja export ...
+        GoTradie ninja import ...
 
 Configuration summary
 

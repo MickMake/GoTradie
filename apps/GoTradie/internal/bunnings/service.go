@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	gobunnings "github.com/MickMake/GoBunnings"
-	"github.com/MickMake/GoBunningsNinja/internal/config"
+	"github.com/MickMake/GoTradie/internal/config"
 )
 
 type Product struct {
@@ -32,7 +32,7 @@ func New(cfg config.Config) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, err := gobunnings.New(cfg.BunningsEnv, ts, gobunnings.WithUserAgent("GoBunningsNinja/v0.3"))
+	client, err := gobunnings.New(cfg.BunningsEnv, ts, gobunnings.WithUserAgent("GoTradie/v0.3"))
 	if err != nil {
 		return nil, err
 	}

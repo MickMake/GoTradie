@@ -1,6 +1,6 @@
-# GoBunningsNinja
+# GoTradie
 
-`GoBunningsNinja` is a small CLI client that connects the local `GoBunnings` and `GoInvoiceNinja` packages.
+`GoTradie` is a small CLI client that connects the local `GoBunnings` and `GoInvoiceNinja` packages.
 
 Version: `v0.5`
 
@@ -21,27 +21,27 @@ GoNinjaWorkspace/
 ├── go.work
 ├── GoBunnings/
 ├── GoInvoiceNinja/
-└── GoBunningsNinja/
+└── GoTradie/
 ```
 
 From the parent folder:
 
 ```bash
-git clone git@github.com:MickMake/GoBunningsNinja.git
+git clone git@github.com:MickMake/GoTradie.git
 
-go work init ./GoBunnings ./GoInvoiceNinja ./GoBunningsNinja
+go work init ./GoBunnings ./GoInvoiceNinja ./GoTradie
 go work sync
 ```
 
 The local `go.work` file replaces the old committed absolute-path `replace` directives. Keep `go.mod` portable and use the workspace for local multi-repo editing.
-The local `go.work` file is the preferred way to develop the three repos together. `GoBunningsNinja/go.mod` may also use relative local `replace` directives for simple single-machine development.
+The local `go.work` file is the preferred way to develop the three repos together. `GoTradie/go.mod` may also use relative local `replace` directives for simple single-machine development.
 
 See `ECOSYSTEM.md` for the dependency rules and release workflow.
 
 ## Build
 
 ```bash
-go build ./cmd/bunnings-ninja
+go build ./cmd/GoTradie
 ```
 
 ## Configuration
@@ -51,13 +51,13 @@ Configuration is loaded from environment variables first, then from a config fil
 Config lookup order:
 
 1. `--config <path>`
-2. `GOBUNNINGSNINJA_CONFIG`
-3. `./gobunningsninja.conf`, if present
+2. `GOTRADIE_CONFIG`
+3. `./gotradie.conf`, if present
 
 Example:
 
 ```bash
-bunnings-ninja --config ./gobunningsninja.conf ninja export products products.csv
+GoTradie --config ./gotradie.conf ninja export products products.csv
 ```
 
 Required for Invoice Ninja commands:
@@ -88,7 +88,7 @@ TAX_NAME
 TAX_RATE
 ```
 
-See `gobunningsninja.conf.example`.
+See `gotradie.conf.example`.
 
 ## Commands
 
@@ -101,12 +101,12 @@ By default, Bunnings product/search data is fetched from the Bunnings API.
 Add `--web` to supported Bunnings-backed commands to use the website-derived retrieval path instead:
 
 ```bash
-bunnings-ninja bunnings get 0123456 --web
-bunnings-ninja bunnings lookup 0123456 --web
-bunnings-ninja bunnings find "merbau decking" --web
-bunnings-ninja sync refresh --web
-bunnings-ninja sync import 0123456 --web
-bunnings-ninja sync search "merbau decking" --web
+GoTradie bunnings get 0123456 --web
+GoTradie bunnings lookup 0123456 --web
+GoTradie bunnings find "merbau decking" --web
+GoTradie sync refresh --web
+GoTradie sync import 0123456 --web
+GoTradie sync search "merbau decking" --web
 ```
 
 `--web` only changes the Bunnings data source. It does not imply `--commit`, does not modify Invoice Ninja by itself, and does not silently fall back to the API.
@@ -114,16 +114,16 @@ bunnings-ninja sync search "merbau decking" --web
 ### Sync existing Invoice Ninja products
 
 ```bash
-bunnings-ninja sync
-bunnings-ninja sync refresh
-bunnings-ninja sync refresh --commit
+GoTradie sync
+GoTradie sync refresh
+GoTradie sync refresh --commit
 ```
 
 ### Add or refresh by Bunnings IN
 
 ```bash
-bunnings-ninja sync import 0123456
-bunnings-ninja sync import --commit 0123456
+GoTradie sync import 0123456
+GoTradie sync import --commit 0123456
 ```
 
 The old `add-in` command still routes to `sync import`, but new usage should prefer the grouped `sync import` form.
@@ -133,19 +133,19 @@ The old `add-in` command still routes to `sync import`, but new usage should pre
 Preview only:
 
 ```bash
-bunnings-ninja sync search "merbau decking"
+GoTradie sync search "merbau decking"
 ```
 
 Preview selected results for import:
 
 ```bash
-bunnings-ninja sync search "merbau decking" --create --select=0123456,0987654
+GoTradie sync search "merbau decking" --create --select=0123456,0987654
 ```
 
 Import selected results:
 
 ```bash
-bunnings-ninja sync search "merbau decking" --create --select=0123456,0987654 --commit
+GoTradie sync search "merbau decking" --create --select=0123456,0987654 --commit
 ```
 
 Bulk importing all returned search results requires `--all --yes --commit` and remains hard-capped by the search limit.
@@ -155,35 +155,35 @@ Bulk importing all returned search results requires `--all --yes --commit` and r
 The grouped command format is:
 
 ```bash
-bunnings-ninja ninja export <target> <file|->
-bunnings-ninja ninja import <target> <file|->
+GoTradie ninja export <target> <file|->
+GoTradie ninja import <target> <file|->
 ```
 
 Exports use a positional destination:
 
 ```bash
-bunnings-ninja ninja export products products.csv
-bunnings-ninja ninja export products -
+GoTradie ninja export products products.csv
+GoTradie ninja export products -
 ```
 
 Exports do not overwrite files unless `--commit` is used:
 
 ```bash
-bunnings-ninja ninja export products products.csv --commit
+GoTradie ninja export products products.csv --commit
 ```
 
 Imports use a positional source:
 
 ```bash
-bunnings-ninja ninja import products products.csv
-cat products.csv | bunnings-ninja ninja import products -
+GoTradie ninja import products products.csv
+cat products.csv | GoTradie ninja import products -
 ```
 
 Imports preview by default. Use `--commit` to update Invoice Ninja:
 
 ```bash
-bunnings-ninja ninja import products products.csv
-bunnings-ninja ninja import products --commit products.csv
+GoTradie ninja import products products.csv
+GoTradie ninja import products --commit products.csv
 ```
 
 Available export targets:

@@ -1,4 +1,4 @@
-module github.com/MickMake/GoBunningsNinja
+module github.com/MickMake/GoTradie
 
 go 1.22
 

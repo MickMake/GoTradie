@@ -1,6 +1,6 @@
 # Weird stuff and upstream prompts
 
-These are the remaining upstream package issues or questions noticed while building `GoBunningsNinja v0.3`.
+These are the remaining upstream package issues or questions noticed while building `GoTradie v0.3`.
 
 Future zip files should keep this file updated and the relevant package prompts should be merged into one copy/paste prompt per package.
 
@@ -9,10 +9,10 @@ Future zip files should keep this file updated and the relevant package prompts 
 Copy/paste this into the GoBunnings package chat:
 
 ```text
-Please make the following GoBunnings package improvements needed by the GoBunningsNinja sync client.
+Please make the following GoBunnings package improvements needed by the GoTradie sync client.
 
 Context:
-GoBunningsNinja needs to sync Bunnings product data into Invoice Ninja. It needs reliable access to product identifiers, pricing, descriptions, URLs, image URLs, and any unmodelled JSON fields.
+GoTradie needs to sync Bunnings product data into Invoice Ninja. It needs reliable access to product identifiers, pricing, descriptions, URLs, image URLs, and any unmodelled JSON fields.
 
 Please implement these changes cleanly without breaking the public API.
 
@@ -88,12 +88,12 @@ If go vet reports existing unrelated issues, document them rather than hiding th
 Copy/paste this into the GoInvoiceNinja package chat:
 
 ```text
-Please make the following GoInvoiceNinja package improvements needed by the GoBunningsNinja sync client.
+Please make the following GoInvoiceNinja package improvements needed by the GoTradie sync client.
 
 Context:
-GoBunningsNinja exports/imports Invoice Ninja products and clients as CSV, exports quotes, invoices, and payments, syncs Bunnings product data into Invoice Ninja products, and safely maps external Bunnings item numbers / INs to Invoice Ninja records.
+GoTradie exports/imports Invoice Ninja products and clients as CSV, exports quotes, invoices, and payments, syncs Bunnings product data into Invoice Ninja products, and safely maps external Bunnings item numbers / INs to Invoice Ninja records.
 
-GoBunningsNinja now expects the v0.2 API additions already made, especially:
+GoTradie now expects the v0.2 API additions already made, especially:
 - Products.ListAll(ctx, ProductQuery{...})
 - Clients.ListAll(ctx, ClientQuery{...})
 - Quotes.ListAll(ctx, QuoteQuery{...})
@@ -108,7 +108,7 @@ Additional requirements:
 
 1. Investigate product max quantity support
 
-GoBunningsNinja product CSV includes:
+GoTradie product CSV includes:
 
 ID, Product, Description, Price, Default Quantity, Max Quantity, Image URL
 
@@ -125,7 +125,7 @@ If unsupported:
 
 2. Investigate product image support
 
-GoBunningsNinja needs to sync Bunnings product image URLs into Invoice Ninja.
+GoTradie needs to sync Bunnings product image URLs into Invoice Ninja.
 
 Please investigate whether Invoice Ninja v5 products support product images, related documents, file attachments, or image URLs through the API.
 
@@ -139,7 +139,7 @@ If unsupported:
 
 3. Confirm export-friendly include behaviour
 
-GoBunningsNinja v0.3 uses ListAll with includes for richer exports:
+GoTradie v0.3 uses ListAll with includes for richer exports:
 - Clients.ListAll with include contacts
 - Quotes.ListAll with include client
 - Invoices.ListAll with include client
@@ -172,7 +172,7 @@ go vet ./...
 If go vet reports existing unrelated issues, document them clearly.
 ```
 
-## GoBunningsNinja internal notes
+## GoTradie internal notes
 
 - Product `Max Quantity` remains exported blank and ignored on import until `GoInvoiceNinja` confirms a real API field.
 - Product `Image URL` currently maps to the configured Invoice Ninja custom field, default `custom_value2`.

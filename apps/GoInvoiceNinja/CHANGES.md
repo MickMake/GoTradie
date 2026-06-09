@@ -27,7 +27,7 @@
 
 ## v0.1.0
 
-Initial development version for GoBunningsNinja integration work.
+Initial development version for GoTradie integration work.
 
 ### Added
 

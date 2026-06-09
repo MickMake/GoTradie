@@ -46,8 +46,8 @@
 
 ## v0.1
 
-- Created standalone `GoBunningsNinja` client project.
-- Added CLI entrypoint at `cmd/bunnings-ninja`.
+- Created standalone `GoTradie` client project.
+- Added CLI entrypoint at `cmd/GoTradie`.
 - Added Bunnings-to-Invoice Ninja sync commands:
   - `sync`
   - `add-in`

@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/MickMake/GoBunningsNinja/internal/app"
+	"github.com/MickMake/GoTradie/internal/app"
 )
 
 func main() {
