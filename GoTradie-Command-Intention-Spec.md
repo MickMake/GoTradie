@@ -1,10 +1,10 @@
-# GoBunningsNinja Command Intention Spec
+# GoTradie Command Intention Spec
 
 Version: `v0.5`  
 Status: Draft command contract / behaviour lock-in  
-Primary repository: `MickMake/GoBunningsNinja`
+Primary repository: `MickMake/GoTradie`
 
-This document defines the intended command-line behaviour for `bunnings-ninja`.
+This document defines the intended command-line behaviour for `GoTradie`.
 
 The goal is to prevent accidental behavioural drift, flag multiplication, and future "creative adjustments" where the CLI grows a second head and starts asking for biscuits.
 
@@ -12,7 +12,7 @@ The goal is to prevent accidental behavioural drift, flag multiplication, and fu
 
 ## 1. Repository ownership rules
 
-`GoBunningsNinja` is the CLI/application that composes:
+`GoTradie` is the CLI/application that composes:
 
 - `GoBunnings`
 - `GoInvoiceNinja`
@@ -35,7 +35,7 @@ The goal is to prevent accidental behavioural drift, flag multiplication, and fu
 - Upload helpers
 - Invoice Ninja API error handling
 
-### `GoBunningsNinja` owns
+### `GoTradie` owns
 
 - CLI commands
 - Flag parsing
@@ -46,7 +46,7 @@ The goal is to prevent accidental behavioural drift, flag multiplication, and fu
 - Preview/default safety behaviour
 - `--commit` handling for persistent changes
 
-Cross-system behaviour belongs in `GoBunningsNinja`, not in either SDK.
+Cross-system behaviour belongs in `GoTradie`, not in either SDK.
 
 ---
 
@@ -59,7 +59,7 @@ Cross-system behaviour belongs in `GoBunningsNinja`, not in either SDK.
 | Export commands may create a new file by default. | Creating a new named export is safe enough. |
 | Export commands must not overwrite an existing file unless `--commit` is supplied. | Prevent accidental file clobbering. |
 | Bunnings SDK commands are read-only. | They discover or fetch Bunnings data only. |
-| `GoBunningsNinja` owns mapping, sync decisions, import/export workflow, and CLI safety. | Do not move orchestration into the SDK repos. |
+| `GoTradie` owns mapping, sync decisions, import/export workflow, and CLI safety. | Do not move orchestration into the SDK repos. |
 
 ### Standard wording
 
@@ -102,7 +102,7 @@ For exports, `--commit` means overwriting an existing local file.
 Example:
 
 ```bash
-bunnings-ninja --config ./gobunningsninja.conf ninja export products products.csv
+GoTradie --config ./gotradie.conf ninja export products products.csv
 ```
 
 #### User intention
@@ -114,8 +114,8 @@ Use a specific configuration file.
 Configuration should be loaded in this order:
 
 1. `--config <path>`
-2. `GOBUNNINGSNINJA_CONFIG`
-3. `./gobunningsninja.conf`, if present
+2. `GOTRADIE_CONFIG`
+3. `./gotradie.conf`, if present
 
 Config file values override environment variables.
 
@@ -138,7 +138,7 @@ Bunnings commands are read-only. They must not require Invoice Ninja credentials
 Example:
 
 ```bash
-bunnings-ninja bunnings find "merbau decking" --limit=10
+GoTradie bunnings find "merbau decking" --limit=10
 ```
 
 ### User intention
@@ -184,7 +184,7 @@ This is pure Bunnings discovery. A shovel, not a combine harvester.
 Example:
 
 ```bash
-bunnings-ninja bunnings get 0123456 0987654
+GoTradie bunnings get 0123456 0987654
 ```
 
 ### User intention
@@ -216,7 +216,7 @@ It should:
 Example:
 
 ```bash
-bunnings-ninja bunnings lookup 0123456
+GoTradie bunnings lookup 0123456
 ```
 
 ### User intention
@@ -254,7 +254,7 @@ ImageURL: ...
 
 ## 5. Sync commands
 
-Sync commands orchestrate Bunnings and Invoice Ninja together. They require both SDKs and belong in `GoBunningsNinja`.
+Sync commands orchestrate Bunnings and Invoice Ninja together. They require both SDKs and belong in `GoTradie`.
 
 ---
 
@@ -263,14 +263,14 @@ Sync commands orchestrate Bunnings and Invoice Ninja together. They require both
 Examples:
 
 ```bash
-bunnings-ninja sync refresh
-bunnings-ninja sync refresh --commit
+GoTradie sync refresh
+GoTradie sync refresh --commit
 ```
 
 Also allowed as shorthand:
 
 ```bash
-bunnings-ninja sync
+GoTradie sync
 ```
 
 ### User intention
@@ -337,14 +337,14 @@ error
 Examples:
 
 ```bash
-bunnings-ninja sync import 0123456
-bunnings-ninja sync import --commit 0123456
+GoTradie sync import 0123456
+GoTradie sync import --commit 0123456
 ```
 
 Legacy alias:
 
 ```bash
-bunnings-ninja add-in 0123456
+GoTradie add-in 0123456
 ```
 
 ### User intention
@@ -392,10 +392,10 @@ With `--commit`, create or update the matching Invoice Ninja product.
 Examples:
 
 ```bash
-bunnings-ninja sync search "merbau decking" --limit=10
-bunnings-ninja sync search "merbau decking" --create --select=0123456,0987654
-bunnings-ninja sync search "merbau decking" --create --select=0123456,0987654 --commit
-bunnings-ninja sync search "merbau decking" --create --all --yes --commit
+GoTradie sync search "merbau decking" --limit=10
+GoTradie sync search "merbau decking" --create --select=0123456,0987654
+GoTradie sync search "merbau decking" --create --select=0123456,0987654 --commit
+GoTradie sync search "merbau decking" --create --all --yes --commit
 ```
 
 ### User intention
@@ -474,8 +474,8 @@ This rule stays even with `--commit`, because bulk import is where goblins learn
 Invoice Ninja CSV commands are grouped under:
 
 ```bash
-bunnings-ninja ninja export ...
-bunnings-ninja ninja import ...
+GoTradie ninja export ...
+GoTradie ninja import ...
 ```
 
 Exports are read-remote/write-local.  
@@ -488,9 +488,9 @@ Imports are read-local/write-remote, but only with `--commit`.
 Examples:
 
 ```bash
-bunnings-ninja ninja export products products.csv
-bunnings-ninja ninja export products products.csv --commit
-bunnings-ninja ninja export products -
+GoTradie ninja export products products.csv
+GoTradie ninja export products products.csv --commit
+GoTradie ninja export products -
 ```
 
 ### User intention
@@ -537,9 +537,9 @@ ID,Product,Description,Price,Default Quantity,Max Quantity,Image URL
 Examples:
 
 ```bash
-bunnings-ninja ninja import products products.csv
-bunnings-ninja ninja import products --commit products.csv
-cat products.csv | bunnings-ninja ninja import products -
+GoTradie ninja import products products.csv
+GoTradie ninja import products --commit products.csv
+cat products.csv | GoTradie ninja import products -
 ```
 
 ### User intention
@@ -606,9 +606,9 @@ error
 Examples:
 
 ```bash
-bunnings-ninja ninja export clients clients.csv
-bunnings-ninja ninja export clients clients.csv --commit
-bunnings-ninja ninja export clients -
+GoTradie ninja export clients clients.csv
+GoTradie ninja export clients clients.csv --commit
+GoTradie ninja export clients -
 ```
 
 ### User intention
@@ -663,9 +663,9 @@ Same as product export:
 Examples:
 
 ```bash
-bunnings-ninja ninja import clients clients.csv
-bunnings-ninja ninja import clients --commit clients.csv
-cat clients.csv | bunnings-ninja ninja import clients -
+GoTradie ninja import clients clients.csv
+GoTradie ninja import clients --commit clients.csv
+cat clients.csv | GoTradie ninja import clients -
 ```
 
 ### User intention
@@ -739,9 +739,9 @@ ID,Name,Address1,Address2,City,State,PostalCode,CountryID,...
 Examples:
 
 ```bash
-bunnings-ninja ninja export quotes quotes.csv
-bunnings-ninja ninja export quotes quotes.csv --commit
-bunnings-ninja ninja export quotes -
+GoTradie ninja export quotes quotes.csv
+GoTradie ninja export quotes quotes.csv --commit
+GoTradie ninja export quotes -
 ```
 
 ### User intention
@@ -781,9 +781,9 @@ Use `--commit` to overwrite an existing file.
 Examples:
 
 ```bash
-bunnings-ninja ninja export invoices invoices.csv
-bunnings-ninja ninja export invoices invoices.csv --commit
-bunnings-ninja ninja export invoices -
+GoTradie ninja export invoices invoices.csv
+GoTradie ninja export invoices invoices.csv --commit
+GoTradie ninja export invoices -
 ```
 
 ### User intention
@@ -823,9 +823,9 @@ Use `--commit` to overwrite an existing file.
 Examples:
 
 ```bash
-bunnings-ninja ninja export payments payments.csv
-bunnings-ninja ninja export payments payments.csv --commit
-bunnings-ninja ninja export payments -
+GoTradie ninja export payments payments.csv
+GoTradie ninja export payments payments.csv --commit
+GoTradie ninja export payments -
 ```
 
 ### User intention
@@ -865,7 +865,7 @@ Use `--commit` to overwrite an existing file.
 Example:
 
 ```bash
-bunnings-ninja version
+GoTradie version
 ```
 
 ### User intention
@@ -895,7 +895,7 @@ It should:
 ## Deprecated but currently routed
 
 ```bash
-bunnings-ninja add-in <IN>
+GoTradie add-in <IN>
 ```
 
 ### Intention
@@ -903,7 +903,7 @@ bunnings-ninja add-in <IN>
 Legacy alias for:
 
 ```bash
-bunnings-ninja sync import <IN>
+GoTradie sync import <IN>
 ```
 
 It should print a deprecation notice and continue routing to the same implementation.
@@ -913,10 +913,10 @@ It should print a deprecation notice and continue routing to the same implementa
 ## Explicitly rejected legacy command names
 
 ```bash
-bunnings-ninja ninja-products-export
-bunnings-ninja ninja-products-import
-bunnings-ninja ninja-clients-export
-bunnings-ninja ninja-clients-import
+GoTradie ninja-products-export
+GoTradie ninja-products-import
+GoTradie ninja-clients-export
+GoTradie ninja-clients-import
 ```
 
 ### Intention
@@ -924,8 +924,8 @@ bunnings-ninja ninja-clients-import
 These should fail and tell the user to use grouped commands:
 
 ```bash
-bunnings-ninja ninja export ...
-bunnings-ninja ninja import ...
+GoTradie ninja export ...
+GoTradie ninja import ...
 ```
 
 ---
@@ -941,8 +941,8 @@ bunnings-ninja ninja import ...
 | Invoice Ninja API calls | `GoInvoiceNinja` SDK |
 | Product sync workflow | `internal/syncer` |
 | CSV import/export workflow | `internal/ninja` or app-specific workflow package |
-| Bunnings-to-Invoice Ninja mapping | `GoBunningsNinja`, not either SDK |
-| Safety/default preview behaviour | `GoBunningsNinja` |
+| Bunnings-to-Invoice Ninja mapping | `GoTradie`, not either SDK |
+| Safety/default preview behaviour | `GoTradie` |
 
 ---
 
@@ -956,7 +956,7 @@ Future changes should preserve these guardrails:
 4. Bunnings commands stay read-only.
 5. Export-only targets stay export-only until deliberately designed otherwise.
 6. SDK repos stay reusable and do not learn application-specific behaviour.
-7. Mapping and orchestration stay in `GoBunningsNinja`.
+7. Mapping and orchestration stay in `GoTradie`.
 8. CLI output should remain predictable and scriptable where CSV is promised.
 9. Human-readable commands should stay human-readable.
 10. Bulk imports require explicit selection or `--all --yes --commit`.
@@ -970,11 +970,11 @@ If a future change violates any of these, it should be treated as a deliberate d
 After changing CLI behaviour, run:
 
 ```bash
-cd /path/to/GoNinjaWorkspace/GoBunningsNinja
+cd /path/to/GoNinjaWorkspace/GoTradie
 git pull
 go test ./...
 go vet ./...
-go build ./cmd/bunnings-ninja
+go build ./cmd/GoTradie
 ```
 
 If SDK boundaries are touched, also run tests in the SDK repos:
@@ -992,11 +992,11 @@ git pull
 go test ./...
 go vet ./...
 
-cd ../GoBunningsNinja
+cd ../GoTradie
 git pull
 go test ./...
 go vet ./...
-go build ./cmd/bunnings-ninja
+go build ./cmd/GoTradie
 ```
 
 Do not claim tests passed unless they were actually run.
