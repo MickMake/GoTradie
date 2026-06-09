@@ -6,13 +6,13 @@ This Project is for a monorepo Go 1.22 software ecosystem under the `MickMake` G
 
 The current repository is:
 
-- `MickMake/GoBunningsNinja`
+- `MickMake/GoTradie`
 
 This repository currently contains three separate Go modules:
 
 - `apps/GoBunnings`
 - `apps/GoInvoiceNinja`
-- `apps/GoBunningsNinja`
+- `apps/GoTradie`
 
 These modules are kept separate inside one repository so Codex only needs to clone and work with a single GitHub repository.
 
@@ -20,12 +20,12 @@ Later, these modules may be split into separate repositories:
 
 - `MickMake/GoBunnings`
 - `MickMake/GoInvoiceNinja`
-- `MickMake/GoBunningsNinja`
+- `MickMake/GoTradie`
 
 For now, **do not clone `GoBunnings` or `GoInvoiceNinja` as separate GitHub repositories**. They do not exist as separate repositories in the current working model.
 
 The current source of truth is the monorepo:
 
 ```text
-MickMake/GoBunningsNinja
+MickMake/GoTradie
 
