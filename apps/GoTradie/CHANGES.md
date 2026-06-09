@@ -1,6 +1,9 @@
 
-- Added `--web` support for Bunnings-backed commands (`bunnings get|lookup|find`, `sync refresh|import|search`) to select website-derived Bunnings data with no silent API fallback.
 # Changes
+
+## v0.6
+
+- Added `--web` support for Bunnings-backed commands (`bunnings get|lookup|find`, `sync refresh|import|search`) to select website-derived Bunnings data with no silent API fallback.
 
 ## v0.5
 

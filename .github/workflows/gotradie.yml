@@ -1,4 +1,4 @@
-name: GoBunningsNinja
+name: GoTradie
 
 on:
   pull_request:
