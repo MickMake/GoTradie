@@ -107,7 +107,7 @@ func (s *Service) BuildTaxExport(ctx context.Context) (TaxExport, error) {
 
 	var customersBuf bytes.Buffer
 	cw := csv.NewWriter(&customersBuf)
-	if err := cw.Write([]string{"Customer ID", "Name", "Address", "Email"}); err != nil {
+	if err := cw.Write([]string{"CustomerID", "Name", "Address", "Suburb", "State", "Postcode", "Country", "Email", "Phone", "Latitude", "Longitude"}); err != nil {
 		return TaxExport{}, err
 	}
 	customerIDs := make([]string, 0, len(customers))
@@ -120,8 +120,15 @@ func (s *Service) BuildTaxExport(ctx context.Context) (TaxExport, error) {
 		if err := cw.Write([]string{
 			id,
 			clientName(client),
-			clientAddress(client),
+			clientStreetAddress(client),
+			client.City,
+			client.State,
+			client.PostalCode,
+			clientCountry(client),
 			clientEmail(client),
+			clientPhone(client),
+			clientLatitude(client),
+			clientLongitude(client),
 		}); err != nil {
 			return TaxExport{}, err
 		}
@@ -218,6 +225,59 @@ func uniqueStrings(in []string) []string {
 		}
 	}
 	return out
+}
+
+func clientStreetAddress(c *invoiceninja.ClientEntity) string {
+	if c == nil {
+		return ""
+	}
+	parts := make([]string, 0, 2)
+	if strings.TrimSpace(c.Address1) != "" {
+		parts = append(parts, strings.TrimSpace(c.Address1))
+	}
+	if strings.TrimSpace(c.Address2) != "" {
+		parts = append(parts, strings.TrimSpace(c.Address2))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func clientCountry(c *invoiceninja.ClientEntity) string {
+	if c == nil {
+		return ""
+	}
+	if c.Location != nil && strings.TrimSpace(c.Location.Country) != "" {
+		return strings.TrimSpace(c.Location.Country)
+	}
+	return strings.TrimSpace(c.CountryID)
+}
+
+func clientPhone(c *invoiceninja.ClientEntity) string {
+	if c == nil {
+		return ""
+	}
+	if strings.TrimSpace(c.Phone) != "" {
+		return strings.TrimSpace(c.Phone)
+	}
+	for _, ct := range c.Contacts {
+		if strings.TrimSpace(ct.Phone) != "" {
+			return strings.TrimSpace(ct.Phone)
+		}
+	}
+	return ""
+}
+
+func clientLatitude(c *invoiceninja.ClientEntity) string {
+	if c == nil || c.Location == nil {
+		return ""
+	}
+	return strings.TrimSpace(c.Location.CustomValue1)
+}
+
+func clientLongitude(c *invoiceninja.ClientEntity) string {
+	if c == nil || c.Location == nil {
+		return ""
+	}
+	return strings.TrimSpace(c.Location.CustomValue2)
 }
 
 func clientAddress(c *invoiceninja.ClientEntity) string {
