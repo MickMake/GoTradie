@@ -76,7 +76,7 @@ func (s *Service) BuildTaxExport(ctx context.Context) (TaxExport, error) {
 			inv.DueDate,
 			strings.Join(paymentDates[inv.ID], " | "),
 			formatFloat(inv.Amount),
-			inv.CustomValue1,
+			inv.CustomValue4,
 			inv.PublicNotes,
 		}); err != nil {
 			return TaxExport{}, err
