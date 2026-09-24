@@ -196,6 +196,10 @@ type Invoice struct {
 	DueDate            string        `json:"due_date,omitempty"`
 	PublicNotes        string        `json:"public_notes,omitempty"`
 	PrivateNotes       string        `json:"private_notes,omitempty"`
+	CustomValue1       string        `json:"custom_value1,omitempty"`
+	CustomValue2       string        `json:"custom_value2,omitempty"`
+	CustomValue3       string        `json:"custom_value3,omitempty"`
+	CustomValue4       string        `json:"custom_value4,omitempty"`
 	Terms              string        `json:"terms,omitempty"`
 	Footer             string        `json:"footer,omitempty"`
 	UsesInclusiveTaxes bool          `json:"uses_inclusive_taxes,omitempty"`
