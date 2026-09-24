@@ -50,7 +50,7 @@ func (s *Service) BuildTaxExport(ctx context.Context) (TaxExport, error) {
 	var invoicesBuf bytes.Buffer
 	iw := csv.NewWriter(&invoicesBuf)
 	if err := iw.Write([]string{
-		"Invoice", "Customer ID", "Date", "Due Date", "Paid On", "Total",
+		"Invoice", "Customer ID", "Date", "Due Date", "Paid On", "Total", "Job Notes", "Job Description",
 	}); err != nil {
 		return TaxExport{}, err
 	}
@@ -76,6 +76,8 @@ func (s *Service) BuildTaxExport(ctx context.Context) (TaxExport, error) {
 			inv.DueDate,
 			strings.Join(paymentDates[inv.ID], " | "),
 			formatFloat(inv.Amount),
+			inv.CustomValue1,
+			inv.PublicNotes,
 		}); err != nil {
 			return TaxExport{}, err
 		}
