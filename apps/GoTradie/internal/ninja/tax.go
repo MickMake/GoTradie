@@ -107,7 +107,7 @@ func (s *Service) BuildTaxExport(ctx context.Context) (TaxExport, error) {
 
 	var customersBuf bytes.Buffer
 	cw := csv.NewWriter(&customersBuf)
-	if err := cw.Write([]string{"CustomerID", "Name", "Address", "Suburb", "State", "Postcode", "Country", "Email", "Phone", "Latitude", "Longitude"}); err != nil {
+	if err := cw.Write([]string{"CustomerID", "Client Type", "Name", "Address", "Suburb", "State", "Postcode", "Country", "Email", "Phone", "Latitude", "Longitude"}); err != nil {
 		return TaxExport{}, err
 	}
 	customerIDs := make([]string, 0, len(customers))
@@ -119,6 +119,7 @@ func (s *Service) BuildTaxExport(ctx context.Context) (TaxExport, error) {
 		client := customers[id]
 		if err := cw.Write([]string{
 			id,
+			strings.TrimSpace(client.CustomValue1),
 			clientName(client),
 			clientStreetAddress(client),
 			client.City,
@@ -245,9 +246,6 @@ func clientCountry(c *invoiceninja.ClientEntity) string {
 	if c == nil {
 		return ""
 	}
-	if c.Location != nil && strings.TrimSpace(c.Location.Country) != "" {
-		return strings.TrimSpace(c.Location.Country)
-	}
 	return strings.TrimSpace(c.CountryID)
 }
 
@@ -267,17 +265,17 @@ func clientPhone(c *invoiceninja.ClientEntity) string {
 }
 
 func clientLatitude(c *invoiceninja.ClientEntity) string {
-	if c == nil || c.Location == nil {
+	if c == nil {
 		return ""
 	}
-	return strings.TrimSpace(c.Location.CustomValue1)
+	return strings.TrimSpace(c.CustomValue2)
 }
 
 func clientLongitude(c *invoiceninja.ClientEntity) string {
-	if c == nil || c.Location == nil {
+	if c == nil {
 		return ""
 	}
-	return strings.TrimSpace(c.Location.CustomValue2)
+	return strings.TrimSpace(c.CustomValue3)
 }
 
 func clientAddress(c *invoiceninja.ClientEntity) string {
