@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -133,6 +134,39 @@ type LineItem struct {
 	CustomValue2     string  `json:"custom_value2,omitempty"`
 	CustomValue3     string  `json:"custom_value3,omitempty"`
 	CustomValue4     string  `json:"custom_value4,omitempty"`
+}
+
+func (l *LineItem) UnmarshalJSON(data []byte) error {
+	type alias LineItem
+	var raw struct {
+		alias
+		SortID json.RawMessage `json:"sort_id"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*l = LineItem(raw.alias)
+	if len(raw.SortID) == 0 || string(raw.SortID) == "null" {
+		return nil
+	}
+	var n int
+	if err := json.Unmarshal(raw.SortID, &n); err == nil {
+		l.SortID = n
+		return nil
+	}
+	var s string
+	if err := json.Unmarshal(raw.SortID, &s); err != nil {
+		return fmt.Errorf("line item sort_id: %w", err)
+	}
+	if strings.TrimSpace(s) == "" {
+		return nil
+	}
+	parsed, err := strconv.Atoi(s)
+	if err != nil {
+		return fmt.Errorf("line item sort_id %q: %w", s, err)
+	}
+	l.SortID = parsed
+	return nil
 }
 
 type InvoiceStatus int
