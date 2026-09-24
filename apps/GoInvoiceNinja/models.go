@@ -84,20 +84,6 @@ type Contact struct {
 	CustomValue4 string `json:"custom_value4,omitempty"`
 }
 
-type ClientLocation struct {
-	LocationName string `json:"location_name,omitempty"`
-	Address      string `json:"address,omitempty"`
-	Address1     string `json:"address1,omitempty"`
-	Address2     string `json:"address2,omitempty"`
-	City         string `json:"city,omitempty"`
-	State        string `json:"state,omitempty"`
-	PostalCode   string `json:"postal_code,omitempty"`
-	Country      string `json:"country,omitempty"`
-	CustomValue1 string `json:"custom_value1,omitempty"`
-	CustomValue2 string `json:"custom_value2,omitempty"`
-	CustomValue3 string `json:"custom_value3,omitempty"`
-	CustomValue4 string `json:"custom_value4,omitempty"`
-}
 
 type ClientEntity struct {
 	Entity
@@ -117,7 +103,6 @@ type ClientEntity struct {
 	PrivateNotes  string    `json:"private_notes,omitempty"`
 	PublicNotes   string    `json:"public_notes,omitempty"`
 	Contacts      []Contact `json:"contacts,omitempty"`
-	Location      *ClientLocation `json:"location,omitempty"`
 	Balance       float64   `json:"balance,omitempty"`
 	PaidToDate    float64   `json:"paid_to_date,omitempty"`
 	CreditBalance float64   `json:"credit_balance,omitempty"`
