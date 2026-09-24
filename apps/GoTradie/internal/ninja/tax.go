@@ -16,8 +16,9 @@ import (
 // It is kept separate from the general Invoice Ninja CSV exporters because Mick
 // does not want to add two kitchens to an otherwise well-designed carport.
 type TaxExport struct {
-	Invoices []byte
-	Detail   []byte
+	Invoices  []byte
+	Detail    []byte
+	Customers []byte
 }
 
 func (s *Service) BuildTaxExport(ctx context.Context) (TaxExport, error) {
@@ -49,7 +50,7 @@ func (s *Service) BuildTaxExport(ctx context.Context) (TaxExport, error) {
 	var invoicesBuf bytes.Buffer
 	iw := csv.NewWriter(&invoicesBuf)
 	if err := iw.Write([]string{
-		"Invoice", "Name", "Address", "Email", "Date", "Due Date", "Paid On", "Total",
+		"Invoice", "Customer ID", "Date", "Due Date", "Paid On", "Total",
 	}); err != nil {
 		return TaxExport{}, err
 	}
@@ -57,18 +58,20 @@ func (s *Service) BuildTaxExport(ctx context.Context) (TaxExport, error) {
 	var detailBuf bytes.Buffer
 	dw := csv.NewWriter(&detailBuf)
 	if err := dw.Write([]string{
-		"Invoice", "Invoice Line #", "Item #", "Description", "Unit Rate", "Quantity", "Line Total",
+		"Type", "Invoice", "Invoice Line #", "Item #", "Description", "Unit Rate", "Quantity", "Line Total",
 	}); err != nil {
 		return TaxExport{}, err
 	}
 
+	customers := map[string]*invoiceninja.ClientEntity{}
+
 	for _, inv := range invoices {
-		client := inv.Client
+		if inv.Client != nil && strings.TrimSpace(inv.ClientID) != "" {
+			customers[inv.ClientID] = inv.Client
+		}
 		if err := iw.Write([]string{
 			inv.Number,
-			clientName(client),
-			clientAddress(client),
-			clientEmail(client),
+			inv.ClientID,
 			inv.Date,
 			inv.DueDate,
 			strings.Join(paymentDates[inv.ID], " | "),
@@ -79,6 +82,7 @@ func (s *Service) BuildTaxExport(ctx context.Context) (TaxExport, error) {
 
 		for i, line := range inv.LineItems {
 			if err := dw.Write([]string{
+				line.TypeID,
 				inv.Number,
 				fmt.Sprintf("%d", i+1),
 				line.ProductKey,
@@ -100,7 +104,34 @@ func (s *Service) BuildTaxExport(ctx context.Context) (TaxExport, error) {
 	if err := dw.Error(); err != nil {
 		return TaxExport{}, err
 	}
-	return TaxExport{Invoices: invoicesBuf.Bytes(), Detail: detailBuf.Bytes()}, nil
+
+	var customersBuf bytes.Buffer
+	cw := csv.NewWriter(&customersBuf)
+	if err := cw.Write([]string{"Customer ID", "Name", "Address", "Email"}); err != nil {
+		return TaxExport{}, err
+	}
+	customerIDs := make([]string, 0, len(customers))
+	for id := range customers {
+		customerIDs = append(customerIDs, id)
+	}
+	sort.Strings(customerIDs)
+	for _, id := range customerIDs {
+		client := customers[id]
+		if err := cw.Write([]string{
+			id,
+			clientName(client),
+			clientAddress(client),
+			clientEmail(client),
+		}); err != nil {
+			return TaxExport{}, err
+		}
+	}
+	cw.Flush()
+	if err := cw.Error(); err != nil {
+		return TaxExport{}, err
+	}
+
+	return TaxExport{Invoices: invoicesBuf.Bytes(), Detail: detailBuf.Bytes(), Customers: customersBuf.Bytes()}, nil
 }
 
 func paymentInvoiceIDs(p invoiceninja.Payment) []string {
