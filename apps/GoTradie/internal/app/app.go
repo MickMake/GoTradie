@@ -356,6 +356,9 @@ func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, args []stri
 		return 2
 	}
 	kind := args[0]
+	if kind == "tax" {
+		return a.runNinjaTaxExport(ctx, svc, args[1:])
+	}
 	outPath, commit, err := parseExportArgs(args[1:])
 	if err != nil {
 		fmt.Fprintln(a.Err, err)
