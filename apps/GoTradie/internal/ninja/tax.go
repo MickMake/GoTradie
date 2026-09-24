@@ -156,7 +156,7 @@ func classifyTaxLineType(line invoiceninja.LineItem) string {
 	if looksLikeScopeOfWork(line.Notes) {
 		return "Labour"
 	}
-	return "Material"
+	return "Materials"
 }
 
 func looksLikeScopeOfWork(description string) bool {
