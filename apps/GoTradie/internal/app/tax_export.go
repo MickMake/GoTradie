@@ -32,8 +32,9 @@ func (a App) runNinjaTaxExport(ctx context.Context, svc *ninja.Service, args []s
 	invoicesPath := filepath.Join(dir, "Invoices.csv")
 	detailPath := filepath.Join(dir, "Detail.csv")
 	customersPath := filepath.Join(dir, "Customers.csv")
+	paymentsPath := filepath.Join(dir, "Payments.csv")
 	if !commit {
-		for _, path := range []string{invoicesPath, detailPath, customersPath} {
+		for _, path := range []string{invoicesPath, detailPath, customersPath, paymentsPath} {
 			if _, err := os.Stat(path); err == nil {
 				fmt.Fprintf(a.Err, "refusing to overwrite existing file %s; use --commit\n", path)
 				return 1
@@ -56,10 +57,15 @@ func (a App) runNinjaTaxExport(ctx context.Context, svc *ninja.Service, args []s
 		fmt.Fprintln(a.Err, "tax export error:", err)
 		return 1
 	}
+	if err := os.WriteFile(paymentsPath, export.Payments, 0644); err != nil {
+		fmt.Fprintln(a.Err, "tax export error:", err)
+		return 1
+	}
 
 	fmt.Fprintf(a.Out, "wrote %s\n", invoicesPath)
 	fmt.Fprintf(a.Out, "wrote %s\n", detailPath)
 	fmt.Fprintf(a.Out, "wrote %s\n", customersPath)
+	fmt.Fprintf(a.Out, "wrote %s\n", paymentsPath)
 	return 0
 }
 
