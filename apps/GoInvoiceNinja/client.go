@@ -198,17 +198,36 @@ func decodeEnvelope[T any](raw json.RawMessage) (T, error) {
 }
 
 func decodeListEnvelope[T any](raw json.RawMessage) ([]T, Meta, error) {
-	var env struct {
-		Data []T  `json:"data"`
-		Meta Meta `json:"meta"`
-	}
-	if err := json.Unmarshal(raw, &env); err == nil {
-		var probe map[string]json.RawMessage
-		_ = json.Unmarshal(raw, &probe)
-		if _, ok := probe["data"]; ok {
-			return env.Data, env.Meta, nil
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &probe); err == nil {
+		if dataRaw, ok := probe["data"]; ok {
+			var items []T
+			if err := json.Unmarshal(dataRaw, &items); err != nil {
+				return nil, Meta{}, err
+			}
+
+			var meta Meta
+			if metaRaw, ok := probe["meta"]; ok {
+				// Pagination metadata varies between Invoice Ninja deployments and
+				// versions. It is useful when available, but must never make valid
+				// list data undecodable.
+				_ = json.Unmarshal(metaRaw, &meta)
+
+				// Some responses nest the useful pagination fields under
+				// meta.pagination.
+				var nested struct {
+					Pagination Meta `json:"pagination"`
+				}
+				if err := json.Unmarshal(metaRaw, &nested); err == nil {
+					if nested.Pagination.CurrentPage != 0 || nested.Pagination.LastPage != 0 || nested.Pagination.Total != 0 {
+						meta = nested.Pagination
+					}
+				}
+			}
+			return items, meta, nil
 		}
 	}
+
 	var items []T
 	if err := json.Unmarshal(raw, &items); err != nil {
 		return nil, Meta{}, err
