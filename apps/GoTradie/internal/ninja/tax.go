@@ -82,7 +82,7 @@ func (s *Service) BuildTaxExport(ctx context.Context) (TaxExport, error) {
 
 		for i, line := range inv.LineItems {
 			if err := dw.Write([]string{
-				line.TypeID,
+				classifyTaxLineType(line),
 				inv.Number,
 				fmt.Sprintf("%d", i+1),
 				line.ProductKey,
@@ -132,6 +132,65 @@ func (s *Service) BuildTaxExport(ctx context.Context) (TaxExport, error) {
 	}
 
 	return TaxExport{Invoices: invoicesBuf.Bytes(), Detail: detailBuf.Bytes(), Customers: customersBuf.Bytes()}, nil
+}
+
+func classifyTaxLineType(line invoiceninja.LineItem) string {
+	// Invoice Ninja type_id 2 is a task, which maps cleanly to labour.
+	if line.TypeID == "2" {
+		return "Labour"
+	}
+
+	// Products are materials by default. Some fixed-price jobs were entered as
+	// products simply because they were priced as a lump sum rather than hourly,
+	// so only override when the description strongly looks like a scope of work.
+	if looksLikeScopeOfWork(line.Notes) {
+		return "Labour"
+	}
+	return "Material"
+}
+
+func looksLikeScopeOfWork(description string) bool {
+	text := strings.ToLower(strings.TrimSpace(description))
+	if text == "" {
+		return false
+	}
+
+	lines := strings.Split(text, "\n")
+	bulletLines := 0
+	actionLines := 0
+	actionWords := []string{
+		"remove", "install", "repair", "replace", "level", "jack", "cut", "fit",
+		"fix", "paint", "sand", "route", "plane", "trim", "adjust", "seal", "glue",
+		"drill", "hang", "build", "construct", "assemble", "demolish", "prepare",
+		"measure", "set out", "pack", "lower", "raise", "refit", "reinstall",
+	}
+
+	for _, raw := range lines {
+		line := strings.TrimSpace(raw)
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "*") || strings.HasPrefix(line, "-") || strings.HasPrefix(line, "•") {
+			bulletLines++
+			line = strings.TrimSpace(strings.TrimLeft(line, "*-•"))
+		}
+		for _, action := range actionWords {
+			if strings.HasPrefix(line, action+" ") || strings.Contains(line, " "+action+" ") {
+				actionLines++
+				break
+			}
+		}
+	}
+
+	// A heading followed by several task bullets is the strongest signal and
+	// matches the way Mick writes fixed-price labour scopes in Invoice Ninja.
+	if bulletLines >= 2 && actionLines >= 2 {
+		return true
+	}
+
+	// Also catch prose scopes with several distinct work actions, while keeping
+	// single product descriptions classified as Material.
+	return actionLines >= 3
 }
 
 func paymentInvoiceIDs(p invoiceninja.Payment) []string {
