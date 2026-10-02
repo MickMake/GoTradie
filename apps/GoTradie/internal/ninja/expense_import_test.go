@@ -197,6 +197,46 @@ func TestImportExpenseCreatesProjectFromNumericMasterQuote(t *testing.T) {
 	}
 }
 
+func TestExpensePreviewTracksPlannedDependencies(t *testing.T) {
+	idx := headerIndex([]string{
+		"Date", "Supplier", "Store", "Tax Treatment", "Category", "Option",
+		"Total Inc GST", "Business %", "Business Amount", "Business GST",
+		"Job Number", "Invoice Number",
+	})
+	state := &expenseImportState{
+		vendors:         map[string]invoiceninja.Vendor{},
+		categories:      map[string]invoiceninja.ExpenseCategory{},
+		projects:        map[string]invoiceninja.Project{},
+		clientByQuote:   map[string]string{"1234": "client1"},
+		expenseByMarker: map[string]invoiceninja.Expense{},
+		seenMarkers:     map[string]int{},
+	}
+	service := &Service{}
+	row := func(invoice string) []string {
+		return []string{"2/10/2026", "Bunnings", "Dural", "Expense - Materials", "Materials", "Consumables", "110", "100", "110", "10", "1234", invoice}
+	}
+
+	first := service.importExpenseRow(context.Background(), state, nil, idx, row("INV-1"), 2, true)
+	second := service.importExpenseRow(context.Background(), state, nil, idx, row("INV-2"), 3, true)
+	for _, want := range []string{"vendor:create:Bunnings - Dural", "category:create:Materials", "project:create:1234"} {
+		if !containsChange(first.Changes, want) {
+			t.Fatalf("first preview changes %v do not contain %q", first.Changes, want)
+		}
+		if containsChange(second.Changes, want) {
+			t.Fatalf("second preview repeats %q in %v", want, second.Changes)
+		}
+	}
+}
+
+func containsChange(changes []string, want string) bool {
+	for _, change := range changes {
+		if change == want {
+			return true
+		}
+	}
+	return false
+}
+
 func assertJSONText(t *testing.T, values map[string]json.RawMessage, field, want string) {
 	t.Helper()
 	var got string

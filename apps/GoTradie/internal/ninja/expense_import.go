@@ -253,7 +253,10 @@ func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportStat
 	vendor, vendorExists := state.vendors[key(vendorName)]
 	if !vendorExists {
 		changes = append(changes, "vendor:create:"+vendorName)
-		if !dryRun {
+		if dryRun {
+			vendor = invoiceninja.Vendor{Name: vendorName}
+			state.vendors[key(vendorName)] = vendor
+		} else {
 			created, createErr := s.client.Vendors.Create(ctx, invoiceninja.CreateVendorRequest{Name: vendorName})
 			if createErr != nil {
 				res.Action = "error"
@@ -268,7 +271,10 @@ func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportStat
 	category, categoryExists := state.categories[key(categoryName)]
 	if !categoryExists {
 		changes = append(changes, "category:create:"+categoryName)
-		if !dryRun {
+		if dryRun {
+			category = invoiceninja.ExpenseCategory{Name: categoryName}
+			state.categories[key(categoryName)] = category
+		} else {
 			created, createErr := s.client.ExpenseCategories.Create(ctx, invoiceninja.CreateExpenseCategoryRequest{Name: categoryName})
 			if createErr != nil {
 				res.Action = "error"
@@ -287,7 +293,9 @@ func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportStat
 			projectID = project.ID
 		} else if clientID := state.clientByQuote[key(jobNumber)]; clientID != "" {
 			changes = append(changes, "project:create:"+jobNumber)
-			if !dryRun {
+			if dryRun {
+				state.projects[key(jobNumber)] = invoiceninja.Project{ClientID: clientID, Name: "Job " + jobNumber, Number: jobNumber}
+			} else {
 				created, createErr := s.client.Projects.Create(ctx, invoiceninja.CreateProjectRequest{
 					ClientID: clientID,
 					Name:     "Job " + jobNumber,

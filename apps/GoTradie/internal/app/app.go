@@ -480,6 +480,8 @@ func parseImportArgs(args []string) (string, bool, error) {
 		switch {
 		case arg == "--commit":
 			dryRun = false
+		case arg == "-":
+			paths = append(paths, arg)
 		case strings.HasPrefix(arg, "-"):
 			return "", true, fmt.Errorf("unknown import flag %q", arg)
 		default:
@@ -509,6 +511,8 @@ func parseExpenseImportArgs(args []string) (string, string, bool, error) {
 			receiptsRoot = args[i]
 		case strings.HasPrefix(arg, "--receipts-root="):
 			receiptsRoot = strings.TrimPrefix(arg, "--receipts-root=")
+		case arg == "-":
+			paths = append(paths, arg)
 		case strings.HasPrefix(arg, "-"):
 			return "", "", true, fmt.Errorf("unknown import flag %q", arg)
 		default:
