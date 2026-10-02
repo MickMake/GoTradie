@@ -410,3 +410,108 @@ When:
 
 ```text
 Document Type = Account Payment
+```
+
+the row represents money paid to a supplier account.
+
+It must not:
+
+- create another expense,
+- create another GST purchase,
+- overwrite purchase analytics,
+- inherit Category/Option meaning from spreadsheet filler values,
+- or manufacture an Invoice Ninja expense merely to represent the payment.
+
+Purchase analytics remain attached to the original purchase rows.
+
+### Account Payment supporting documents
+
+An `Account Payment` row may contain a supporting filename or document reference.
+
+Do not create a fake Invoice Ninja expense solely so that this document has somewhere to attach.
+
+For the initial implementation:
+
+- preserve/report the source filename,
+- attach it only if there is a natural supported Invoice Ninja object for the payment workflow,
+- otherwise leave it unattached.
+
+Supporting-document storage can be improved later without changing accounting behaviour.
+
+### Payment allocation
+
+Allocate account payments conservatively:
+
+1. Match the supplier.
+2. Consider eligible outstanding supplier-account purchases.
+3. Allocate oldest purchase date first.
+4. For purchases on the same date, use stable source-row order.
+5. Mark an expense paid only when fully covered.
+6. Use the actual account-payment date as its payment date.
+7. Leave partially covered expenses unpaid in Invoice Ninja.
+8. Retain/report partial allocation information within the import result so later GST/BAS processing can distinguish paid and unpaid amounts.
+9. Report any unapplied payment remainder.
+
+Never fabricate a fully-paid state merely because Invoice Ninja has a binary paid/unpaid expense model.
+
+### Source identity and idempotency
+
+The current importer derives its source marker from the complete spreadsheet row.
+
+Adding or changing fields such as `Document Type` and `Payment Type` must not cause an expense that was already imported from the same historical purchase to be imported again.
+
+Before implementation, adjust source identity so that:
+
+- the same underlying purchase retains stable identity,
+- control/classification changes do not accidentally create duplicate expenses,
+- existing legacy source markers can still be recognised where necessary,
+- intentionally distinct spreadsheet rows from the same supplier invoice remain distinct.
+
+Do not solve this by weakening duplicate detection across genuinely separate purchase rows.
+
+### Adjustments
+
+`Adjustment` is a valid `Document Type`, but its accounting behaviour must not be guessed.
+
+In particular:
+
+- `Adjustment` alone does not determine whether the amount is positive or negative.
+- Its effect must come from explicit source data.
+- Paid/unpaid behaviour must follow an explicitly defined rule rather than supplier-specific inference.
+
+If the source data does not yet provide enough information to implement adjustments safely, report/defer them rather than inventing behaviour.
+
+### CLI safety
+
+Existing CLI safety behaviour remains unchanged:
+
+- preview is the default,
+- `--commit` is the only persistent-write flag,
+- no Invoice Ninja changes occur without `--commit`.
+
+Do not introduce additional write flags such as:
+
+```text
+--apply
+--force
+--dry-run
+```
+
+### Scope guardrails
+
+Do not introduce, unless separately designed and approved:
+
+- a UI,
+- ERPNext integration,
+- supplier-specific rules,
+- fuzzy matching,
+- an accounting engine,
+- a general ledger,
+- a reconciliation framework beyond the calculations required here,
+- new architectural abstractions merely to support this importer.
+
+Prefer small extensions to the existing expense-import path.
+
+The objective is to correctly represent purchases, unpaid supplier-account purchases, and subsequent account payments while preserving the existing analytical detail.
+
+If the implementation starts requiring a diagram of underground blast doors, it has probably wandered out of scope.
