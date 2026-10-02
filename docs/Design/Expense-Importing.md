@@ -242,7 +242,18 @@ Required behaviour:
 
 If several account payments with different methods contribute to one purchase, GoTradie must not invent a single historical payment method that pretends to describe the whole settlement. The allocation detail is authoritative in that case.
 
-The exact persistence format for allocation detail is not yet locked. Keep it small; do not introduce an accounting framework merely to store six facts and frighten the furniture.
+The allocation detail is authoritative for the duration of the import/reconciliation calculation.
+
+For the historical importer, allocation detail does not require a separate persistent datastore. It must be deterministically reproducible from:
+
+- the source purchase rows;
+- the source Account Payment rows;
+- stable source identities;
+- and relevant existing Invoice Ninja expense state.
+
+Import/reconciliation output must retain enough allocation detail to support inspection, GST/BAS calculation, and supplier-account reconciliation during that run.
+
+If a future workflow requires allocations to persist independently of the source ledger, that must be designed separately.
 
 ## GST accounting basis
 
@@ -318,7 +329,7 @@ The current branch still needs the following narrow changes to satisfy this desi
 1. Purchase creation currently supplies the purchase date as `PaymentDate` for every expense; this must become conditional.
 2. The current GoInvoiceNinja expense request model does not expose an expense Payment Type field, so exact Invoice Ninja Payment Type support will require the smallest appropriate SDK addition.
 3. Account-payment rows need their own parse/allocation path and must not flow through normal expense creation.
-4. Allocation detail needs a minimal persistent representation suitable for later BAS/reconciliation work.
+4. Account-payment allocation needs a small deterministic in-memory representation and result/reporting shape suitable for BAS/reconciliation calculations; no new persistent datastore is required.
 5. Source-marker identity must remain stable when the new canonical/document-payment fields are edited.
 
 These are implementation gaps, not invitations to redesign the existing purchase mapping.
