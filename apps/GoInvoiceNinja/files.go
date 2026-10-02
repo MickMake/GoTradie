@@ -96,7 +96,7 @@ func uploadDocument[T any](ctx context.Context, client *Client, servicePath, id,
 		return nil, err
 	}
 
-	req, err := client.newMultipartRequest(ctx, http.MethodPost, actionPath(servicePath, id, "upload"), nil, &body, mw.FormDataContentType())
+	req, err := client.newMultipartRequest(ctx, http.MethodPut, actionPath(servicePath, id, "upload"), nil, &body, mw.FormDataContentType())
 	if err != nil {
 		return nil, err
 	}
