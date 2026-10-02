@@ -26,9 +26,17 @@ func TestExpenseServicesAreRegistered(t *testing.T) {
 func TestCreateExpenseRequest(t *testing.T) {
 	var gotPath string
 	var got CreateExpenseRequest
+	var gotBody map[string]any
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotPath = r.URL.Path
-		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(body, &got); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(body, &gotBody); err != nil {
 			t.Fatal(err)
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -64,6 +72,12 @@ func TestCreateExpenseRequest(t *testing.T) {
 	if got.VendorID != "vendor1" || got.CategoryID != "category1" {
 		t.Fatalf("unexpected relationship fields: %#v", got)
 	}
+	if gotBody["expense_category_id"] != "category1" {
+		t.Fatalf("expense_category_id = %#v in %#v", gotBody["expense_category_id"], gotBody)
+	}
+	if _, ok := gotBody["category_id"]; ok {
+		t.Fatalf("unexpected category_id in %#v", gotBody)
+	}
 	if got.TaxAmount1 != 9.08 || !got.CalculateTaxByAmount {
 		t.Fatalf("unexpected tax fields: %#v", got)
 	}
@@ -81,6 +95,23 @@ func TestVendorProjectAndCategoryQueries(t *testing.T) {
 	}
 	if got := (ExpenseCategoryQuery{Name: "Materials"}).Values().Get("name"); got != "Materials" {
 		t.Fatalf("category name query = %q", got)
+	}
+	values := (ExpenseQuery{CategoryID: "category1"}).Values()
+	if got := values.Get("expense_category_id"); got != "category1" {
+		t.Fatalf("expense category query = %q", got)
+	}
+	if got := values.Get("category_id"); got != "" {
+		t.Fatalf("unexpected category_id query = %q", got)
+	}
+}
+
+func TestExpenseDecodesExpenseCategoryID(t *testing.T) {
+	var expense Expense
+	if err := json.Unmarshal([]byte(`{"id":"expense1","expense_category_id":"category1"}`), &expense); err != nil {
+		t.Fatal(err)
+	}
+	if expense.CategoryID != "category1" {
+		t.Fatalf("category ID = %q", expense.CategoryID)
 	}
 }
 
