@@ -340,3 +340,73 @@ When changing this importer, ask one question first:
 > Does this change preserve the original purchase row's analytical meaning?
 
 If the answer is no, it needs a very good reason. The paid/unpaid work exists to model settlement timing correctly, not to turn a useful purchase ledger into accounting soup.
+
+## Implementation Constraints
+
+This importer is deliberately narrow in scope. Implement the behaviour described in this document without introducing a broader accounting system.
+
+### Keep the existing expense model
+
+The current purchase-to-Invoice-Ninja expense mapping is considered correct.
+
+Do not redesign or replace the existing handling of:
+
+- Supplier / vendor
+- Purchase date
+- Job Number
+- Child Job Number
+- Category
+- Option
+- Tax Treatment
+- Business %
+- BAS Treatment
+- Item detail
+- Source totals
+- GST amounts
+- Notes
+- Receipt attachment
+- Transaction reference
+- Existing source/idempotency markers
+
+The paid/unpaid work extends this model; it does not replace it.
+
+### No new persistence layer
+
+Do not introduce:
+
+- a database,
+- a local ledger,
+- an allocation datastore,
+- an accounting framework,
+- or another persistent state mechanism.
+
+For historical import, payment allocation should be deterministically derived from the source data and the existing Invoice Ninja state.
+
+If a future feature genuinely requires persistent allocation state, design that separately.
+
+### Payment Type
+
+`Payment Type` values must correspond exactly to Invoice Ninja payment types.
+
+Rules:
+
+- Perform an exact Invoice Ninja payment-type lookup.
+- Store/use the corresponding Invoice Ninja payment type ID where required by the API.
+- Do not perform fuzzy matching.
+- Do not invent aliases.
+- Do not silently substitute another payment method.
+- An unknown non-blank Payment Type is a row error.
+
+For a normal purchase:
+
+- a recognised immediate-payment type means the expense is paid on the purchase date,
+- a purchase intentionally recorded as unpaid has no payment date and is not marked paid.
+
+For an `Account Payment` row, `Payment Type` describes how the supplier-account payment itself was made.
+
+### Account Payment rows are not expenses
+
+When:
+
+```text
+Document Type = Account Payment
