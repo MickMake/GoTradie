@@ -401,7 +401,7 @@ func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, args []stri
 
 func (a App) runNinjaImport(ctx context.Context, svc *ninja.Service, args []string) int {
 	if len(args) < 1 {
-		fmt.Fprintln(a.Err, "usage: GoTradie ninja import <products|clients> <file|-> [--commit]")
+		fmt.Fprintln(a.Err, "usage: GoTradie ninja import <products|clients|expenses> <file|-> [--commit]")
 		return 2
 	}
 	kind := args[0]
@@ -423,6 +423,8 @@ func (a App) runNinjaImport(ctx context.Context, svc *ninja.Service, args []stri
 		results, err = svc.ImportProductsCSV(ctx, r, dryRun)
 	case "clients":
 		results, err = svc.ImportClientsCSV(ctx, r, dryRun)
+	case "expenses":
+		results, err = svc.ImportExpensesCSV(ctx, r, dryRun)
 	case "quotes", "invoices", "payments":
 		fmt.Fprintf(a.Err, "ninja import %s is not supported; exports only for this target\n", kind)
 		return 2
@@ -623,6 +625,7 @@ Commands:
   ninja import products <file|->        Preview product CSV changes; use --commit to update.
   ninja export clients <file|->         Export Invoice Ninja clients as CSV; use --commit to overwrite.
   ninja import clients <file|->         Preview client CSV changes; use --commit to update.
+  ninja import expenses <file|->        Preview purchase-ledger expenses; use --commit to create.
   ninja export quotes <file|->          Export Invoice Ninja quotes as CSV; use --commit to overwrite.
   ninja export invoices <file|->        Export Invoice Ninja invoices as CSV; use --commit to overwrite.
   ninja export payments <file|->        Export Invoice Ninja payments as CSV; use --commit to overwrite.
@@ -646,6 +649,8 @@ Examples:
   GoTradie ninja import products --commit products.csv
   GoTradie ninja export clients clients.csv
   GoTradie ninja import clients --commit clients.csv
+  GoTradie ninja import expenses purchases.csv
+  GoTradie ninja import expenses --commit purchases.csv
   GoTradie ninja export quotes quotes.csv
   GoTradie ninja export invoices invoices.csv
   GoTradie ninja export payments payments.csv

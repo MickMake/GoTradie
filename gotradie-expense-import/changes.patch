@@ -1,0 +1,1033 @@
+--- a/apps/GoInvoiceNinja/client.go
++++ b/apps/GoInvoiceNinja/client.go
+@@ -19,19 +19,23 @@
+ 	DefaultAPIPath = "/api/v1"
+ )
+ 
+-// Client is an Invoice Ninja API client focused on the day-to-day sales workflow:
+-// clients, products, quotes, invoices, and payments.
++// Client is an Invoice Ninja API client focused on the day-to-day sales and
++// purchasing workflow used by GoTradie.
+ type Client struct {
+ 	baseURL    *url.URL
+ 	token      string
+ 	httpClient *http.Client
+ 	userAgent  string
+ 
+-	Clients  *ClientService
+-	Products *ProductService
+-	Quotes   *QuoteService
+-	Invoices *InvoiceService
+-	Payments *PaymentService
++	Clients           *ClientService
++	Products          *ProductService
++	Quotes            *QuoteService
++	Invoices          *InvoiceService
++	Payments          *PaymentService
++	Vendors           *VendorService
++	Projects          *ProjectService
++	ExpenseCategories *ExpenseCategoryService
++	Expenses          *ExpenseService
+ }
+ 
+ // Option customises the client.
+@@ -93,6 +97,10 @@
+ 	c.Quotes = &QuoteService{Service: NewService[Quote](c, "quotes")}
+ 	c.Invoices = &InvoiceService{Service: NewService[Invoice](c, "invoices")}
+ 	c.Payments = &PaymentService{Service: NewService[Payment](c, "payments")}
++	c.Vendors = &VendorService{Service: NewService[Vendor](c, "vendors")}
++	c.Projects = &ProjectService{Service: NewService[Project](c, "projects")}
++	c.ExpenseCategories = &ExpenseCategoryService{Service: NewService[ExpenseCategory](c, "expense_categories")}
++	c.Expenses = &ExpenseService{Service: NewService[Expense](c, "expenses")}
+ 	return c, nil
+ }
+ 
+--- /dev/null
++++ b/apps/GoInvoiceNinja/expenses.go
+@@ -0,0 +1,292 @@
++package goinvoiceninja
++
++import (
++	"context"
++	"net/url"
++)
++
++// Vendor is an Invoice Ninja supplier/vendor.
++type Vendor struct {
++	Entity
++	Name         string `json:"name,omitempty"`
++	DisplayName  string `json:"display_name,omitempty"`
++	Number       string `json:"number,omitempty"`
++	CurrencyID   string `json:"currency_id,omitempty"`
++	PrivateNotes string `json:"private_notes,omitempty"`
++	PublicNotes  string `json:"public_notes,omitempty"`
++	CustomValue1 string `json:"custom_value1,omitempty"`
++	CustomValue2 string `json:"custom_value2,omitempty"`
++	CustomValue3 string `json:"custom_value3,omitempty"`
++	CustomValue4 string `json:"custom_value4,omitempty"`
++}
++
++// Project groups related quotes, invoices, tasks and expenses for a client job.
++type Project struct {
++	Entity
++	ClientID       string  `json:"client_id,omitempty"`
++	Name           string  `json:"name,omitempty"`
++	Number         string  `json:"number,omitempty"`
++	TaskRate       float64 `json:"task_rate,omitempty"`
++	PrivateNotes   string  `json:"private_notes,omitempty"`
++	PublicNotes    string  `json:"public_notes,omitempty"`
++	CustomValue1   string  `json:"custom_value1,omitempty"`
++	CustomValue2   string  `json:"custom_value2,omitempty"`
++	CustomValue3   string  `json:"custom_value3,omitempty"`
++	CustomValue4   string  `json:"custom_value4,omitempty"`
++	BudgetedHours  float64 `json:"budgeted_hours,omitempty"`
++	BudgetedAmount float64 `json:"budgeted_amount,omitempty"`
++}
++
++// ExpenseCategory is Invoice Ninja's broad expense grouping.
++type ExpenseCategory struct {
++	Entity
++	Name  string `json:"name,omitempty"`
++	Color string `json:"color,omitempty"`
++}
++
++// Expense models the fields needed for purchase/tax import and BAS reporting.
++type Expense struct {
++	Entity
++	VendorID             string           `json:"vendor_id,omitempty"`
++	ClientID             string           `json:"client_id,omitempty"`
++	ProjectID            string           `json:"project_id,omitempty"`
++	CategoryID           string           `json:"category_id,omitempty"`
++	CurrencyID           string           `json:"currency_id,omitempty"`
++	Number               string           `json:"number,omitempty"`
++	Amount               float64          `json:"amount,omitempty"`
++	ForeignAmount        float64          `json:"foreign_amount,omitempty"`
++	ExchangeRate         float64          `json:"exchange_rate,omitempty"`
++	Date                 string           `json:"date,omitempty"`
++	PaymentDate          string           `json:"payment_date,omitempty"`
++	PrivateNotes         string           `json:"private_notes,omitempty"`
++	PublicNotes          string           `json:"public_notes,omitempty"`
++	TransactionReference string           `json:"transaction_reference,omitempty"`
++	TaxName1             string           `json:"tax_name1,omitempty"`
++	TaxRate1             float64          `json:"tax_rate1,omitempty"`
++	TaxName2             string           `json:"tax_name2,omitempty"`
++	TaxRate2             float64          `json:"tax_rate2,omitempty"`
++	TaxName3             string           `json:"tax_name3,omitempty"`
++	TaxRate3             float64          `json:"tax_rate3,omitempty"`
++	TaxAmount1           float64          `json:"tax_amount1,omitempty"`
++	TaxAmount2           float64          `json:"tax_amount2,omitempty"`
++	TaxAmount3           float64          `json:"tax_amount3,omitempty"`
++	UsesInclusiveTaxes   bool             `json:"uses_inclusive_taxes,omitempty"`
++	CalculateTaxByAmount bool             `json:"calculate_tax_by_amount,omitempty"`
++	ShouldBeInvoiced     bool             `json:"should_be_invoiced,omitempty"`
++	InvoiceDocuments     bool             `json:"invoice_documents,omitempty"`
++	CustomValue1         string           `json:"custom_value1,omitempty"`
++	CustomValue2         string           `json:"custom_value2,omitempty"`
++	CustomValue3         string           `json:"custom_value3,omitempty"`
++	CustomValue4         string           `json:"custom_value4,omitempty"`
++	Documents            []Document       `json:"documents,omitempty"`
++	Vendor               *Vendor          `json:"vendor,omitempty"`
++	Project              *Project         `json:"project,omitempty"`
++	Category             *ExpenseCategory `json:"category,omitempty"`
++}
++
++type CreateVendorRequest struct {
++	Name         string `json:"name"`
++	Number       string `json:"number,omitempty"`
++	CurrencyID   string `json:"currency_id,omitempty"`
++	PrivateNotes string `json:"private_notes,omitempty"`
++	PublicNotes  string `json:"public_notes,omitempty"`
++	CustomValue1 string `json:"custom_value1,omitempty"`
++	CustomValue2 string `json:"custom_value2,omitempty"`
++	CustomValue3 string `json:"custom_value3,omitempty"`
++	CustomValue4 string `json:"custom_value4,omitempty"`
++}
++
++type UpdateVendorRequest CreateVendorRequest
++
++type CreateProjectRequest struct {
++	ClientID       string  `json:"client_id"`
++	Name           string  `json:"name"`
++	Number         string  `json:"number,omitempty"`
++	TaskRate       float64 `json:"task_rate"`
++	PrivateNotes   string  `json:"private_notes,omitempty"`
++	PublicNotes    string  `json:"public_notes,omitempty"`
++	CustomValue1   string  `json:"custom_value1,omitempty"`
++	CustomValue2   string  `json:"custom_value2,omitempty"`
++	CustomValue3   string  `json:"custom_value3,omitempty"`
++	CustomValue4   string  `json:"custom_value4,omitempty"`
++	BudgetedHours  float64 `json:"budgeted_hours,omitempty"`
++	BudgetedAmount float64 `json:"budgeted_amount,omitempty"`
++}
++
++type UpdateProjectRequest CreateProjectRequest
++
++type CreateExpenseCategoryRequest struct {
++	Name  string `json:"name"`
++	Color string `json:"color,omitempty"`
++}
++
++type UpdateExpenseCategoryRequest CreateExpenseCategoryRequest
++
++type CreateExpenseRequest struct {
++	VendorID             string  `json:"vendor_id,omitempty"`
++	ClientID             string  `json:"client_id,omitempty"`
++	ProjectID            string  `json:"project_id,omitempty"`
++	CategoryID           string  `json:"category_id,omitempty"`
++	CurrencyID           string  `json:"currency_id,omitempty"`
++	Number               string  `json:"number,omitempty"`
++	Amount               float64 `json:"amount,omitempty"`
++	ForeignAmount        float64 `json:"foreign_amount,omitempty"`
++	ExchangeRate         float64 `json:"exchange_rate,omitempty"`
++	Date                 string  `json:"date,omitempty"`
++	PaymentDate          string  `json:"payment_date,omitempty"`
++	PrivateNotes         string  `json:"private_notes,omitempty"`
++	PublicNotes          string  `json:"public_notes,omitempty"`
++	TransactionReference string  `json:"transaction_reference,omitempty"`
++	TaxName1             string  `json:"tax_name1,omitempty"`
++	TaxRate1             float64 `json:"tax_rate1,omitempty"`
++	TaxName2             string  `json:"tax_name2,omitempty"`
++	TaxRate2             float64 `json:"tax_rate2,omitempty"`
++	TaxName3             string  `json:"tax_name3,omitempty"`
++	TaxRate3             float64 `json:"tax_rate3,omitempty"`
++	TaxAmount1           float64 `json:"tax_amount1,omitempty"`
++	TaxAmount2           float64 `json:"tax_amount2,omitempty"`
++	TaxAmount3           float64 `json:"tax_amount3,omitempty"`
++	UsesInclusiveTaxes   bool    `json:"uses_inclusive_taxes,omitempty"`
++	CalculateTaxByAmount bool    `json:"calculate_tax_by_amount,omitempty"`
++	ShouldBeInvoiced     bool    `json:"should_be_invoiced,omitempty"`
++	InvoiceDocuments     bool    `json:"invoice_documents,omitempty"`
++	CustomValue1         string  `json:"custom_value1,omitempty"`
++	CustomValue2         string  `json:"custom_value2,omitempty"`
++	CustomValue3         string  `json:"custom_value3,omitempty"`
++	CustomValue4         string  `json:"custom_value4,omitempty"`
++}
++
++type UpdateExpenseRequest CreateExpenseRequest
++
++type VendorService struct{ *Service[Vendor] }
++type ProjectService struct{ *Service[Project] }
++type ExpenseCategoryService struct{ *Service[ExpenseCategory] }
++type ExpenseService struct{ *Service[Expense] }
++
++type VendorQuery struct {
++	ListOptions
++	Name        string
++	Number      string
++	WithTrashed bool
++	IsDeleted   *bool
++}
++
++func (q VendorQuery) Values() url.Values {
++	v := q.ListOptions.Values()
++	setIf(v, "name", q.Name)
++	setIf(v, "number", q.Number)
++	setBoolIf(v, "with_trashed", q.WithTrashed)
++	setBoolPtr(v, "is_deleted", q.IsDeleted)
++	return v
++}
++
++func (s *VendorService) List(ctx context.Context, q VendorQuery) (*ListResult[Vendor], error) {
++	return listWithQuery[Vendor](ctx, s.client, s.path, q.Values())
++}
++func (s *VendorService) ListAll(ctx context.Context, q VendorQuery) ([]Vendor, error) {
++	return listAllWithValues[Vendor](ctx, s.client, s.path, q.Values())
++}
++func (s *VendorService) Create(ctx context.Context, req CreateVendorRequest) (*Vendor, error) {
++	return s.Service.Create(ctx, req)
++}
++func (s *VendorService) Update(ctx context.Context, id string, req UpdateVendorRequest) (*Vendor, error) {
++	return s.Service.Update(ctx, id, req)
++}
++
++type ProjectQuery struct {
++	ListOptions
++	Number      string
++	ClientID    string
++	WithTrashed bool
++	IsDeleted   *bool
++}
++
++func (q ProjectQuery) Values() url.Values {
++	v := q.ListOptions.Values()
++	setIf(v, "number", q.Number)
++	setIf(v, "client_id", q.ClientID)
++	setBoolIf(v, "with_trashed", q.WithTrashed)
++	setBoolPtr(v, "is_deleted", q.IsDeleted)
++	return v
++}
++
++func (s *ProjectService) List(ctx context.Context, q ProjectQuery) (*ListResult[Project], error) {
++	return listWithQuery[Project](ctx, s.client, s.path, q.Values())
++}
++func (s *ProjectService) ListAll(ctx context.Context, q ProjectQuery) ([]Project, error) {
++	return listAllWithValues[Project](ctx, s.client, s.path, q.Values())
++}
++func (s *ProjectService) Create(ctx context.Context, req CreateProjectRequest) (*Project, error) {
++	return s.Service.Create(ctx, req)
++}
++func (s *ProjectService) Update(ctx context.Context, id string, req UpdateProjectRequest) (*Project, error) {
++	return s.Service.Update(ctx, id, req)
++}
++
++type ExpenseCategoryQuery struct {
++	ListOptions
++	Name        string
++	WithTrashed bool
++	IsDeleted   *bool
++}
++
++func (q ExpenseCategoryQuery) Values() url.Values {
++	v := q.ListOptions.Values()
++	setIf(v, "name", q.Name)
++	setBoolIf(v, "with_trashed", q.WithTrashed)
++	setBoolPtr(v, "is_deleted", q.IsDeleted)
++	return v
++}
++
++func (s *ExpenseCategoryService) List(ctx context.Context, q ExpenseCategoryQuery) (*ListResult[ExpenseCategory], error) {
++	return listWithQuery[ExpenseCategory](ctx, s.client, s.path, q.Values())
++}
++func (s *ExpenseCategoryService) ListAll(ctx context.Context, q ExpenseCategoryQuery) ([]ExpenseCategory, error) {
++	return listAllWithValues[ExpenseCategory](ctx, s.client, s.path, q.Values())
++}
++func (s *ExpenseCategoryService) Create(ctx context.Context, req CreateExpenseCategoryRequest) (*ExpenseCategory, error) {
++	return s.Service.Create(ctx, req)
++}
++func (s *ExpenseCategoryService) Update(ctx context.Context, id string, req UpdateExpenseCategoryRequest) (*ExpenseCategory, error) {
++	return s.Service.Update(ctx, id, req)
++}
++
++type ExpenseQuery struct {
++	ListOptions
++	VendorID             string
++	ClientID             string
++	ProjectID            string
++	CategoryID           string
++	TransactionReference string
++	Date                 string
++	PrivateNotes         string
++	WithTrashed          bool
++	IsDeleted            *bool
++}
++
++func (q ExpenseQuery) Values() url.Values {
++	v := q.ListOptions.Values()
++	setIf(v, "vendor_id", q.VendorID)
++	setIf(v, "client_id", q.ClientID)
++	setIf(v, "project_id", q.ProjectID)
++	setIf(v, "category_id", q.CategoryID)
++	setIf(v, "transaction_reference", q.TransactionReference)
++	setIf(v, "date", q.Date)
++	setIf(v, "private_notes", q.PrivateNotes)
++	setBoolIf(v, "with_trashed", q.WithTrashed)
++	setBoolPtr(v, "is_deleted", q.IsDeleted)
++	return v
++}
++
++func (s *ExpenseService) List(ctx context.Context, q ExpenseQuery) (*ListResult[Expense], error) {
++	return listWithQuery[Expense](ctx, s.client, s.path, q.Values())
++}
++func (s *ExpenseService) ListAll(ctx context.Context, q ExpenseQuery) ([]Expense, error) {
++	return listAllWithValues[Expense](ctx, s.client, s.path, q.Values())
++}
++func (s *ExpenseService) Create(ctx context.Context, req CreateExpenseRequest) (*Expense, error) {
++	return s.Service.Create(ctx, req)
++}
++func (s *ExpenseService) Update(ctx context.Context, id string, req UpdateExpenseRequest) (*Expense, error) {
++	return s.Service.Update(ctx, id, req)
++}
+--- /dev/null
++++ b/apps/GoInvoiceNinja/expenses_test.go
+@@ -0,0 +1,83 @@
++package goinvoiceninja
++
++import (
++	"context"
++	"encoding/json"
++	"net/http"
++	"net/http/httptest"
++	"testing"
++)
++
++func TestExpenseServicesAreRegistered(t *testing.T) {
++	c, err := New("token")
++	if err != nil {
++		t.Fatal(err)
++	}
++	if c.Vendors == nil || c.Projects == nil || c.ExpenseCategories == nil || c.Expenses == nil {
++		t.Fatal("expense-related services were not registered")
++	}
++	if c.Expenses.Endpoint() != "expenses" {
++		t.Fatalf("unexpected expense endpoint %q", c.Expenses.Endpoint())
++	}
++}
++
++func TestCreateExpenseRequest(t *testing.T) {
++	var gotPath string
++	var got CreateExpenseRequest
++	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
++		gotPath = r.URL.Path
++		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
++			t.Fatal(err)
++		}
++		w.Header().Set("Content-Type", "application/json")
++		_, _ = w.Write([]byte(`{"data":{"id":"expense1","amount":99.90,"tax_amount1":9.08}}`))
++	}))
++	defer ts.Close()
++
++	c, err := New("token", WithBaseURL(ts.URL), WithHTTPClient(ts.Client()))
++	if err != nil {
++		t.Fatal(err)
++	}
++	created, err := c.Expenses.Create(context.Background(), CreateExpenseRequest{
++		VendorID:             "vendor1",
++		CategoryID:           "category1",
++		Amount:               99.90,
++		Date:                 "2026-10-02",
++		TaxName1:             "GST",
++		TaxRate1:             10,
++		TaxAmount1:           9.08,
++		UsesInclusiveTaxes:   true,
++		CalculateTaxByAmount: true,
++		CustomValue1:         "Expense - Consumables",
++		CustomValue2:         "Consumable: Nails",
++		CustomValue3:         "100%",
++		CustomValue4:         "GST Credit",
++	})
++	if err != nil {
++		t.Fatal(err)
++	}
++	if gotPath != "/api/v1/expenses" {
++		t.Fatalf("unexpected path %q", gotPath)
++	}
++	if got.VendorID != "vendor1" || got.CategoryID != "category1" {
++		t.Fatalf("unexpected relationship fields: %#v", got)
++	}
++	if got.TaxAmount1 != 9.08 || !got.CalculateTaxByAmount {
++		t.Fatalf("unexpected tax fields: %#v", got)
++	}
++	if created.ID != "expense1" {
++		t.Fatalf("unexpected created expense %#v", created)
++	}
++}
++
++func TestVendorProjectAndCategoryQueries(t *testing.T) {
++	if got := (VendorQuery{Name: "Bunnings"}).Values().Get("name"); got != "Bunnings" {
++		t.Fatalf("vendor name query = %q", got)
++	}
++	if got := (ProjectQuery{Number: "1234"}).Values().Get("number"); got != "1234" {
++		t.Fatalf("project number query = %q", got)
++	}
++	if got := (ExpenseCategoryQuery{Name: "Materials"}).Values().Get("name"); got != "Materials" {
++		t.Fatalf("category name query = %q", got)
++	}
++}
+--- /dev/null
++++ b/apps/GoTradie/internal/ninja/expense_import.go
+@@ -0,0 +1,463 @@
++package ninja
++
++import (
++	"context"
++	"crypto/sha256"
++	"encoding/csv"
++	"encoding/hex"
++	"fmt"
++	"io"
++	"strconv"
++	"strings"
++	"time"
++
++	invoiceninja "github.com/MickMake/GoInvoiceNinja"
++)
++
++var expenseImportRequiredColumns = []string{
++	"Date",
++	"Supplier",
++	"Tax Treatment",
++	"Category",
++	"Option",
++	"Total Inc GST",
++	"Business %",
++	"Business Amount",
++	"Business GST",
++}
++
++type expenseImportState struct {
++	vendors          map[string]invoiceninja.Vendor
++	categories       map[string]invoiceninja.ExpenseCategory
++	projects         map[string]invoiceninja.Project
++	clientByDocument map[string]string
++	expenseByMarker  map[string]invoiceninja.Expense
++	seenMarkers      map[string]int
++}
++
++// ImportExpensesCSV imports the purchase ledger shape used by Mick's master
++// spreadsheet. Preview is the default; pass dryRun=false only for --commit.
++//
++// The Invoice Ninja expense amount and tax amount use the spreadsheet's
++// Business Amount / Business GST values. The original supplier totals, currency,
++// item detail and source filename remain in private notes for tax/audit tracing.
++func (s *Service) ImportExpensesCSV(ctx context.Context, r io.Reader, dryRun bool) ([]CSVImportResult, error) {
++	cr := csv.NewReader(r)
++	cr.FieldsPerRecord = -1
++	recs, err := cr.ReadAll()
++	if err != nil {
++		return nil, err
++	}
++	if len(recs) == 0 {
++		return nil, fmt.Errorf("CSV is empty")
++	}
++
++	idx := headerIndex(recs[0])
++	for _, name := range expenseImportRequiredColumns {
++		if _, ok := idx[name]; !ok {
++			return nil, fmt.Errorf("missing required column %q", name)
++		}
++	}
++
++	state, err := s.loadExpenseImportState(ctx)
++	if err != nil {
++		return nil, err
++	}
++
++	results := make([]CSVImportResult, 0, len(recs)-1)
++	for rowNo, rec := range recs[1:] {
++		if emptyRecord(rec) {
++			continue
++		}
++		results = append(results, s.importExpenseRow(ctx, state, idx, rec, rowNo+2, dryRun))
++	}
++	return results, nil
++}
++
++func (s *Service) loadExpenseImportState(ctx context.Context) (*expenseImportState, error) {
++	vendors, err := s.client.Vendors.ListAll(ctx, invoiceninja.VendorQuery{
++		ListOptions: invoiceninja.ListOptions{PerPage: 100},
++	})
++	if err != nil {
++		return nil, fmt.Errorf("list vendors: %w", err)
++	}
++	categories, err := s.client.ExpenseCategories.ListAll(ctx, invoiceninja.ExpenseCategoryQuery{
++		ListOptions: invoiceninja.ListOptions{PerPage: 100},
++	})
++	if err != nil {
++		return nil, fmt.Errorf("list expense categories: %w", err)
++	}
++	projects, err := s.client.Projects.ListAll(ctx, invoiceninja.ProjectQuery{
++		ListOptions: invoiceninja.ListOptions{PerPage: 100},
++	})
++	if err != nil {
++		return nil, fmt.Errorf("list projects: %w", err)
++	}
++	expenses, err := s.client.Expenses.ListAll(ctx, invoiceninja.ExpenseQuery{
++		ListOptions: invoiceninja.ListOptions{PerPage: 100},
++		WithTrashed: true,
++	})
++	if err != nil {
++		return nil, fmt.Errorf("list expenses: %w", err)
++	}
++	invoices, err := s.client.Invoices.ListAll(ctx, invoiceninja.InvoiceQuery{
++		ListOptions: invoiceninja.ListOptions{PerPage: 100},
++	})
++	if err != nil {
++		return nil, fmt.Errorf("list invoices for project matching: %w", err)
++	}
++	quotes, err := s.client.Quotes.ListAll(ctx, invoiceninja.QuoteQuery{
++		ListOptions: invoiceninja.ListOptions{PerPage: 100},
++	})
++	if err != nil {
++		return nil, fmt.Errorf("list quotes for project matching: %w", err)
++	}
++
++	state := &expenseImportState{
++		vendors:          make(map[string]invoiceninja.Vendor, len(vendors)),
++		categories:       make(map[string]invoiceninja.ExpenseCategory, len(categories)),
++		projects:         make(map[string]invoiceninja.Project, len(projects)),
++		clientByDocument: make(map[string]string, len(invoices)+len(quotes)),
++		expenseByMarker:  make(map[string]invoiceninja.Expense, len(expenses)),
++		seenMarkers:      make(map[string]int),
++	}
++	for _, vendor := range vendors {
++		state.vendors[key(vendor.Name)] = vendor
++	}
++	for _, category := range categories {
++		state.categories[key(category.Name)] = category
++	}
++	for _, project := range projects {
++		if strings.TrimSpace(project.Number) != "" {
++			state.projects[key(project.Number)] = project
++		}
++	}
++	for _, invoice := range invoices {
++		if strings.TrimSpace(invoice.Number) != "" && strings.TrimSpace(invoice.ClientID) != "" {
++			state.clientByDocument[key(invoice.Number)] = invoice.ClientID
++		}
++	}
++	for _, quote := range quotes {
++		doc := invoiceninja.Invoice(quote)
++		if strings.TrimSpace(doc.Number) != "" && strings.TrimSpace(doc.ClientID) != "" {
++			if _, exists := state.clientByDocument[key(doc.Number)]; !exists {
++				state.clientByDocument[key(doc.Number)] = doc.ClientID
++			}
++		}
++	}
++	for _, expense := range expenses {
++		if marker := sourceMarkerFromNotes(expense.PrivateNotes); marker != "" {
++			state.expenseByMarker[marker] = expense
++		}
++	}
++	return state, nil
++}
++
++func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportState, idx map[string]int, rec []string, rowNo int, dryRun bool) CSVImportResult {
++	supplier := cell(rec, idx, "Supplier")
++	store := cell(rec, idx, "Store")
++	vendorName := expenseVendorName(supplier, store)
++	description := cell(rec, idx, "Item Description")
++	name := vendorName
++	if description != "" {
++		name += " / " + description
++	}
++	res := CSVImportResult{Name: name}
++
++	if supplier == "" {
++		res.Action = "error"
++		res.Error = fmt.Errorf("row %d: Supplier is required", rowNo)
++		return res
++	}
++	categoryName := cell(rec, idx, "Category")
++	if categoryName == "" {
++		res.Action = "error"
++		res.Error = fmt.Errorf("row %d: Category is required", rowNo)
++		return res
++	}
++	date, err := parseExpenseDate(cell(rec, idx, "Date"))
++	if err != nil {
++		res.Action = "error"
++		res.Error = fmt.Errorf("row %d date: %w", rowNo, err)
++		return res
++	}
++	businessPct, err := parsePercent(cell(rec, idx, "Business %"))
++	if err != nil {
++		res.Action = "error"
++		res.Error = fmt.Errorf("row %d business %%: %w", rowNo, err)
++		return res
++	}
++	businessAmount, err := parseExpenseMoney(cell(rec, idx, "Business Amount"))
++	if err != nil {
++		res.Action = "error"
++		res.Error = fmt.Errorf("row %d business amount: %w", rowNo, err)
++		return res
++	}
++	businessGST, err := parseExpenseMoney(cell(rec, idx, "Business GST"))
++	if err != nil {
++		res.Action = "error"
++		res.Error = fmt.Errorf("row %d business GST: %w", rowNo, err)
++		return res
++	}
++	if businessAmount == 0 && businessPct > 0 {
++		total, totalErr := parseExpenseMoney(cell(rec, idx, "Total Inc GST"))
++		if totalErr != nil {
++			res.Action = "error"
++			res.Error = fmt.Errorf("row %d total inc GST: %w", rowNo, totalErr)
++			return res
++		}
++		businessAmount = total * businessPct / 100
++	}
++
++	marker := sourceMarker(rec)
++	if existing, ok := state.expenseByMarker[marker]; ok {
++		res.ID = existing.ID
++		res.Action = "unchanged"
++		res.Changes = []string{"already-imported"}
++		return res
++	}
++	if previousRow, ok := state.seenMarkers[marker]; ok {
++		res.Action = "unchanged"
++		res.Changes = []string{fmt.Sprintf("duplicate-source-row:%d", previousRow)}
++		return res
++	}
++	state.seenMarkers[marker] = rowNo
++
++	changes := make([]string, 0, 4)
++	vendor, vendorExists := state.vendors[key(vendorName)]
++	if !vendorExists {
++		changes = append(changes, "vendor:create:"+vendorName)
++		if !dryRun {
++			created, createErr := s.client.Vendors.Create(ctx, invoiceninja.CreateVendorRequest{Name: vendorName})
++			if createErr != nil {
++				res.Action = "error"
++				res.Error = fmt.Errorf("row %d create vendor %q: %w", rowNo, vendorName, createErr)
++				return res
++			}
++			vendor = *created
++			state.vendors[key(vendorName)] = vendor
++		}
++	}
++
++	category, categoryExists := state.categories[key(categoryName)]
++	if !categoryExists {
++		changes = append(changes, "category:create:"+categoryName)
++		if !dryRun {
++			created, createErr := s.client.ExpenseCategories.Create(ctx, invoiceninja.CreateExpenseCategoryRequest{Name: categoryName})
++			if createErr != nil {
++				res.Action = "error"
++				res.Error = fmt.Errorf("row %d create category %q: %w", rowNo, categoryName, createErr)
++				return res
++			}
++			category = *created
++			state.categories[key(categoryName)] = category
++		}
++	}
++
++	projectID := ""
++	jobNumber := projectNumber(rec, idx)
++	if jobNumber != "" {
++		if project, ok := state.projects[key(jobNumber)]; ok {
++			projectID = project.ID
++		} else if clientID := state.clientByDocument[key(jobNumber)]; clientID != "" {
++			changes = append(changes, "project:create:"+jobNumber)
++			if !dryRun {
++				created, createErr := s.client.Projects.Create(ctx, invoiceninja.CreateProjectRequest{
++					ClientID: clientID,
++					Name:     "Job " + jobNumber,
++					Number:   jobNumber,
++					TaskRate: 0,
++				})
++				if createErr != nil {
++					res.Action = "error"
++					res.Error = fmt.Errorf("row %d create project %q: %w", rowNo, jobNumber, createErr)
++					return res
++				}
++				state.projects[key(jobNumber)] = *created
++				projectID = created.ID
++			}
++		} else {
++			changes = append(changes, "project:unresolved:"+jobNumber)
++		}
++	}
++
++	basTreatment := deriveBASTreatment(cell(rec, idx, "Tax Treatment"), businessPct, businessGST)
++	payload := invoiceninja.CreateExpenseRequest{
++		VendorID:             vendor.ID,
++		ProjectID:            projectID,
++		CategoryID:           category.ID,
++		Amount:               businessAmount,
++		Date:                 date,
++		PaymentDate:          date,
++		PrivateNotes:         expensePrivateNotes(rec, idx, rowNo, marker),
++		TransactionReference: cell(rec, idx, "Invoice Number"),
++		TaxAmount1:           businessGST,
++		UsesInclusiveTaxes:   true,
++		CalculateTaxByAmount: true,
++		CustomValue1:         cell(rec, idx, "Tax Treatment"),
++		CustomValue2:         cell(rec, idx, "Option"),
++		CustomValue3:         cell(rec, idx, "Business %"),
++		CustomValue4:         basTreatment,
++	}
++	if businessGST != 0 {
++		payload.TaxName1 = "GST"
++		payload.TaxRate1 = 10
++	}
++
++	changes = append(changes, "expense:create")
++	res.Changes = changes
++	if dryRun {
++		res.Action = "would-create"
++		return res
++	}
++
++	created, err := s.client.Expenses.Create(ctx, payload)
++	if err != nil {
++		res.Action = "error"
++		res.Error = fmt.Errorf("row %d create expense: %w", rowNo, err)
++		return res
++	}
++	res.ID = created.ID
++	res.Action = "created"
++	state.expenseByMarker[marker] = *created
++	return res
++}
++
++func expenseVendorName(supplier, store string) string {
++	supplier = strings.TrimSpace(supplier)
++	store = strings.TrimSpace(store)
++	if store == "" {
++		return supplier
++	}
++	return supplier + " - " + store
++}
++
++func deriveBASTreatment(taxTreatment string, businessPct, businessGST float64) string {
++	taxTreatment = strings.ToLower(strings.TrimSpace(taxTreatment))
++	if businessPct <= 0 || strings.Contains(taxTreatment, "personal") || strings.Contains(taxTreatment, "non-deductible") {
++		return "Private/Non-deductible"
++	}
++	if businessGST > 0 {
++		return "GST Credit"
++	}
++	return "Review"
++}
++
++func projectNumber(rec []string, idx map[string]int) string {
++	for _, field := range []string{"Job Number", "Child Job Number"} {
++		value := strings.TrimSpace(cell(rec, idx, field))
++		if value == "" {
++			continue
++		}
++		switch strings.ToLower(value) {
++		case "business", "personal", "n/a", "na", "none":
++			continue
++		default:
++			return value
++		}
++	}
++	return ""
++}
++
++func expensePrivateNotes(rec []string, idx map[string]int, rowNo int, marker string) string {
++	var lines []string
++	add := func(label, value string) {
++		value = strings.TrimSpace(value)
++		if value != "" {
++			lines = append(lines, label+": "+value)
++		}
++	}
++	add("Store", cell(rec, idx, "Store"))
++	add("Source file", cell(rec, idx, "File Name"))
++	add("Job number", cell(rec, idx, "Job Number"))
++	add("Child job number", cell(rec, idx, "Child Job Number"))
++	add("Capital check", cell(rec, idx, "Capital Check"))
++	add("Item number", cell(rec, idx, "Item Number"))
++	add("Item description", cell(rec, idx, "Item Description"))
++	add("Qty", cell(rec, idx, "Qty"))
++	add("Unit", cell(rec, idx, "Unit"))
++	add("Unit price", cell(rec, idx, "Unit Price"))
++	add("Source total ex GST", cell(rec, idx, "Total Ex GST"))
++	add("Source GST", cell(rec, idx, "GST"))
++	add("Source total inc GST", cell(rec, idx, "Total Inc GST"))
++	add("Source currency", cell(rec, idx, "$ Currency"))
++	add("Business amount", cell(rec, idx, "Business Amount"))
++	add("Business GST", cell(rec, idx, "Business GST"))
++	add("Notes", cell(rec, idx, "Notes"))
++	lines = append(lines, fmt.Sprintf("GoTradie source row: %d", rowNo), marker)
++	return strings.Join(lines, "\n")
++}
++
++func sourceMarker(rec []string) string {
++	// Hash the full source row so rerunning the same export is safe. Delimiters are
++	// included so neighbouring cells cannot accidentally collapse into one value.
++	h := sha256.New()
++	for _, value := range rec {
++		_, _ = h.Write([]byte(strings.TrimSpace(value)))
++		_, _ = h.Write([]byte{0})
++	}
++	sum := h.Sum(nil)
++	return "[GoTradie source:" + hex.EncodeToString(sum[:12]) + "]"
++}
++
++func sourceMarkerFromNotes(notes string) string {
++	const prefix = "[GoTradie source:"
++	start := strings.Index(notes, prefix)
++	if start < 0 {
++		return ""
++	}
++	end := strings.Index(notes[start:], "]")
++	if end < 0 {
++		return ""
++	}
++	return notes[start : start+end+1]
++}
++
++func parseExpenseDate(value string) (string, error) {
++	value = strings.TrimSpace(value)
++	for _, layout := range []string{"2006-01-02", "2/1/2006", "02/01/2006", "2/01/2006", "02/1/2006"} {
++		if parsed, err := time.Parse(layout, value); err == nil {
++			return parsed.Format("2006-01-02"), nil
++		}
++	}
++	return "", fmt.Errorf("unsupported date %q", value)
++}
++
++func parsePercent(value string) (float64, error) {
++	value = strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(value), "%"))
++	if value == "" {
++		return 100, nil
++	}
++	v, err := strconv.ParseFloat(strings.ReplaceAll(value, ",", ""), 64)
++	if err != nil {
++		return 0, err
++	}
++	if v < 0 || v > 100 {
++		return 0, fmt.Errorf("percentage %.4g outside 0..100", v)
++	}
++	return v, nil
++}
++
++func parseExpenseMoney(value string) (float64, error) {
++	value = strings.TrimSpace(value)
++	if value == "" {
++		return 0, nil
++	}
++	negative := strings.HasPrefix(value, "(") && strings.HasSuffix(value, ")")
++	value = strings.Trim(value, "()")
++	for _, token := range []string{"$", "AUD", "USD", "NZD", " ", ","} {
++		value = strings.ReplaceAll(value, token, "")
++	}
++	v, err := strconv.ParseFloat(value, 64)
++	if err != nil {
++		return 0, err
++	}
++	if negative {
++		v = -v
++	}
++	return v, nil
++}
++
++func key(value string) string {
++	return strings.ToLower(strings.TrimSpace(value))
++}
+--- /dev/null
++++ b/apps/GoTradie/internal/ninja/expense_import_test.go
+@@ -0,0 +1,85 @@
++package ninja
++
++import (
++	"strings"
++	"testing"
++)
++
++func TestParseExpenseDate(t *testing.T) {
++	got, err := parseExpenseDate("15/01/2011")
++	if err != nil {
++		t.Fatal(err)
++	}
++	if got != "2011-01-15" {
++		t.Fatalf("date = %q", got)
++	}
++}
++
++func TestDeriveBASTreatment(t *testing.T) {
++	tests := []struct {
++		name string
++		tax  string
++		pct  float64
++		gst  float64
++		want string
++	}{
++		{"gst credit", "Expense - Materials", 100, 9.08, "GST Credit"},
++		{"private", "Personal / Non-Deductible", 100, 0, "Private/Non-deductible"},
++		{"zero business", "Expense - Materials", 0, 0, "Private/Non-deductible"},
++		{"unknown no gst", "Admin / Financial", 100, 0, "Review"},
++	}
++	for _, tt := range tests {
++		t.Run(tt.name, func(t *testing.T) {
++			if got := deriveBASTreatment(tt.tax, tt.pct, tt.gst); got != tt.want {
++				t.Fatalf("got %q want %q", got, tt.want)
++			}
++		})
++	}
++}
++
++func TestSourceMarkerIsStable(t *testing.T) {
++	rec := []string{"15/01/2011", "Bunnings", "$99.90"}
++	one := sourceMarker(rec)
++	two := sourceMarker(rec)
++	if one != two || !strings.HasPrefix(one, "[GoTradie source:") {
++		t.Fatalf("unstable marker %q %q", one, two)
++	}
++	if got := sourceMarkerFromNotes("hello\n" + one + "\nworld"); got != one {
++		t.Fatalf("marker extraction = %q", got)
++	}
++}
++
++func TestProjectNumberPrefersParentJob(t *testing.T) {
++	idx := map[string]int{"Child Job Number": 0, "Job Number": 1}
++	rec := []string{"Q100-2", "Q100"}
++	if got := projectNumber(rec, idx); got != "Q100" {
++		t.Fatalf("project number = %q", got)
++	}
++}
++
++func TestParseExpenseMoney(t *testing.T) {
++	got, err := parseExpenseMoney("$1,234.56")
++	if err != nil {
++		t.Fatal(err)
++	}
++	if got != 1234.56 {
++		t.Fatalf("money = %v", got)
++	}
++}
++
++func TestExpenseVendorName(t *testing.T) {
++	tests := []struct {
++		supplier string
++		store    string
++		want     string
++	}{
++		{"Bunnings", "Dural", "Bunnings - Dural"},
++		{"DigitalOcean", "Online", "DigitalOcean - Online"},
++		{"Acme", "", "Acme"},
++	}
++	for _, tt := range tests {
++		if got := expenseVendorName(tt.supplier, tt.store); got != tt.want {
++			t.Fatalf("expenseVendorName(%q, %q) = %q; want %q", tt.supplier, tt.store, got, tt.want)
++		}
++	}
++}
+--- a/apps/GoTradie/internal/app/app.go
++++ b/apps/GoTradie/internal/app/app.go
+@@ -341,5 +341,5 @@
+ func (a App) runNinjaImport(ctx context.Context, svc *ninja.Service, args []string) int {
+ 	if len(args) < 1 {
+-		fmt.Fprintln(a.Err, "usage: GoTradie ninja import <products|clients> <file|-> [--commit]")
++		fmt.Fprintln(a.Err, "usage: GoTradie ninja import <products|clients|expenses> <file|-> [--commit]")
+ 		return 2
+ 	}
+@@ -363,8 +363,10 @@
+ 	switch kind {
+ 	case "products":
+ 		results, err = svc.ImportProductsCSV(ctx, r, dryRun)
+ 	case "clients":
+ 		results, err = svc.ImportClientsCSV(ctx, r, dryRun)
++	case "expenses":
++		results, err = svc.ImportExpensesCSV(ctx, r, dryRun)
+ 	case "quotes", "invoices", "payments":
+ 		fmt.Fprintf(a.Err, "ninja import %s is not supported; exports only for this target\n", kind)
+ 		return 2
+@@ -520,3 +522,4 @@
+   ninja export clients <file|->         Export Invoice Ninja clients as CSV; use --commit to overwrite.
+   ninja import clients <file|->         Preview client CSV changes; use --commit to update.
++  ninja import expenses <file|->        Preview purchase-ledger expenses; use --commit to create.
+   ninja export quotes <file|->          Export Invoice Ninja quotes as CSV; use --commit to overwrite.
+@@ -545,3 +548,5 @@
+   GoTradie ninja export clients clients.csv
+   GoTradie ninja import clients --commit clients.csv
++  GoTradie ninja import expenses purchases.csv
++  GoTradie ninja import expenses --commit purchases.csv
+   GoTradie ninja export quotes quotes.csv
+--- a/apps/GoTradie/CHANGES.md
++++ b/apps/GoTradie/CHANGES.md
+@@ -1,5 +1,9 @@
+ # Changes
+ 
+ ## Unreleased
+ 
++- Added preview-by-default `ninja import expenses <file|-> [--commit]` for the master purchase ledger.
++- Preserves tax treatment, tax detail, business percentage, source totals/currency and source-file traceability while storing business amount/GST in Invoice Ninja expenses.
++- Creates missing vendors and broad expense categories on commit, links existing projects, and can create a project when the job number matches an existing Invoice Ninja quote/invoice client.
++- Adds stable source markers so re-running the same CSV does not duplicate already-imported expenses.
+ - Added hidden `ninja export tax [directory] [--commit]` command for Mick's accounting workflow.
+--- a/apps/GoInvoiceNinja/CHANGES.md
++++ b/apps/GoInvoiceNinja/CHANGES.md
+@@ -1,3 +1,8 @@
+ # Changes
+ 
++## Unreleased
++
++- Added typed Invoice Ninja v5 services, models and create/update requests for expenses, vendors, projects and expense categories.
++- Added list/query support needed by GoTradie purchase-ledger import while keeping the SDK reusable and app-agnostic.
++
+ ## v0.3
