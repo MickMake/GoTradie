@@ -352,13 +352,19 @@ func (a App) runNinja(ctx context.Context, svc *ninja.Service, args []string) in
 
 func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, args []string) int {
 	if len(args) < 1 {
-		fmt.Fprintln(a.Err, "usage: GoTradie ninja export <products|clients|quotes|invoices|payments> <file|-> [--commit]")
+		fmt.Fprintln(a.Err, "usage: GoTradie ninja export <products|clients|quotes|invoices|payments|erpnext> <file|directory|-> [--commit]")
 		return 2
 	}
 	kind := args[0]
 	if kind == "tax" {
 		return a.runNinjaTaxExport(ctx, svc, args[1:])
 	}
+<<<<<<< Updated upstream
+=======
+	if kind == "erpnext" {
+		return a.runNinjaERPNextExport(ctx, svc, args[1:])
+	}
+>>>>>>> Stashed changes
 	outPath, commit, err := parseExportArgs(args[1:])
 	if err != nil {
 		fmt.Fprintln(a.Err, err)
@@ -621,6 +627,7 @@ Commands:
   ninja export quotes <file|->          Export Invoice Ninja quotes as CSV; use --commit to overwrite.
   ninja export invoices <file|->        Export Invoice Ninja invoices as CSV; use --commit to overwrite.
   ninja export payments <file|->        Export Invoice Ninja payments as CSV; use --commit to overwrite.
+  ninja export erpnext <directory>      Export ERPNext import CSVs; use --commit to overwrite.
   commands                              Show extended command help with output examples.
   version                               Print version.
 
@@ -643,6 +650,7 @@ Examples:
   GoTradie ninja export quotes quotes.csv
   GoTradie ninja export invoices invoices.csv
   GoTradie ninja export payments payments.csv
+  GoTradie ninja export erpnext erpnext-export
 
 Required configuration for ninja commands:
   INVOICE_NINJA_TOKEN

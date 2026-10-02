@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -14,19 +15,32 @@ import (
 const DefaultConfigPath = "gotradie.conf"
 
 type Config struct {
-	InvoiceNinjaURL   string
-	InvoiceNinjaToken string
-	BunningsEnv       gobunnings.Env
-	BunningsClientID  string
-	BunningsSecret    string
-	BunningsScopes    []string
-	Country           gobunnings.CountryCode
-	LocationCode      string
-	ProductPrefix     string
-	BunningsCustom    int
-	ImageURLCustom    int
-	TaxName           string
-	TaxRate           float64
+	InvoiceNinjaURL          string
+	InvoiceNinjaToken        string
+	BunningsEnv              gobunnings.Env
+	BunningsClientID         string
+	BunningsSecret           string
+	BunningsScopes           []string
+	Country                  gobunnings.CountryCode
+	LocationCode             string
+	ProductPrefix            string
+	BunningsCustom           int
+	ImageURLCustom           int
+	TaxName                  string
+	TaxRate                  float64
+	ERPNextCompany           string
+	ERPNextCustomerGroup     string
+	ERPNextTerritory         string
+	ERPNextItemGroup         string
+	ERPNextUOM               string
+	ERPNextSellingPriceList  string
+	ERPNextCurrency          string
+	ERPNextCountry           string
+	ERPNextIncomeAccount     string
+	ERPNextReceivableAccount string
+	ERPNextBankAccount       string
+	ERPNextModeOfPayment     string
+	ERPNextTaxTemplate       string
 }
 
 func FromEnv() (Config, error) {
@@ -55,19 +69,32 @@ func FromEnvAndFile(path string) (Config, error) {
 
 func defaultsFromEnv() Config {
 	return Config{
-		InvoiceNinjaURL:   getenv("INVOICE_NINJA_URL", ""),
-		InvoiceNinjaToken: getenv("INVOICE_NINJA_TOKEN", ""),
-		BunningsEnv:       gobunnings.Env(getenv("BUNNINGS_ENV", "live")),
-		BunningsClientID:  getenv("BUNNINGS_CLIENT_ID", ""),
-		BunningsSecret:    getenv("BUNNINGS_CLIENT_SECRET", ""),
-		BunningsScopes:    fields(getenv("BUNNINGS_SCOPES", "")),
-		Country:           gobunnings.CountryCode(getenv("BUNNINGS_COUNTRY", "AU")),
-		LocationCode:      getenv("BUNNINGS_LOCATION", ""),
-		ProductPrefix:     getenv("PRODUCT_PREFIX", "BUNNINGS-"),
-		BunningsCustom:    getenvInt("BUNNINGS_IN_CUSTOM_FIELD", 1),
-		ImageURLCustom:    getenvInt("BUNNINGS_IMAGE_CUSTOM_FIELD", 2),
-		TaxName:           getenv("TAX_NAME", "GST"),
-		TaxRate:           getenvFloat("TAX_RATE", 10),
+		InvoiceNinjaURL:          getenv("INVOICE_NINJA_URL", ""),
+		InvoiceNinjaToken:        getenv("INVOICE_NINJA_TOKEN", ""),
+		BunningsEnv:              gobunnings.Env(getenv("BUNNINGS_ENV", "live")),
+		BunningsClientID:         getenv("BUNNINGS_CLIENT_ID", ""),
+		BunningsSecret:           getenv("BUNNINGS_CLIENT_SECRET", ""),
+		BunningsScopes:           fields(getenv("BUNNINGS_SCOPES", "")),
+		Country:                  gobunnings.CountryCode(getenv("BUNNINGS_COUNTRY", "AU")),
+		LocationCode:             getenv("BUNNINGS_LOCATION", ""),
+		ProductPrefix:            getenv("PRODUCT_PREFIX", "BUNNINGS-"),
+		BunningsCustom:           getenvInt("BUNNINGS_IN_CUSTOM_FIELD", 1),
+		ImageURLCustom:           getenvInt("BUNNINGS_IMAGE_CUSTOM_FIELD", 2),
+		TaxName:                  getenv("TAX_NAME", "GST"),
+		TaxRate:                  getenvFloat("TAX_RATE", 10),
+		ERPNextCompany:           getenv("ERPNEXT_COMPANY", ""),
+		ERPNextCustomerGroup:     getenv("ERPNEXT_CUSTOMER_GROUP", ""),
+		ERPNextTerritory:         getenv("ERPNEXT_TERRITORY", ""),
+		ERPNextItemGroup:         getenv("ERPNEXT_ITEM_GROUP", ""),
+		ERPNextUOM:               getenv("ERPNEXT_UOM", "Nos"),
+		ERPNextSellingPriceList:  getenv("ERPNEXT_SELLING_PRICE_LIST", "Standard Selling"),
+		ERPNextCurrency:          getenv("ERPNEXT_CURRENCY", ""),
+		ERPNextCountry:           getenv("ERPNEXT_COUNTRY", ""),
+		ERPNextIncomeAccount:     getenv("ERPNEXT_INCOME_ACCOUNT", ""),
+		ERPNextReceivableAccount: getenv("ERPNEXT_RECEIVABLE_ACCOUNT", ""),
+		ERPNextBankAccount:       getenv("ERPNEXT_BANK_ACCOUNT", ""),
+		ERPNextModeOfPayment:     getenv("ERPNEXT_MODE_OF_PAYMENT", ""),
+		ERPNextTaxTemplate:       getenv("ERPNEXT_TAX_TEMPLATE", ""),
 	}
 }
 
@@ -111,6 +138,38 @@ func (c Config) ValidateInvoiceNinja() error {
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required configuration: %s", strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+func (c Config) ValidateERPNextExport() error {
+	required := map[string]string{
+		"ERPNEXT_COMPANY":            c.ERPNextCompany,
+		"ERPNEXT_CUSTOMER_GROUP":     c.ERPNextCustomerGroup,
+		"ERPNEXT_TERRITORY":          c.ERPNextTerritory,
+		"ERPNEXT_ITEM_GROUP":         c.ERPNextItemGroup,
+		"ERPNEXT_CURRENCY":           c.ERPNextCurrency,
+		"ERPNEXT_COUNTRY":            c.ERPNextCountry,
+		"ERPNEXT_INCOME_ACCOUNT":     c.ERPNextIncomeAccount,
+		"ERPNEXT_RECEIVABLE_ACCOUNT": c.ERPNextReceivableAccount,
+		"ERPNEXT_BANK_ACCOUNT":       c.ERPNextBankAccount,
+		"ERPNEXT_MODE_OF_PAYMENT":    c.ERPNextModeOfPayment,
+	}
+	var missing []string
+	for key, value := range required {
+		if strings.TrimSpace(value) == "" {
+			missing = append(missing, key)
+		}
+	}
+	sort.Strings(missing)
+	if len(missing) > 0 {
+		return fmt.Errorf("missing required ERPNext export configuration: %s", strings.Join(missing, ", "))
+	}
+	if strings.TrimSpace(c.ERPNextUOM) == "" {
+		return errors.New("ERPNEXT_UOM must not be blank")
+	}
+	if strings.TrimSpace(c.ERPNextSellingPriceList) == "" {
+		return errors.New("ERPNEXT_SELLING_PRICE_LIST must not be blank")
 	}
 	return nil
 }
@@ -193,6 +252,32 @@ func set(cfg *Config, key, value string) error {
 			return err
 		}
 		cfg.TaxRate = n
+	case "ERPNEXT_COMPANY":
+		cfg.ERPNextCompany = value
+	case "ERPNEXT_CUSTOMER_GROUP":
+		cfg.ERPNextCustomerGroup = value
+	case "ERPNEXT_TERRITORY":
+		cfg.ERPNextTerritory = value
+	case "ERPNEXT_ITEM_GROUP":
+		cfg.ERPNextItemGroup = value
+	case "ERPNEXT_UOM":
+		cfg.ERPNextUOM = value
+	case "ERPNEXT_SELLING_PRICE_LIST":
+		cfg.ERPNextSellingPriceList = value
+	case "ERPNEXT_CURRENCY":
+		cfg.ERPNextCurrency = value
+	case "ERPNEXT_COUNTRY":
+		cfg.ERPNextCountry = value
+	case "ERPNEXT_INCOME_ACCOUNT":
+		cfg.ERPNextIncomeAccount = value
+	case "ERPNEXT_RECEIVABLE_ACCOUNT":
+		cfg.ERPNextReceivableAccount = value
+	case "ERPNEXT_BANK_ACCOUNT":
+		cfg.ERPNextBankAccount = value
+	case "ERPNEXT_MODE_OF_PAYMENT":
+		cfg.ERPNextModeOfPayment = value
+	case "ERPNEXT_TAX_TEMPLATE":
+		cfg.ERPNextTaxTemplate = value
 	default:
 		return fmt.Errorf("unknown key %q", key)
 	}
