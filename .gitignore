@@ -22,5 +22,5 @@ go.work
 
 *.csv
 *.zip
-GoTradie
+/GoTradie
 .DS_Store

@@ -1,5 +1,10 @@
 # Changes
 
+## Unreleased
+
+- Added typed services and models for expenses, vendors, projects and expense categories.
+- Added expense document upload support for attaching purchase receipts.
+
 ## v0.3
 
 ### Added

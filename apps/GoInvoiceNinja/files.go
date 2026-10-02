@@ -69,6 +69,20 @@ func (s *ProductService) UploadDocument(ctx context.Context, id, filename string
 // UploadDocumentWithField uploads a product document using a caller-supplied multipart form field.
 // The default field used by UploadDocument is "documents".
 func (s *ProductService) UploadDocumentWithField(ctx context.Context, id, fieldName, filename string, r io.Reader) (*Product, error) {
+	return uploadDocument[Product](ctx, s.client, s.path, id, fieldName, filename, r)
+}
+
+// UploadDocument uploads a receipt or other document to an Invoice Ninja expense.
+func (s *ExpenseService) UploadDocument(ctx context.Context, id, filename string, r io.Reader) (*Expense, error) {
+	return s.UploadDocumentWithField(ctx, id, DefaultDocumentFormField, filename, r)
+}
+
+// UploadDocumentWithField uploads an expense document using a caller-supplied multipart form field.
+func (s *ExpenseService) UploadDocumentWithField(ctx context.Context, id, fieldName, filename string, r io.Reader) (*Expense, error) {
+	return uploadDocument[Expense](ctx, s.client, s.path, id, fieldName, filename, r)
+}
+
+func uploadDocument[T any](ctx context.Context, client *Client, servicePath, id, fieldName, filename string, r io.Reader) (*T, error) {
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
 	part, err := mw.CreateFormFile(fieldName, filepath.Base(filename))
@@ -82,23 +96,33 @@ func (s *ProductService) UploadDocumentWithField(ctx context.Context, id, fieldN
 		return nil, err
 	}
 
-	req, err := s.client.newMultipartRequest(ctx, http.MethodPost, actionPath(s.path, id, "upload"), nil, &body, mw.FormDataContentType())
+	req, err := client.newMultipartRequest(ctx, http.MethodPost, actionPath(servicePath, id, "upload"), nil, &body, mw.FormDataContentType())
 	if err != nil {
 		return nil, err
 	}
-	raw, err := rawDo(s.client, req)
+	raw, err := rawDo(client, req)
 	if err != nil {
 		return nil, err
 	}
-	product, err := decodeEnvelope[Product](raw)
+	entity, err := decodeEnvelope[T](raw)
 	if err != nil {
 		return nil, err
 	}
-	return &product, nil
+	return &entity, nil
 }
 
 // UploadDocumentFile opens filename and uploads it to a product.
 func (s *ProductService) UploadDocumentFile(ctx context.Context, id, filename string) (*Product, error) {
+	f, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	return s.UploadDocument(ctx, id, filename, f)
+}
+
+// UploadDocumentFile opens filename and uploads it to an expense.
+func (s *ExpenseService) UploadDocumentFile(ctx context.Context, id, filename string) (*Expense, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, err
