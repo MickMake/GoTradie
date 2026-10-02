@@ -110,7 +110,7 @@ func (s *Service) loadExpenseImportState(ctx context.Context) (*expenseImportSta
 	}
 	expenses, err := s.client.Expenses.ListAll(ctx, invoiceninja.ExpenseQuery{
 		ListOptions: invoiceninja.ListOptions{PerPage: 100, Include: []string{"documents"}},
-		WithTrashed: true,
+		WithTrashed: false,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("list expenses: %w", err)
@@ -148,6 +148,10 @@ func (s *Service) loadExpenseImportState(ctx context.Context) (*expenseImportSta
 		}
 	}
 	for _, expense := range expenses {
+			if expense.IsDeleted {
+		continue
+	}
+
 		if marker := sourceMarkerFromNotes(expense.PrivateNotes); marker != "" {
 			state.expenseByMarker[marker] = expense
 		}
@@ -317,6 +321,7 @@ func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportStat
 	}
 
 	basTreatment := deriveBASTreatment(cell(rec, idx, "Tax Treatment"), businessPct, businessGST)
+	invoiceDocuments := false
 	payload := invoiceninja.CreateExpenseRequest{
 		VendorID:             vendor.ID,
 		ProjectID:            projectID,
@@ -329,6 +334,7 @@ func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportStat
 		TaxAmount1:           businessGST,
 		UsesInclusiveTaxes:   true,
 		CalculateTaxByAmount: true,
+		InvoiceDocuments:     &invoiceDocuments,
 		CustomValue1:         cell(rec, idx, "Tax Treatment"),
 		CustomValue2:         cell(rec, idx, "Option"),
 		CustomValue3:         cell(rec, idx, "Business %"),

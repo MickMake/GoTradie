@@ -1,6 +1,7 @@
 package goinvoiceninja
 
 import (
+	"strconv"
 	"bytes"
 	"context"
 	"io"
@@ -71,7 +72,7 @@ func (s *ProductService) UploadDocument(ctx context.Context, id, filename string
 // UploadDocumentWithField uploads a product document using a caller-supplied multipart form field.
 // The default field used by UploadDocument is "documents".
 func (s *ProductService) UploadDocumentWithField(ctx context.Context, id, fieldName, filename string, r io.Reader) (*Product, error) {
-	return uploadDocument[Product](ctx, s.client, http.MethodPost, s.path, id, fieldName, filename, r)
+	return uploadDocument[Product](ctx, s.client, http.MethodPost, s.path, id, fieldName, filename, nil, r)
 }
 
 // UploadDocument uploads a receipt or other document to an Invoice Ninja expense via
@@ -83,12 +84,19 @@ func (s *ExpenseService) UploadDocument(ctx context.Context, id, filename string
 
 // UploadDocumentWithField uploads an expense document using a caller-supplied multipart form field.
 func (s *ExpenseService) UploadDocumentWithField(ctx context.Context, id, fieldName, filename string, r io.Reader) (*Expense, error) {
-	return uploadDocument[Expense](ctx, s.client, http.MethodPut, s.path, id, fieldName, filename, r)
+	isPublic := false
+	return uploadDocument[Expense](ctx, s.client, http.MethodPut, s.path, id, fieldName, filename, &isPublic, r)
 }
 
-func uploadDocument[T any](ctx context.Context, client *Client, method, servicePath, id, fieldName, filename string, r io.Reader) (*T, error) {
+func uploadDocument[T any](ctx context.Context, client *Client, method, servicePath, id, fieldName, filename string, isPublic *bool, r io.Reader) (*T, error) {
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
+	if isPublic != nil {
+		if err := mw.WriteField("is_public", strconv.FormatBool(*isPublic)); err != nil {
+			return nil, err
+		}
+	}
+
 	part, err := mw.CreateFormFile(fieldName, filepath.Base(filename))
 	if err != nil {
 		return nil, err

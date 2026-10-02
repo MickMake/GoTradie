@@ -50,7 +50,7 @@ type Expense struct {
 	VendorID             string           `json:"vendor_id,omitempty"`
 	ClientID             string           `json:"client_id,omitempty"`
 	ProjectID            string           `json:"project_id,omitempty"`
-	CategoryID           string           `json:"expense_category_id,omitempty"`
+	CategoryID           string           `json:"category_id,omitempty"`
 	CurrencyID           string           `json:"currency_id,omitempty"`
 	Number               string           `json:"number,omitempty"`
 	Amount               float64          `json:"amount,omitempty"`
@@ -126,7 +126,7 @@ type CreateExpenseRequest struct {
 	VendorID             string  `json:"vendor_id,omitempty"`
 	ClientID             string  `json:"client_id,omitempty"`
 	ProjectID            string  `json:"project_id,omitempty"`
-	CategoryID           string  `json:"expense_category_id,omitempty"`
+	CategoryID           string  `json:"category_id,omitempty"`
 	CurrencyID           string  `json:"currency_id,omitempty"`
 	Number               string  `json:"number,omitempty"`
 	Amount               float64 `json:"amount,omitempty"`
@@ -149,7 +149,7 @@ type CreateExpenseRequest struct {
 	UsesInclusiveTaxes   bool    `json:"uses_inclusive_taxes,omitempty"`
 	CalculateTaxByAmount bool    `json:"calculate_tax_by_amount,omitempty"`
 	ShouldBeInvoiced     bool    `json:"should_be_invoiced,omitempty"`
-	InvoiceDocuments     bool    `json:"invoice_documents,omitempty"`
+	InvoiceDocuments     *bool    `json:"invoice_documents,omitempty"`
 	CustomValue1         string  `json:"custom_value1,omitempty"`
 	CustomValue2         string  `json:"custom_value2,omitempty"`
 	CustomValue3         string  `json:"custom_value3,omitempty"`
@@ -269,7 +269,7 @@ func (q ExpenseQuery) Values() url.Values {
 	setIf(v, "vendor_id", q.VendorID)
 	setIf(v, "client_id", q.ClientID)
 	setIf(v, "project_id", q.ProjectID)
-	setIf(v, "expense_category_id", q.CategoryID)
+	setIf(v, "category_id", q.CategoryID)
 	setIf(v, "transaction_reference", q.TransactionReference)
 	setIf(v, "date", q.Date)
 	setIf(v, "private_notes", q.PrivateNotes)

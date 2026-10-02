@@ -73,8 +73,8 @@ func TestCreateExpenseRequest(t *testing.T) {
 	if got.VendorID != "vendor1" || got.CategoryID != "category1" {
 		t.Fatalf("unexpected relationship fields: %#v", got)
 	}
-	if gotBody["expense_category_id"] != "category1" {
-		t.Fatalf("expense_category_id = %#v in %#v", gotBody["expense_category_id"], gotBody)
+	if gotBody["category_id"] != "category1" {
+		t.Fatalf("category_id = %#v in %#v", gotBody["category_id"], gotBody)
 	}
 	if _, ok := gotBody["category_id"]; ok {
 		t.Fatalf("unexpected category_id in %#v", gotBody)
@@ -98,7 +98,7 @@ func TestVendorProjectAndCategoryQueries(t *testing.T) {
 		t.Fatalf("category name query = %q", got)
 	}
 	values := (ExpenseQuery{CategoryID: "category1"}).Values()
-	if got := values.Get("expense_category_id"); got != "category1" {
+	if got := values.Get("category_id"); got != "category1" {
 		t.Fatalf("expense category query = %q", got)
 	}
 	if got := values.Get("category_id"); got != "" {
@@ -108,7 +108,7 @@ func TestVendorProjectAndCategoryQueries(t *testing.T) {
 
 func TestExpenseDecodesExpenseCategoryID(t *testing.T) {
 	var expense Expense
-	if err := json.Unmarshal([]byte(`{"id":"expense1","expense_category_id":"category1"}`), &expense); err != nil {
+	if err := json.Unmarshal([]byte(`{"id":"expense1","category_id":"category1"}`), &expense); err != nil {
 		t.Fatal(err)
 	}
 	if expense.CategoryID != "category1" {
