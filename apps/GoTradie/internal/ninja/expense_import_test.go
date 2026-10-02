@@ -85,6 +85,28 @@ func TestParseExpenseMoney(t *testing.T) {
 	}
 }
 
+func TestShouldDeriveBusinessAmount(t *testing.T) {
+	tests := []struct {
+		name   string
+		amount string
+		pct    float64
+		want   bool
+	}{
+		{name: "blank amount", amount: "", pct: 100, want: true},
+		{name: "whitespace amount", amount: "  ", pct: 50, want: true},
+		{name: "explicit zero", amount: "0", pct: 100, want: false},
+		{name: "formatted explicit zero", amount: "$0.00", pct: 100, want: false},
+		{name: "zero business percentage", amount: "", pct: 0, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := shouldDeriveBusinessAmount(tt.amount, tt.pct); got != tt.want {
+				t.Fatalf("shouldDeriveBusinessAmount(%q, %v) = %v; want %v", tt.amount, tt.pct, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestExpenseVendorName(t *testing.T) {
 	tests := []struct {
 		supplier string

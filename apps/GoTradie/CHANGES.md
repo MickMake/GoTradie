@@ -6,6 +6,7 @@
 - Added preview-by-default `ninja import expenses` for the master purchase ledger.
 - Added recursive receipt indexing through `--receipts-root`; `File Name` matches are exact and missing or ambiguous matches are reported.
 - Expense imports preserve source-row idempotency, leave `should_be_invoiced` unset, copy the purchase date to `payment_date`, and name vendors from Supplier plus Store.
+- Expense imports derive a missing Business Amount from the total and percentage without replacing an explicit zero.
 - Numeric Job Number values reuse an existing project or create one from the matching master quote client.
 - Added hidden `ninja export tax [directory] [--commit]` command for Mick's accounting workflow.
 - Produces `Invoices.csv` and `Detail.csv` without changing the existing invoice or payment export contracts.

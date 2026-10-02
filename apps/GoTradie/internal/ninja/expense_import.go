@@ -189,7 +189,8 @@ func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportStat
 		res.Error = fmt.Errorf("row %d business %%: %w", rowNo, err)
 		return res
 	}
-	businessAmount, err := parseExpenseMoney(cell(rec, idx, "Business Amount"))
+	businessAmountCell := cell(rec, idx, "Business Amount")
+	businessAmount, err := parseExpenseMoney(businessAmountCell)
 	if err != nil {
 		res.Action = "error"
 		res.Error = fmt.Errorf("row %d business amount: %w", rowNo, err)
@@ -201,7 +202,7 @@ func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportStat
 		res.Error = fmt.Errorf("row %d business GST: %w", rowNo, err)
 		return res
 	}
-	if businessAmount == 0 && businessPct > 0 {
+	if shouldDeriveBusinessAmount(businessAmountCell, businessPct) {
 		total, totalErr := parseExpenseMoney(cell(rec, idx, "Total Inc GST"))
 		if totalErr != nil {
 			res.Action = "error"
@@ -367,6 +368,10 @@ func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportStat
 	}
 	res.Action = "created"
 	return res
+}
+
+func shouldDeriveBusinessAmount(businessAmount string, businessPct float64) bool {
+	return strings.TrimSpace(businessAmount) == "" && businessPct > 0
 }
 
 func expenseVendorName(supplier, store string) string {

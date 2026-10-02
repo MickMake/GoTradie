@@ -3,6 +3,7 @@ package goinvoiceninja
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -116,23 +117,29 @@ func TestExpenseDecodesExpenseCategoryID(t *testing.T) {
 }
 
 func TestExpenseUploadDocument(t *testing.T) {
-	var gotPath, gotFilename, gotContent string
+	var gotMethod, gotPath, gotField, gotFilename, gotContent string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
 		gotPath = r.URL.Path
-		if err := r.ParseMultipartForm(1 << 20); err != nil {
-			t.Fatal(err)
-		}
-		file, header, err := r.FormFile(DefaultDocumentFormField)
+		mr, err := r.MultipartReader()
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer file.Close()
-		body, err := io.ReadAll(file)
+		part, err := mr.NextPart()
 		if err != nil {
 			t.Fatal(err)
 		}
-		gotFilename = header.Filename
+		defer part.Close()
+		body, err := io.ReadAll(part)
+		if err != nil {
+			t.Fatal(err)
+		}
+		gotField = part.FormName()
+		gotFilename = part.FileName()
 		gotContent = string(body)
+		if _, err := mr.NextPart(); !errors.Is(err, io.EOF) {
+			t.Fatalf("unexpected extra multipart part: %v", err)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"data":{"id":"expense1","documents":[{"name":"receipt.pdf"}]}}`))
 	}))
@@ -146,8 +153,8 @@ func TestExpenseUploadDocument(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotPath != "/api/v1/expenses/expense1/upload" || gotFilename != "receipt.pdf" || gotContent != "receipt body" {
-		t.Fatalf("unexpected upload: path=%q filename=%q content=%q", gotPath, gotFilename, gotContent)
+	if gotMethod != http.MethodPut || gotPath != "/api/v1/expenses/expense1/upload" || gotField != "documents[]" || gotFilename != "receipt.pdf" || gotContent != "receipt body" {
+		t.Fatalf("unexpected upload: method=%q path=%q field=%q filename=%q content=%q", gotMethod, gotPath, gotField, gotFilename, gotContent)
 	}
 	if len(updated.Documents) != 1 || updated.Documents[0].Name != "receipt.pdf" {
 		t.Fatalf("unexpected updated expense: %#v", updated)

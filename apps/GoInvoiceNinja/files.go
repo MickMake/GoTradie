@@ -13,6 +13,8 @@ import (
 
 const DefaultDocumentFormField = "documents"
 
+const expenseDocumentFormField = DefaultDocumentFormField + "[]"
+
 func (c *Client) Download(ctx context.Context, path string, query url.Values, w io.Writer) error {
 	req, err := c.NewRequest(ctx, http.MethodGet, path, query, nil)
 	if err != nil {
@@ -69,20 +71,22 @@ func (s *ProductService) UploadDocument(ctx context.Context, id, filename string
 // UploadDocumentWithField uploads a product document using a caller-supplied multipart form field.
 // The default field used by UploadDocument is "documents".
 func (s *ProductService) UploadDocumentWithField(ctx context.Context, id, fieldName, filename string, r io.Reader) (*Product, error) {
-	return uploadDocument[Product](ctx, s.client, s.path, id, fieldName, filename, r)
+	return uploadDocument[Product](ctx, s.client, http.MethodPost, s.path, id, fieldName, filename, r)
 }
 
-// UploadDocument uploads a receipt or other document to an Invoice Ninja expense.
+// UploadDocument uploads a receipt or other document to an Invoice Ninja expense via
+// PUT /api/v1/expenses/{id}/upload. Invoice Ninja validates documents as an array,
+// so the multipart field is encoded as "documents[]".
 func (s *ExpenseService) UploadDocument(ctx context.Context, id, filename string, r io.Reader) (*Expense, error) {
-	return s.UploadDocumentWithField(ctx, id, DefaultDocumentFormField, filename, r)
+	return s.UploadDocumentWithField(ctx, id, expenseDocumentFormField, filename, r)
 }
 
 // UploadDocumentWithField uploads an expense document using a caller-supplied multipart form field.
 func (s *ExpenseService) UploadDocumentWithField(ctx context.Context, id, fieldName, filename string, r io.Reader) (*Expense, error) {
-	return uploadDocument[Expense](ctx, s.client, s.path, id, fieldName, filename, r)
+	return uploadDocument[Expense](ctx, s.client, http.MethodPut, s.path, id, fieldName, filename, r)
 }
 
-func uploadDocument[T any](ctx context.Context, client *Client, servicePath, id, fieldName, filename string, r io.Reader) (*T, error) {
+func uploadDocument[T any](ctx context.Context, client *Client, method, servicePath, id, fieldName, filename string, r io.Reader) (*T, error) {
 	var body bytes.Buffer
 	mw := multipart.NewWriter(&body)
 	part, err := mw.CreateFormFile(fieldName, filepath.Base(filename))
@@ -96,7 +100,7 @@ func uploadDocument[T any](ctx context.Context, client *Client, servicePath, id,
 		return nil, err
 	}
 
-	req, err := client.newMultipartRequest(ctx, http.MethodPut, actionPath(servicePath, id, "upload"), nil, &body, mw.FormDataContentType())
+	req, err := client.newMultipartRequest(ctx, method, actionPath(servicePath, id, "upload"), nil, &body, mw.FormDataContentType())
 	if err != nil {
 		return nil, err
 	}
