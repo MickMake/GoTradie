@@ -19,19 +19,23 @@ const (
 	DefaultAPIPath = "/api/v1"
 )
 
-// Client is an Invoice Ninja API client focused on the day-to-day sales workflow:
-// clients, products, quotes, invoices, and payments.
+// Client is an Invoice Ninja API client focused on the day-to-day sales and
+// purchasing workflow used by GoTradie.
 type Client struct {
 	baseURL    *url.URL
 	token      string
 	httpClient *http.Client
 	userAgent  string
 
-	Clients  *ClientService
-	Products *ProductService
-	Quotes   *QuoteService
-	Invoices *InvoiceService
-	Payments *PaymentService
+	Clients           *ClientService
+	Products          *ProductService
+	Quotes            *QuoteService
+	Invoices          *InvoiceService
+	Payments          *PaymentService
+	Vendors           *VendorService
+	Projects          *ProjectService
+	ExpenseCategories *ExpenseCategoryService
+	Expenses          *ExpenseService
 }
 
 // Option customises the client.
@@ -93,6 +97,10 @@ func New(token string, opts ...Option) (*Client, error) {
 	c.Quotes = &QuoteService{Service: NewService[Quote](c, "quotes")}
 	c.Invoices = &InvoiceService{Service: NewService[Invoice](c, "invoices")}
 	c.Payments = &PaymentService{Service: NewService[Payment](c, "payments")}
+	c.Vendors = &VendorService{Service: NewService[Vendor](c, "vendors")}
+	c.Projects = &ProjectService{Service: NewService[Project](c, "projects")}
+	c.ExpenseCategories = &ExpenseCategoryService{Service: NewService[ExpenseCategory](c, "expense_categories")}
+	c.Expenses = &ExpenseService{Service: NewService[Expense](c, "expenses")}
 	return c, nil
 }
 
