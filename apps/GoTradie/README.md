@@ -194,6 +194,7 @@ clients
 quotes
 invoices
 payments
+erpnext
 ```
 
 Available import targets:
@@ -204,6 +205,27 @@ clients
 ```
 
 Quote, invoice, and payment commands are export-only.
+
+### ERPNext migration export
+
+```bash
+GoTradie ninja export erpnext ./erpnext-export
+```
+
+This creates ERPNext Data Import CSVs for Customer, Address, Contact, Item,
+Quotation, Sales Invoice and Payment Entry, plus `Migration Report.csv` for
+records that need manual attention. Parent and child records are combined in
+the Quotation, Sales Invoice and Payment Entry files.
+
+The migration exporter requests active, archived and deleted source records.
+Deleted customers and products are emitted as disabled. Deleted, cancelled,
+reversed, refunded, credit-applied or ambiguous accounting records are not
+silently posted; they are recorded in the migration report.
+
+Set the `ERPNEXT_*` values in `gotradie.conf` first. Names for companies,
+groups, accounts, modes, currencies and price lists must exactly match the
+records in the target ERPNext instance. Import the generated files in the
+order printed in the extended command help.
 
 ## CSV columns
 

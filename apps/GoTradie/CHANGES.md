@@ -1,6 +1,15 @@
 
 # Changes
 
+## Unreleased
+
+- Added hidden `ninja export tax [directory] [--commit]` command for Mick's accounting workflow.
+- Produces `Invoices.csv` and `Detail.csv` without changing the existing invoice or payment export contracts.
+- Reuses existing Invoice Ninja invoice/payment pagination and line-item models.
+- Keeps multiple payment dates when an invoice has partial payments across dates.
+- Intentionally isolated: this exists to avoid adding two kitchens to an otherwise well-designed carport.
+- Tax export now writes `Customers.csv`, references customers by ID from `Invoices.csv`, and restores the leading `Type` column in `Detail.csv`.
+
 ## v0.6 planning docs
 
 - Added supplier import overview document.

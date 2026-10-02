@@ -261,6 +261,28 @@ Invoice Ninja export commands
         ID,Client ID,Client Name,Invoice ID,Invoice Number,Date,Amount,Applied,Refunded,Transaction Reference,Payment Type,Status,Private Notes
         p123,c123,Example Client,i123,INV-0001,2026-05-19,110.00,110.00,0.00,TXN-123,bank_transfer,completed,
 
+  ninja export erpnext <directory> [--commit]
+      Export one-off ERPNext Data Import CSVs for customers, addresses,
+      contacts, items, quotations, sales invoices and payment entries.
+      Child rows are embedded in the relevant parent CSV. Archived and deleted
+      source records are inspected; unsafe accounting rows are listed in
+      Migration Report.csv instead of being silently posted.
+      Existing files are not overwritten unless --commit is supplied.
+
+      Example:
+        GoTradie ninja export erpnext ./erpnext-export
+
+      Import in this order:
+        Customer.csv
+        Address.csv
+        Contact.csv
+        Item.csv
+        Quotation.csv
+        Sales Invoice.csv
+        Payment Entry.csv
+
+      Required ERPNext settings are documented in gotradie.conf.example.
+
 Invoice Ninja import commands
 
   ninja import products <file|-> [--commit]
