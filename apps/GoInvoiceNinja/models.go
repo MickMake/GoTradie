@@ -90,11 +90,27 @@ type Contact struct {
 }
 
 type ClientSettings struct {
-	CurrencyID   string `json:"currency_id,omitempty"`
-	PaymentTerms int    `json:"payment_terms,omitempty"`
-	InvoiceTerms string `json:"invoice_terms,omitempty"`
+	CurrencyID   string      `json:"currency_id,omitempty"`
+	PaymentTerms FlexibleInt `json:"payment_terms,omitempty"`
+	InvoiceTerms string      `json:"invoice_terms,omitempty"`
 }
 
+// FlexibleInt accepts integer values encoded as either JSON numbers or strings.
+type FlexibleInt int
+
+func (i *FlexibleInt) UnmarshalJSON(data []byte) error {
+	value := strings.Trim(strings.TrimSpace(string(data)), `"`)
+	if value == "" || value == "null" {
+		*i = 0
+		return nil
+	}
+	n, err := strconv.Atoi(value)
+	if err != nil {
+		return fmt.Errorf("integer value %q: %w", value, err)
+	}
+	*i = FlexibleInt(n)
+	return nil
+}
 
 type ClientEntity struct {
 	Entity
@@ -132,29 +148,29 @@ type ClientEntity struct {
 }
 
 type LineItem struct {
-	ProductKey       string  `json:"product_key,omitempty"`
-	Notes            string  `json:"notes,omitempty"`
-	Cost             float64 `json:"cost,omitempty"`
-	ProductCost      float64 `json:"product_cost,omitempty"`
-	Quantity         float64 `json:"quantity,omitempty"`
-	Discount         float64 `json:"discount,omitempty"`
-	IsAmountDiscount bool    `json:"is_amount_discount,omitempty"`
-	TaxName1         string  `json:"tax_name1,omitempty"`
-	TaxRate1         float64 `json:"tax_rate1,omitempty"`
-	TaxName2         string  `json:"tax_name2,omitempty"`
-	TaxRate2         float64 `json:"tax_rate2,omitempty"`
-	TaxName3         string  `json:"tax_name3,omitempty"`
-	TaxRate3         float64 `json:"tax_rate3,omitempty"`
-	SortID           int     `json:"sort_id,omitempty"`
-	LineTotal        float64 `json:"line_total,omitempty"`
-	GrossLineTotal   float64 `json:"gross_line_total,omitempty"`
-	TaxAmount        float64 `json:"tax_amount,omitempty"`
-	TypeID           string  `json:"type_id,omitempty"`
-	Date             string  `json:"date,omitempty"`
-	CustomValue1     string  `json:"custom_value1,omitempty"`
-	CustomValue2     string  `json:"custom_value2,omitempty"`
-	CustomValue3     string  `json:"custom_value3,omitempty"`
-	CustomValue4     string  `json:"custom_value4,omitempty"`
+	ProductKey       string        `json:"product_key,omitempty"`
+	Notes            string        `json:"notes,omitempty"`
+	Cost             float64       `json:"cost,omitempty"`
+	ProductCost      float64       `json:"product_cost,omitempty"`
+	Quantity         float64       `json:"quantity,omitempty"`
+	Discount         float64       `json:"discount,omitempty"`
+	IsAmountDiscount bool          `json:"is_amount_discount,omitempty"`
+	TaxName1         string        `json:"tax_name1,omitempty"`
+	TaxRate1         float64       `json:"tax_rate1,omitempty"`
+	TaxName2         string        `json:"tax_name2,omitempty"`
+	TaxRate2         float64       `json:"tax_rate2,omitempty"`
+	TaxName3         string        `json:"tax_name3,omitempty"`
+	TaxRate3         float64       `json:"tax_rate3,omitempty"`
+	SortID           int           `json:"sort_id,omitempty"`
+	LineTotal        float64       `json:"line_total,omitempty"`
+	GrossLineTotal   float64       `json:"gross_line_total,omitempty"`
+	TaxAmount        FlexibleFloat `json:"tax_amount,omitempty"`
+	TypeID           string        `json:"type_id,omitempty"`
+	Date             string        `json:"date,omitempty"`
+	CustomValue1     string        `json:"custom_value1,omitempty"`
+	CustomValue2     string        `json:"custom_value2,omitempty"`
+	CustomValue3     string        `json:"custom_value3,omitempty"`
+	CustomValue4     string        `json:"custom_value4,omitempty"`
 }
 
 func (l *LineItem) UnmarshalJSON(data []byte) error {

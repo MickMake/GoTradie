@@ -359,12 +359,11 @@ func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, args []stri
 	if kind == "tax" {
 		return a.runNinjaTaxExport(ctx, svc, args[1:])
 	}
-<<<<<<< Updated upstream
-=======
+
 	if kind == "erpnext" {
 		return a.runNinjaERPNextExport(ctx, svc, args[1:])
 	}
->>>>>>> Stashed changes
+
 	outPath, commit, err := parseExportArgs(args[1:])
 	if err != nil {
 		fmt.Fprintln(a.Err, err)
