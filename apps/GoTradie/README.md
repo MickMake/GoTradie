@@ -202,6 +202,16 @@ Available import targets:
 ```text
 products
 clients
+expenses
+```
+
+Expense imports can recursively index a receipt directory. Each non-empty
+`File Name` value must match one filename exactly; missing and duplicate
+matches are reported without guessing.
+
+```bash
+GoTradie ninja import expenses purchases.csv --receipts-root receipts
+GoTradie ninja import expenses purchases.csv --receipts-root receipts --commit
 ```
 
 Quote, invoice, and payment commands are export-only.

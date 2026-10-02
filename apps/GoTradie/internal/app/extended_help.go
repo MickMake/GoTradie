@@ -335,6 +335,19 @@ Invoice Ninja import commands
       Stdin example:
         cat clients.csv | GoTradie ninja import clients -
 
+  ninja import expenses <file|-> [--receipts-root <dir>] [--commit]
+      Preview or create purchase-ledger expenses in Invoice Ninja.
+      A receipts root is indexed recursively. File Name matching is exact;
+      missing or ambiguous matches are reported and never guessed.
+      Numeric Job Number values link an existing project or create one from
+      the matching master quote client.
+
+      Example preview:
+        GoTradie ninja import expenses purchases.csv --receipts-root receipts
+
+      Example commit:
+        GoTradie ninja import expenses purchases.csv --receipts-root receipts --commit
+
 Deprecated or rejected command forms
 
   add-in <IN>

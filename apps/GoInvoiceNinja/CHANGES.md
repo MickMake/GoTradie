@@ -1,5 +1,11 @@
 # Changes
 
+## Unreleased
+
+- Added typed services and models for expenses, vendors, projects and expense categories.
+- Added expense document upload support for attaching purchase receipts.
+- Corrected expense document uploads to use PUT with a multipart `documents[]` array while preserving product upload behavior.
+
 ## v0.3
 
 ### Added

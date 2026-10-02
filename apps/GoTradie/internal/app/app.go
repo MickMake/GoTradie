@@ -401,14 +401,28 @@ func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, args []stri
 
 func (a App) runNinjaImport(ctx context.Context, svc *ninja.Service, args []string) int {
 	if len(args) < 1 {
-		fmt.Fprintln(a.Err, "usage: GoTradie ninja import <products|clients> <file|-> [--commit]")
+		fmt.Fprintln(a.Err, "usage: GoTradie ninja import <products|clients|expenses> <file|-> [--commit]")
 		return 2
 	}
 	kind := args[0]
-	inPath, dryRun, err := parseImportArgs(args[1:])
+	var (
+		inPath       string
+		dryRun       bool
+		receiptsRoot string
+		err          error
+	)
+	if kind == "expenses" {
+		inPath, receiptsRoot, dryRun, err = parseExpenseImportArgs(args[1:])
+	} else {
+		inPath, dryRun, err = parseImportArgs(args[1:])
+	}
 	if err != nil {
 		fmt.Fprintln(a.Err, err)
-		fmt.Fprintf(a.Err, "usage: GoTradie ninja import %s <file|-> [--commit]\n", kind)
+		if kind == "expenses" {
+			fmt.Fprintln(a.Err, "usage: GoTradie ninja import expenses <file|-> [--receipts-root <dir>] [--commit]")
+		} else {
+			fmt.Fprintf(a.Err, "usage: GoTradie ninja import %s <file|-> [--commit]\n", kind)
+		}
 		return 2
 	}
 	r, closeFn, err := readerFor(inPath, os.Stdin)
@@ -423,6 +437,8 @@ func (a App) runNinjaImport(ctx context.Context, svc *ninja.Service, args []stri
 		results, err = svc.ImportProductsCSV(ctx, r, dryRun)
 	case "clients":
 		results, err = svc.ImportClientsCSV(ctx, r, dryRun)
+	case "expenses":
+		results, err = svc.ImportExpensesCSV(ctx, r, dryRun, receiptsRoot)
 	case "quotes", "invoices", "payments":
 		fmt.Fprintf(a.Err, "ninja import %s is not supported; exports only for this target\n", kind)
 		return 2
@@ -464,6 +480,8 @@ func parseImportArgs(args []string) (string, bool, error) {
 		switch {
 		case arg == "--commit":
 			dryRun = false
+		case arg == "-":
+			paths = append(paths, arg)
 		case strings.HasPrefix(arg, "-"):
 			return "", true, fmt.Errorf("unknown import flag %q", arg)
 		default:
@@ -474,6 +492,49 @@ func parseImportArgs(args []string) (string, bool, error) {
 		return "", true, fmt.Errorf("expected exactly one import path, got %d", len(paths))
 	}
 	return paths[0], dryRun, nil
+}
+
+func parseExpenseImportArgs(args []string) (string, string, bool, error) {
+	dryRun := true
+	receiptsRoot := ""
+	var paths []string
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--commit":
+			dryRun = false
+		case arg == "--receipts-root":
+			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
+				return "", "", true, fmt.Errorf("--receipts-root requires a directory")
+			}
+			i++
+			receiptsRoot = args[i]
+		case strings.HasPrefix(arg, "--receipts-root="):
+			receiptsRoot = strings.TrimPrefix(arg, "--receipts-root=")
+		case arg == "-":
+			paths = append(paths, arg)
+		case strings.HasPrefix(arg, "-"):
+			return "", "", true, fmt.Errorf("unknown import flag %q", arg)
+		default:
+			paths = append(paths, arg)
+		}
+	}
+	if len(paths) != 1 {
+		return "", "", true, fmt.Errorf("expected exactly one import path, got %d", len(paths))
+	}
+	if strings.TrimSpace(receiptsRoot) == "" && containsExpenseReceiptFlag(args) {
+		return "", "", true, fmt.Errorf("receipts root must not be blank")
+	}
+	return paths[0], receiptsRoot, dryRun, nil
+}
+
+func containsExpenseReceiptFlag(args []string) bool {
+	for _, arg := range args {
+		if arg == "--receipts-root" || strings.HasPrefix(arg, "--receipts-root=") {
+			return true
+		}
+	}
+	return false
 }
 
 func readerFor(path string, stdin io.Reader) (io.Reader, func(), error) {
@@ -623,6 +684,8 @@ Commands:
   ninja import products <file|->        Preview product CSV changes; use --commit to update.
   ninja export clients <file|->         Export Invoice Ninja clients as CSV; use --commit to overwrite.
   ninja import clients <file|->         Preview client CSV changes; use --commit to update.
+  ninja import expenses <file|-> [--receipts-root <dir>]
+                                         Preview expenses and exact receipt matches; use --commit to create/upload.
   ninja export quotes <file|->          Export Invoice Ninja quotes as CSV; use --commit to overwrite.
   ninja export invoices <file|->        Export Invoice Ninja invoices as CSV; use --commit to overwrite.
   ninja export payments <file|->        Export Invoice Ninja payments as CSV; use --commit to overwrite.
@@ -646,6 +709,8 @@ Examples:
   GoTradie ninja import products --commit products.csv
   GoTradie ninja export clients clients.csv
   GoTradie ninja import clients --commit clients.csv
+  GoTradie ninja import expenses purchases.csv --receipts-root receipts
+  GoTradie ninja import expenses --commit purchases.csv --receipts-root receipts
   GoTradie ninja export quotes quotes.csv
   GoTradie ninja export invoices invoices.csv
   GoTradie ninja export payments payments.csv
