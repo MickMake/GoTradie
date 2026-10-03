@@ -49,6 +49,7 @@ type BankTransactionRule struct {
 
 type CreateBankTransactionRequest struct {
 	BankIntegrationID string  `json:"bank_integration_id"`
+	CurrencyID        string  `json:"currency_id"`
 	Amount            float64 `json:"amount"`
 	BaseType          string  `json:"base_type"`
 	Date              string  `json:"date,omitempty"`

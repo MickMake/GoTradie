@@ -91,7 +91,19 @@ func (s *Service) loadSupplierSettlementState(ctx context.Context, state *expens
 	if integration.AutoSync {
 		return fmt.Errorf("Invoice Ninja bank account %q has auto sync enabled; disable sync before importing supplier Account Payments", goTradieBankAccountName)
 	}
+
+	currencyCode := strings.TrimSpace(integration.Currency)
+	if currencyCode == "" {
+		return fmt.Errorf("Invoice Ninja bank account %q has no currency; set its currency before importing supplier Account Payments", goTradieBankAccountName)
+	}
+
+	currencyID, err := s.client.Statics.CurrencyID(ctx, currencyCode)
+	if err != nil {
+		return fmt.Errorf("resolve Invoice Ninja bank account %q currency %q: %w", goTradieBankAccountName, currencyCode, err)
+	}
+
 	state.bankIntegration = &integration
+	state.bankCurrencyID = currencyID
 
 	transactions, err := s.client.BankTransactions.ListAll(ctx, invoiceninja.BankTransactionQuery{
 		ListOptions:       invoiceninja.ListOptions{PerPage: 100, Status: "active,archived,deleted"},

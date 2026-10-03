@@ -66,6 +66,7 @@ type expenseImportState struct {
 	importedExpenses            []importedExpenseState
 	seenMarkers                 map[string]int
 	bankIntegration             *invoiceninja.BankIntegration
+	bankCurrencyID              string
 	bankTransactions            []invoiceninja.BankTransaction
 	transactionByMarker         map[string]invoiceninja.BankTransaction
 	ambiguousTransactionMarkers map[string]bool
@@ -778,6 +779,7 @@ func (s *Service) importAccountPaymentRow(ctx context.Context, state *expenseImp
 	}
 	created, err := s.client.BankTransactions.Create(ctx, invoiceninja.CreateBankTransactionRequest{
 		BankIntegrationID: state.bankIntegration.ID,
+		CurrencyID:        state.bankCurrencyID,
 		Amount:            centsAmount(row.grossCents),
 		BaseType:          "DEBIT",
 		Date:              row.date,
