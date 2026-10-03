@@ -1,528 +1,330 @@
-# Historical Expense Importing
+# Historical Expense Importing and Supplier-Account Settlement
 
-Status: Design baseline for the historical expense/payment importer  
+Status: **Accepted architecture and bookkeeping invariant**  
 Software version: Not yet assigned
 
-## Purpose
+## Purpose and authority
 
-This document locks down the intent of GoTradie's historical expense importer before further paid/unpaid work is implemented.
+This document defines the durable Invoice Ninja bookkeeping model used by GoTradie after historical import. It supersedes any earlier design which requires the original spreadsheet, an in-memory import allocation result, or a separate GoTradie ledger to reconstruct supplier-account settlement.
 
-The existing expense import mapping is already producing the desired Invoice Ninja expense record. The paid/unpaid work must extend that behaviour without redesigning or degrading the purchase analytics.
+The words **must**, **must not**, **may**, and **should** are deliberate. The current historical importer is complete when its import-specific behaviour is correct. The Invoice-Ninja-only integrity test later in this document is a target architecture and post-migration integrity test; it does not block completion of the current import work.
 
-The central rule is:
+The central rules are:
 
-> A purchase row is the authoritative analytical record of the purchase. A later account payment settles that purchase; it does not replace, reclassify, or recreate it.
+> An Invoice Ninja Expense records what was purchased. An Invoice Ninja Bank Transaction records money paid to settle a supplier account. A settlement is not another purchase.
 
-## Existing purchase mapping: preserve it
+> After a successful import, Invoice Ninja is the durable source of truth. The spreadsheet is an import source, not an operational ledger.
 
-One spreadsheet purchase row creates one Invoice Ninja expense.
+## System of record
 
-The current mapping deliberately preserves the analytical resolution of each individual purchase row, including:
+The source spreadsheet is migration input. It may be corrected and re-imported while migration is being validated, but it must not remain a runtime dependency.
+
+After successful import:
+
+- Invoice Ninja Expenses are the durable purchase records;
+- marked Invoice Ninja Bank Transactions/Transactions are the durable supplier-settlement records;
+- stable GoTradie identities and account markers stored in Invoice Ninja make both record types deterministic and idempotent;
+- the spreadsheet may be archived;
+- GoTradie must not require the spreadsheet to produce supplier reconciliation, BAS, or EOFY output;
+- GoTradie must not maintain a separate persistent cache, SQLite database, allocation ledger, or side database.
+
+The target architecture is not complete until GoTradie can reproduce the required accounting result from Invoice Ninja alone. This is a post-migration integrity goal and does not block completion of the current historical import work.
+
+## Purchase records: Invoice Ninja Expenses
+
+One source purchase creates one Invoice Ninja Expense. `Invoice`, `Receipt`, and a safely defined `Adjustment` are purchase-side records.
+
+The Expense owns the analytical and tax meaning of the purchase, including:
 
 - purchase date;
-- supplier and store context;
-- Job Number;
-- Child Job Number;
-- expense Category;
-- analytical Option;
+- Supplier and Store context;
+- Job Number and Child Job Number;
+- Expense Category;
+- analytical Option / Tax Detail;
 - Tax Treatment;
 - Business %;
-- BAS treatment;
+- BAS Treatment;
 - item number and description;
-- quantity, unit and unit price;
-- source ex-GST, GST and inc-GST totals;
-- source currency;
+- quantity, unit, and unit price;
+- source ex-GST, GST, and inc-GST totals;
 - business amount and business GST;
-- source notes;
-- source filename;
-- receipt/document attachment;
+- source currency and notes;
 - supplier invoice/reference number;
-- stable source identity for idempotency.
+- receipt or source-document identity and attachment;
+- stable GoTradie source identity; and, for Expenses participating in supplier-account settlement, supplier-account identity.
 
-Current Invoice Ninja mapping includes:
+Current mapping terminology is preserved:
 
-| Spreadsheet concept | Invoice Ninja representation |
+| Source concept | Invoice Ninja representation |
 |---|---|
-| Supplier + Store | Vendor display name currently uses `Supplier - Store` when Store is present |
+| Supplier + Store | Vendor display name may use `Supplier - Store` when Store is present |
 | Date | Expense date |
 | Category | Expense Category |
 | Option | Expense custom analytical field / Tax Detail |
 | Tax Treatment | Expense custom field |
 | Business % | Expense custom field |
-| BAS Treatment | Expense custom field; currently derived by importer logic |
+| BAS Treatment | Expense custom field |
 | Business Amount | Expense amount |
 | Business GST | Expense tax amount |
 | Invoice Number / purchase reference | Transaction Reference |
-| Store, Job Number, Child Job Number, item detail, source totals, notes, source file | Private Notes |
+| Store, job fields, item detail, source totals, notes, source file | Private Notes or equivalent durable fields |
 | Receipt filename | Private attached document |
 
-Job Number and Child Job Number must always remain attached to the purchase row. Numeric Job Numbers may additionally resolve to an Invoice Ninja Project under the current importer behaviour, but Project linkage must never be the only copy of the job analytics.
+Job Number and Child Job Number must remain on the purchase record. A numeric Job Number may additionally resolve to an Invoice Ninja Project, but project linkage must not be the only durable copy.
 
 Receipt uploads remain private (`is_public=false`). `Should be Invoiced` remains OFF/untouched. `Add Documents to Invoice` remains OFF.
 
-Deleted/trashed imported expenses must not permanently block re-import of the same source purchase.
+An immediately paid purchase remains an Expense and may be marked Paid using its truthful purchase/payment date and Invoice Ninja Payment Type. It must not be duplicated merely to manufacture settlement history.
 
-## Document Type
+## Supplier-account payments: Invoice Ninja Bank Transactions
 
-`Document Type` is a controlled field. The canonical values are exactly:
+An `Account Payment` represents money leaving the business to settle a supplier trade account. On committed import it must become a durable Invoice Ninja Bank Transaction/Transaction with withdrawal direction.
 
-```text
-Invoice
-Receipt
-Adjustment
-Account Payment
-```
-
-The source spreadsheet should be normalised to those values. The importer should trim surrounding whitespace but otherwise reject unknown document types rather than guessing that several vaguely similar accounting phrases probably mean the same thing.
-
-Historical source labels such as `TAX INVOICE`, `ADJUSTMENT NOTE`, `CR/ADJ NOTE`, `DEBIT MEMO` and `TAX ADJUSTMENT` belong in source-cleanup/migration work, not in the long-term canonical vocabulary.
-
-### Purchase document types
-
-`Invoice`, `Receipt`, and `Adjustment` are purchase-side records.
-
-- `Invoice` creates a normal expense row.
-- `Receipt` creates a normal expense row.
-- `Adjustment` is an adjustment to purchase/account value, not a supplier payment. Its financial direction must come from the signed amount, not from trying to infer meaning from old free-text document labels.
-
-### Account Payment
-
-`Account Payment` is not another expense.
-
-It represents money actually paid against a supplier trade account. It must not create a duplicate expense or duplicate GST transaction.
-
-## Payment Type
-
-`Payment Type` must use Invoice Ninja's payment-type vocabulary exactly. GoTradie should not invent aliases such as `Bunnings Account / Trade Account` as payment methods.
-
-Examples already present in the source data include:
-
-```text
-Visa Card
-PayPal
-```
-
-Other values must use the exact Invoice Ninja label supported by the target Invoice Ninja instance/API.
-
-### Purchase rows
-
-For `Invoice` and `Receipt` rows, the intended simple rule is:
-
-- non-blank valid `Payment Type` = paid immediately at purchase;
-- blank `Payment Type` = unpaid supplier-account purchase.
-
-No separate Payment Status column is required for the historical importer unless a later real requirement proves otherwise.
-
-For an immediately paid purchase:
-
-```text
-Expense date = purchase date
-Mark Paid = ON
-Payment date = purchase date
-Payment Type = spreadsheet Payment Type
-```
-
-For an unpaid supplier-account purchase:
-
-```text
-Expense date = purchase date
-Mark Paid = OFF
-Payment date = blank
-Payment Type = blank
-```
-
-Do not infer supplier-specific account behaviour. The paid/unpaid state must come from the row data.
-
-## Account Payment rows
-
-An `Account Payment` row owns payment facts, not purchase analytics.
-
-Relevant fields are:
+The Transaction owns settlement facts, including:
 
 - payment date;
-- Supplier;
-- gross payment amount;
-- payment reference;
-- Payment Type;
-- optional supporting document/receipt.
+- supplier-account identity;
+- gross amount paid;
+- withdrawal direction;
+- bank/payment reference;
+- Payment Type where supported and truthful;
+- stable GoTradie payment identity and marker;
+- source-document identity or attachment where supported.
 
-For the current spreadsheet shape, `Total Inc GST` is the gross supplier-account payment amount. Purchase-analysis fields that happen to be populated by spreadsheet formulas are ignored for an `Account Payment` row.
+An account-payment row must not create or overwrite purchase analytics such as Category, Job Number, Tax Treatment, Business %, BAS Treatment, item detail, or purchase GST.
 
-In particular, an Account Payment row must not create or overwrite:
+An account payment must never create:
 
-- Job Number;
-- Child Job Number;
-- Category;
-- Option;
-- Tax Treatment;
-- GST classification;
-- Business %;
-- BAS treatment;
-- item number or description;
-- purchase quantity/unit;
-- purchase transaction reference.
+- another Expense;
+- another GST-bearing purchase;
+- an Invoice Ninja customer Payment;
+- a GoTradie-only durable allocation record.
 
-An Account Payment row must not create an Invoice Ninja client Payment object. Invoice Ninja client payments are accounts-receivable records; this is a supplier/accounts-payable payment event.
+Only Transactions carrying the stable GoTradie supplier-settlement marker may participate in automatic supplier-account settlement. GoTradie must not guess that every unrelated withdrawal to a vaguely similar name is an account payment.
 
-## Supplier account identity
+## Invoice Ninja Payments are customer receipts
 
-Trade-account allocation is keyed by the spreadsheet `Supplier`, not by the exact Invoice Ninja Vendor display name.
+Invoice Ninja Payments are accounts-receivable records: money received from customers and applied to customer invoices or credits.
 
-This matters because current expense display names include Store, for example:
+They must not be used for:
+
+- supplier payments;
+- Bunnings trade-account settlements;
+- expense payment allocations;
+- bank withdrawals;
+- any other accounts-payable event.
+
+The shared word “payment” does not make these objects interchangeable. One is money in; the other is money out. Treating them as cousins because they share a surname is how accounting goblins obtain tenure.
+
+## Supplier-account identity
+
+Settlement is keyed by a durable GoTradie supplier-account identity, not fuzzy vendor-name matching.
+
+This matters because purchase display names may include Store:
 
 ```text
 Bunnings - Dural
 Bunnings - Online
 ```
 
-Those may still belong to the same supplier trade account.
+Both may belong to the same `Bunnings` trade account. Store remains purchase metadata and must not split a supplier account accidentally.
 
-`Store` remains purchase metadata. It must not accidentally split one supplier account into several unrelated account balances.
+The durable marker on each participating Expense and Transaction must allow GoTradie to recover the common supplier account without consulting the spreadsheet. Ordinary immediately paid Expenses that do not participate in supplier-account settlement do not require a supplier-account marker. Marker matching must be exact and versioned so later formatting changes do not silently alter identity.
 
-When processing an import file, GoTradie should use the source purchase rows and their stable source identities to associate existing Invoice Ninja expenses back to the source Supplier rather than attempting fuzzy vendor-name matching.
+## Deterministic settlement reconstruction
 
-## Payment allocation
+GoTradie must reconstruct supplier-account settlement from durable Invoice Ninja Expenses and marked supplier Transactions.
 
-Account payments are allocated conservatively against eligible outstanding purchases for the same Supplier.
+For each supplier account:
 
-Initial rule:
+1. Load eligible Expenses and marked withdrawal Transactions from Invoice Ninja.
+2. Order Transactions by payment date and stable GoTradie payment identity.
+3. For each Transaction, consider purchases dated on or before its payment date.
+4. Allocate in FIFO order: oldest purchase date first.
+5. For purchases on the same date, use stable GoTradie purchase identity as the tie-breaker.
+6. Calculate in integer minor currency units; do not allocate using binary floating-point arithmetic.
+7. Allocate no more than the Transaction remainder or Expense outstanding amount.
+8. Carry a partial allocation forward to later Transactions without marking the Expense fully paid.
+9. Report unapplied Transaction amounts and unresolved or ambiguous records explicitly.
+10. Never skip an older eligible unresolved Expense merely to make a later Expense appear settled.
 
-1. Only purchases dated on or before the account-payment date are eligible.
-2. Oldest outstanding purchase first.
-3. For purchases with the same date, use stable source-row order as the tie-breaker.
-4. Allocate only the amount actually available from the payment.
-5. A fully covered expense may become paid on the actual account-payment date.
-6. An uncovered expense remains unpaid.
-7. Any unapplied payment remainder is reported explicitly.
-8. Never fabricate a paid state simply because a payment exists somewhere on the supplier account.
+The same Invoice Ninja state must always produce the same allocation result.
 
-Example:
+## Native expense-to-transaction linking
+
+Invoice Ninja's native Expense-to-Transaction linking is not adequate as the correctness mechanism for partial expense allocations.
+
+Therefore:
+
+- GoTradie must not require a native partial link;
+- absence of a native link must not prevent deterministic settlement;
+- a native link, if present, may be treated as UI assistance but not as the authoritative allocation ledger;
+- BAS, EOFY, paid-state, and reconciliation logic must be reproducible from Expenses, marked Transactions, and stable GoTradie identities.
+
+## Paid and Unpaid state
+
+For supplier-account-managed Expenses:
+
+- **Unpaid** means not fully settled;
+- **Paid** means fully settled.
+
+An Expense may remain shown as Unpaid while one or more partial payments have been economically allocated to it. That intermediate UI state is acceptable and must not cause the partial settlement to be ignored in BAS or reconciliation calculations.
+
+When FIFO reconstruction shows that an Expense is fully settled, GoTradie may mark it Paid and record the truthful final settlement date for tidy Invoice Ninja state. This update is a convenience derived from the durable records; it is not the source of the allocation truth.
+
+If later correction of an Expense or Transaction changes the deterministic result, GoTradie must report the changed conclusion rather than preserving a stale GoTradie-side allocation.
+
+Historical import and any Paid/Unpaid or payment-date changes made by GoTradie must not trigger vendor-facing emails or notifications.
+
+## BAS and EOFY invariants
+
+Expenses represent purchases. Supplier Transactions represent settlement only. Exports must not count both as purchases.
+
+### Cash GST accounting
+
+For cash-basis GST:
+
+- actual payment Transaction dates determine timing for supplier-account purchases;
+- actual allocated amounts determine the proportion treated as paid in each period;
+- the GST and business-use attributes come from the underlying Expense;
+- proportional GST must be derived from the Expense and allocated payment, with deterministic rounding and cumulative reconciliation to the Expense total;
+- the Transaction itself contributes no second GST purchase amount.
+
+An Expense remaining Unpaid in the Invoice Ninja UI does not erase a genuine partial payment from the BAS period in which it occurred.
+
+### Non-cash GST accounting
+
+For non-cash accounting, the purchase/invoice date and Expense tax treatment drive the GST event. Later supplier Transactions settle the liability and must not create another GST event.
+
+### EOFY and reconciliation
+
+EOFY and reconciliation output must preserve the same separation:
 
 ```text
-18/09/2026 Purchase A   $71.84   unpaid
-18/09/2026 Purchase B   $28.70   unpaid
-01/11/2026 Account Pay  $71.84   Visa Card
+Expenses      = what was purchased
+Transactions  = when and how the supplier account was settled
 ```
 
-Result:
-
-```text
-Purchase A -> fully allocated -> paid 01/11/2026
-Purchase B -> no allocation   -> remains unpaid
-Unapplied payment remainder    -> $0.00
-Supplier account outstanding   -> $28.70
-```
-
-## Updating a fully settled Invoice Ninja expense
-
-When a later account payment fully settles an expense, the purchase record remains the purchase record.
-
-The importer may update the paid state and actual payment date. Payment Type may be applied where it truthfully describes the settlement.
-
-The purchase `Transaction Reference` must not be replaced by the account-payment reference. It currently stores the supplier invoice/purchase reference and is part of the existing desired mapping.
-
-The account-payment reference belongs in GoTradie's allocation/reconciliation detail and, if later mirrored into Invoice Ninja notes, must be additive rather than destructive.
-
-## Partial and multiple payments
-
-Invoice Ninja expenses are effectively binary paid/unpaid for this workflow. GoTradie therefore cannot use Invoice Ninja's paid flag as the complete accounting record when an expense is only partly settled.
-
-Required behaviour:
-
-- a partial allocation does not mark the expense fully paid;
-- allocation facts must not be discarded;
-- the allocation record must retain at least:
-  - purchase source identity;
-  - payment source identity;
-  - allocated amount;
-  - payment date;
-  - payment method;
-  - payment reference;
-- later BAS and account-reconciliation logic must use the detailed allocation facts, not merely the Invoice Ninja paid flag.
-
-If several account payments with different methods contribute to one purchase, GoTradie must not invent a single historical payment method that pretends to describe the whole settlement. The allocation detail is authoritative in that case.
-
-The allocation detail is authoritative for the duration of the import/reconciliation calculation.
-
-For the historical importer, allocation detail does not require a separate persistent datastore. It must be deterministically reproducible from:
-
-- the source purchase rows;
-- the source Account Payment rows;
-- stable source identities;
-- and relevant existing Invoice Ninja expense state.
-
-Import/reconciliation output must retain enough allocation detail to support inspection, GST/BAS calculation, and supplier-account reconciliation during that run.
-
-If a future workflow requires allocations to persist independently of the source ledger, that must be designed separately.
-
-## GST accounting basis
-
-GoTradie needs one simple business-level setting:
-
-```yaml
-gst_accounting_basis: cash
-```
-
-or:
-
-```yaml
-gst_accounting_basis: non_cash
-```
-
-No UI is required.
-
-The importer must preserve enough facts for later BAS calculations to use the chosen basis correctly:
-
-- original purchase date;
-- original purchase amount and GST;
-- business-use amount and GST;
-- actual payment dates;
-- allocation amounts;
-- outstanding amount.
-
-For cash-basis work, actual payment/allocation timing matters. For non-cash work, the purchase-side facts remain available independently of later settlement.
-
-The payment row itself does not create a second GST amount. GST remains attached to the underlying purchase/adjustment rows.
-
-## Supplier-account reconciliation
-
-The same source and allocation data should support:
+Supplier-account reporting should support:
 
 ```text
 opening balance
 + purchases
-- payments
+- settlement Transactions
 = calculated closing balance
 ```
 
-and report:
+Outstanding Expenses, partially settled Expenses, unapplied Transactions, and ambiguous markers must be reported rather than silently forced into balance.
 
-- outstanding purchases;
-- applied payments;
-- unapplied payment amounts;
-- calculated supplier-account balance.
+## Canonical examples
 
-This is both an accounting check and a practical way to detect supplier-account discrepancies.
+### Bunnings trade account
 
-## Idempotency and source identity
+Several Bunnings purchases create separate Expenses because each purchase owns its category, job, GST, business percentage, receipt, and source identity:
 
-The importer must remain safe to re-run.
+```text
+Expenses
+$120
+$85
+$340
+$62
+$190
+```
 
-Existing behaviour uses a stable source marker to associate a spreadsheet row with its imported expense. Duplicate rows must not silently create duplicate expenses, and deleted/trashed imported expenses must be re-importable when appropriate.
+The later account payment creates one marked withdrawal Transaction:
 
-### Important implementation gap
+```text
+Transaction
+Bunnings account payment    $797
+```
 
-The current importer computes the source marker from the entire source row. That becomes fragile now that canonical `Document Type` values and the new `Payment Type` column are being introduced: changing a non-identity field changes the row hash and can make an already imported purchase appear new.
+The Transaction settles the five Expenses by supplier/date/FIFO. It is not a sixth Expense and it is not an Invoice Ninja customer Payment.
 
-Before the revised importer is committed against data that may already have been imported, source identity needs to remain stable across non-identity edits such as:
+### BlueCarve partial payments
 
-- `TAX INVOICE` becoming `Invoice`;
-- adding or correcting `Payment Type`;
-- other analytical corrections that do not make the purchase a different source transaction.
+```text
+Expenses
+$7,014
+$380
 
-Do not solve this with fuzzy matching. Define a stable source identity from genuinely identifying source fields, or provide an explicit migration path for existing markers.
+Transactions
+$2,000
+$5,000
+$394
+```
 
-## Known implementation gaps before paid/unpaid work is complete
+FIFO produces:
 
-The current branch still needs the following narrow changes to satisfy this design:
+```text
+$2,000 -> first Expense; $5,014 remains
+$5,000 -> first Expense; $14 remains
+$394   -> $14 finishes first Expense, then $380 finishes second Expense
+```
 
-1. Purchase creation currently supplies the purchase date as `PaymentDate` for every expense; this must become conditional.
-2. The current GoInvoiceNinja expense request model does not expose an expense Payment Type field, so exact Invoice Ninja Payment Type support will require the smallest appropriate SDK addition.
-3. Account-payment rows need their own parse/allocation path and must not flow through normal expense creation.
-4. Account-payment allocation needs a small deterministic in-memory representation and result/reporting shape suitable for BAS/reconciliation calculations; no new persistent datastore is required.
-5. Source-marker identity must remain stable when the new canonical/document-payment fields are edited.
+Both Expenses may then be marked Paid. During the intermediate state, the first Expense may remain shown as Unpaid despite $7,000 having been settled. No native partial Expense-to-Transaction link is required.
 
-These are implementation gaps, not invitations to redesign the existing purchase mapping.
+## Stable identity and idempotency
+
+Every imported Expense and supplier Transaction must carry a durable, versioned GoTradie identity sufficient to:
+
+- prevent duplicate creation on re-import;
+- distinguish genuinely separate source records;
+- survive corrections to non-identity classification fields;
+- identify the supplier account exactly;
+- provide stable ordering when dates are equal;
+- allow a fresh GoTradie process to reconstruct settlement from Invoice Ninja alone.
+
+Identity must not depend on the continued presence or filesystem location of the source spreadsheet. Fuzzy matching is not an identity strategy.
+
+Deleted or trashed imported records must be handled explicitly. They must not silently reappear as active duplicates or disappear from reconciliation without an exception.
+
+## Architectural integrity test: Invoice Ninja alone
+
+This is the target post-migration integrity test. It does not block completion of the current historical importer; it defines the intended end state once supplier-settlement reconstruction and BAS/EOFY support are implemented.
+
+The target architecture is accepted when all of the following are true:
+
+1. Purchases exist as Invoice Ninja Expenses with their analytical, GST, receipt, and stable identity data.
+2. Supplier-account payments exist as marked Invoice Ninja withdrawal Transactions with durable payment and supplier identities.
+3. The original spreadsheet is removed from GoTradie's runtime environment or treated as unavailable.
+4. No GoTradie cache, SQLite file, allocation database, or side ledger is present.
+5. A fresh GoTradie process reads Invoice Ninja and deterministically reconstructs the same supplier/date/FIFO allocations.
+6. It produces correct BAS and EOFY data without double-counting Expenses and Transactions.
+7. Cash-basis output assigns proportional GST to actual payment periods; non-cash output uses purchase/invoice dates.
+8. Re-running reconstruction is idempotent and produces the same result.
+
+Once this integrity test passes, the historical spreadsheet may be archived as no longer operationally required.
+
+## Explicitly rejected designs
+
+The following are architectural violations unless this accepted decision is deliberately replaced in a later approved design:
+
+| Rejected design | Reason |
+|---|---|
+| Persistent GoTradie cache, SQLite database, or side ledger | Creates a second source of truth and makes recovery depend on local state |
+| Treating the spreadsheet as the permanent allocation ledger | Prevents archival and violates the Invoice-Ninja-only acceptance test |
+| Invoice Ninja customer Payments for supplier settlements | Models money out as accounts-receivable money in |
+| Another Expense for an account payment | Duplicates purchases and risks duplicate GST/EOFY amounts |
+| Requiring native partial Expense-to-Transaction links | Invoice Ninja does not adequately represent the required partial allocations |
+| Using Paid/Unpaid alone as allocation history | Loses intermediate cash timing and proportional GST information |
+| Fuzzy supplier matching | Makes settlement nondeterministic and unsafe |
+| Counting settlement Transactions as purchases | Double-counts expenditure and GST |
 
 ## CLI safety
 
-The existing GoTradie CLI safety contract remains unchanged:
+Existing GoTradie CLI safety remains unchanged:
 
-- preview/default behaviour is safe;
-- `--commit` is the only flag that permits persistent remote changes;
-- no additional `--apply`, `--force`, or alternate write flags should be invented for this importer.
+- preview is the default;
+- `--commit` is the only flag permitting persistent Invoice Ninja changes;
+- no alternate `--apply`, `--force`, or `--dry-run` write convention is introduced;
+- a preview must describe proposed Expense, Transaction, marker, and Paid-state changes without making them.
 
-See [Command-Line-Spec.md](./Command-Line-Spec.md).
+## Scope guardrail
 
-## Design guardrail
+This design does not create a general ledger or accounting engine. It defines the minimum durable records and deterministic calculation needed for historical purchase import, supplier-account settlement, and correct BAS/EOFY exports.
 
-When changing this importer, ask one question first:
+When changing this workflow, ask:
 
-> Does this change preserve the original purchase row's analytical meaning?
+> If the spreadsheet and this computer vanished after a successful import, could GoTradie still produce the correct result from Invoice Ninja alone?
 
-If the answer is no, it needs a very good reason. The paid/unpaid work exists to model settlement timing correctly, not to turn a useful purchase ledger into accounting soup.
-
-## Implementation Constraints
-
-This importer is deliberately narrow in scope. Implement the behaviour described in this document without introducing a broader accounting system.
-
-### Keep the existing expense model
-
-The current purchase-to-Invoice-Ninja expense mapping is considered correct.
-
-Do not redesign or replace the existing handling of:
-
-- Supplier / vendor
-- Purchase date
-- Job Number
-- Child Job Number
-- Category
-- Option
-- Tax Treatment
-- Business %
-- BAS Treatment
-- Item detail
-- Source totals
-- GST amounts
-- Notes
-- Receipt attachment
-- Transaction reference
-- Existing source/idempotency markers
-
-The paid/unpaid work extends this model; it does not replace it.
-
-### No new persistence layer
-
-Do not introduce:
-
-- a database,
-- a local ledger,
-- an allocation datastore,
-- an accounting framework,
-- or another persistent state mechanism.
-
-For historical import, payment allocation should be deterministically derived from the source data and the existing Invoice Ninja state.
-
-If a future feature genuinely requires persistent allocation state, design that separately.
-
-### Payment Type
-
-`Payment Type` values must correspond exactly to Invoice Ninja payment types.
-
-Rules:
-
-- Perform an exact Invoice Ninja payment-type lookup.
-- Store/use the corresponding Invoice Ninja payment type ID where required by the API.
-- Do not perform fuzzy matching.
-- Do not invent aliases.
-- Do not silently substitute another payment method.
-- An unknown non-blank Payment Type is a row error.
-
-For a normal purchase:
-
-- a recognised immediate-payment type means the expense is paid on the purchase date,
-- a purchase intentionally recorded as unpaid has no payment date and is not marked paid.
-
-For an `Account Payment` row, `Payment Type` describes how the supplier-account payment itself was made.
-
-### Account Payment rows are not expenses
-
-When:
-
-```text
-Document Type = Account Payment
-```
-
-the row represents money paid to a supplier account.
-
-It must not:
-
-- create another expense,
-- create another GST purchase,
-- overwrite purchase analytics,
-- inherit Category/Option meaning from spreadsheet filler values,
-- or manufacture an Invoice Ninja expense merely to represent the payment.
-
-Purchase analytics remain attached to the original purchase rows.
-
-### Account Payment supporting documents
-
-An `Account Payment` row may contain a supporting filename or document reference.
-
-Do not create a fake Invoice Ninja expense solely so that this document has somewhere to attach.
-
-For the initial implementation:
-
-- preserve/report the source filename,
-- attach it only if there is a natural supported Invoice Ninja object for the payment workflow,
-- otherwise leave it unattached.
-
-Supporting-document storage can be improved later without changing accounting behaviour.
-
-### Payment allocation
-
-Allocate account payments conservatively:
-
-1. Match the supplier.
-2. Consider eligible outstanding supplier-account purchases.
-3. Allocate oldest purchase date first.
-4. For purchases on the same date, use stable source-row order.
-5. Mark an expense paid only when fully covered.
-6. Use the actual account-payment date as its payment date.
-7. Leave partially covered expenses unpaid in Invoice Ninja.
-8. Retain/report partial allocation information within the import result so later GST/BAS processing can distinguish paid and unpaid amounts.
-9. Report any unapplied payment remainder.
-
-Never fabricate a fully-paid state merely because Invoice Ninja has a binary paid/unpaid expense model.
-
-### Source identity and idempotency
-
-The current importer derives its source marker from the complete spreadsheet row.
-
-Adding or changing fields such as `Document Type` and `Payment Type` must not cause an expense that was already imported from the same historical purchase to be imported again.
-
-Before implementation, adjust source identity so that:
-
-- the same underlying purchase retains stable identity,
-- control/classification changes do not accidentally create duplicate expenses,
-- existing legacy source markers can still be recognised where necessary,
-- intentionally distinct spreadsheet rows from the same supplier invoice remain distinct.
-
-Do not solve this by weakening duplicate detection across genuinely separate purchase rows.
-
-### Adjustments
-
-`Adjustment` is a valid `Document Type`, but its accounting behaviour must not be guessed.
-
-In particular:
-
-- `Adjustment` alone does not determine whether the amount is positive or negative.
-- Its effect must come from explicit source data.
-- Paid/unpaid behaviour must follow an explicitly defined rule rather than supplier-specific inference.
-
-If the source data does not yet provide enough information to implement adjustments safely, report/defer them rather than inventing behaviour.
-
-### CLI safety
-
-Existing CLI safety behaviour remains unchanged:
-
-- preview is the default,
-- `--commit` is the only persistent-write flag,
-- no Invoice Ninja changes occur without `--commit`.
-
-Do not introduce additional write flags such as:
-
-```text
---apply
---force
---dry-run
-```
-
-### Scope guardrails
-
-Do not introduce, unless separately designed and approved:
-
-- a UI,
-- ERPNext integration,
-- supplier-specific rules,
-- fuzzy matching,
-- an accounting engine,
-- a general ledger,
-- a reconciliation framework beyond the calculations required here,
-- new architectural abstractions merely to support this importer.
-
-Prefer small extensions to the existing expense-import path.
-
-The objective is to correctly represent purchases, unpaid supplier-account purchases, and subsequent account payments while preserving the existing analytical detail.
-
-If the implementation starts requiring a diagram of underground blast doors, it has probably wandered out of scope.
+If the answer is no, the change violates this design, regardless of how elegant its cache schema happens to look.

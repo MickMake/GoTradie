@@ -1,6 +1,6 @@
 # GoTradie Design Documents
 
-This directory contains behaviour and design contracts for GoTradie features where the intent matters as much as the implementation.
+This directory contains authoritative behaviour and architecture contracts for GoTradie features where intent matters as much as implementation.
 
 The aim is to stop later work from reconstructing the premise from code, old chats, sedimentary layers, or the position of the moon.
 
@@ -8,32 +8,32 @@ The aim is to stop later work from reconstructing the premise from code, old cha
 
 ### [Expense-Importing.md](./Expense-Importing.md)
 
-Design baseline for the historical Invoice Ninja expense importer, including:
+Accepted architecture for historical Expense import and supplier-account settlement. It locks in:
 
-- the existing purchase-row mapping that must be preserved;
-- canonical `Document Type` values;
-- exact Invoice Ninja `Payment Type` semantics;
-- immediate-paid versus supplier-account purchases;
-- `Account Payment` rows;
-- conservative payment allocation;
-- partial-payment requirements;
-- GST accounting-basis requirements;
-- supplier-account reconciliation;
-- idempotency/source-identity constraints;
-- known implementation gaps before the paid/unpaid work is complete.
+- Invoice Ninja as the durable source of truth after import;
+- spreadsheets as migration sources which may be archived after validation;
+- Expenses as purchase and tax records;
+- Bank Transactions/Transactions as supplier-account withdrawals and settlement records;
+- customer Payments as money received, never supplier payments;
+- deterministic supplier/date/FIFO reconstruction from Invoice Ninja records and stable GoTradie markers;
+- tolerance of intermediate Unpaid state during partial settlement;
+- optional Paid-state tidying only after full settlement;
+- cash and non-cash BAS timing without double-counting;
+- the Bunnings and BlueCarve canonical examples;
+- an Invoice-Ninja-only target architectural/post-migration integrity test;
+- explicit rejection of a GoTradie cache/SQLite side ledger, duplicate settlement Expenses, misuse of customer Payments, and required native partial links.
 
-### [Command-Line-Spec.md](./Command-Line-Spec.md)
+The document supersedes earlier spreadsheet-dependent or import-run-only allocation designs. The Invoice-Ninja-only integrity test describes the target post-migration architecture; it does not block completion of the current historical importer.
 
-The GoTradie command-line behaviour contract.
+### Command-Line-Spec.md
 
-This file is the existing root `GoTradie-Command-Intention-Spec.md` moved/renamed into the design-document structure without changing its content.
+The existing GoTradie command-line behaviour contract remains authoritative and is not replaced by this package.
 
-It locks down the CLI safety model, especially:
+Its safety rules continue to apply, especially:
 
 - preview by default;
 - `--commit` as the single persistent-write flag;
-- command grouping and responsibilities;
-- repository/SDK ownership boundaries.
+- command grouping and repository/SDK ownership boundaries.
 
 ## Working rule
 
@@ -42,8 +42,8 @@ These documents describe deliberate behaviour, not whatever happens to fall out 
 When implementation and design disagree:
 
 1. inspect the current GitHub branch and tests;
-2. decide whether the code or the design is wrong;
-3. change one deliberately;
-4. update the other in the same piece of work.
+2. decide whether the code or the accepted design is wrong;
+3. obtain approval before replacing an accepted invariant;
+4. update code, tests, and affected documentation together.
 
-Do not silently reinterpret a design contract because a nearby function looked persuasive.
+Do not silently reinterpret a design contract because a nearby function looked persuasive. Functions are excellent at being confident and have never once had to explain themselves to an accountant.
