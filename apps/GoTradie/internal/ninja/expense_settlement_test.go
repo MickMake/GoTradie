@@ -117,6 +117,111 @@ func TestSettlementAccountResolutionIsLimitedToAccountPaymentImports(t *testing.
 	}
 }
 
+func TestLoadExpenseImportStateSettlementExpenseArchiveSafety(t *testing.T) {
+	sourceMarker := "[GoTradie source:v2:purchase]"
+	supplierMarker := supplierAccountMarker("Bunnings")
+	purchaseMarker := settlementPurchaseMarker(sourceMarker)
+	tests := []struct {
+		name         string
+		expense      invoiceninja.Expense
+		wantError    string
+		wantImported int
+	}{
+		{
+			name: "active marked",
+			expense: invoiceninja.Expense{
+				Entity:       invoiceninja.Entity{ID: "expense1"},
+				PrivateNotes: strings.Join([]string{sourceMarker, supplierMarker, purchaseMarker}, "\n"),
+			},
+			wantImported: 1,
+		},
+		{
+			name: "archived supplier marker",
+			expense: invoiceninja.Expense{
+				Entity:       invoiceninja.Entity{ID: "expense1", ArchivedAt: 1},
+				PrivateNotes: sourceMarker + "\n" + supplierMarker,
+			},
+			wantError: "restore or explicitly resolve",
+		},
+		{
+			name: "deleted purchase marker",
+			expense: invoiceninja.Expense{
+				Entity:       invoiceninja.Entity{ID: "expense1", IsDeleted: true},
+				PrivateNotes: sourceMarker + "\n" + purchaseMarker,
+			},
+			wantError: "restore or explicitly resolve",
+		},
+		{
+			name: "unmarked archived",
+			expense: invoiceninja.Expense{
+				Entity:       invoiceninja.Entity{ID: "expense1", ArchivedAt: 1},
+				PrivateNotes: sourceMarker,
+			},
+		},
+		{
+			name: "unmarked deleted",
+			expense: invoiceninja.Expense{
+				Entity:       invoiceninja.Entity{ID: "expense1", IsDeleted: true},
+				PrivateNotes: sourceMarker,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/vendors":
+					_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expense_categories":
+					_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects":
+					_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expenses":
+					if r.URL.Query().Get("with_trashed") != "true" {
+						t.Errorf("with_trashed = %q", r.URL.Query().Get("with_trashed"))
+					}
+					if r.URL.Query().Get("status") != "active,archived,deleted" {
+						t.Errorf("status = %q", r.URL.Query().Get("status"))
+					}
+					_ = json.NewEncoder(w).Encode(map[string]any{
+						"data": []invoiceninja.Expense{tt.expense},
+						"meta": map[string]any{"pagination": map[string]any{"total_pages": 1}},
+					})
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/quotes":
+					_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/statics":
+					_, _ = w.Write([]byte(`{"payment_types":[]}`))
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_integrations":
+					_, _ = w.Write([]byte(`{"data":[{"id":"bank1","bank_account_name":"GoTradie"}],"meta":{"pagination":{"total_pages":1}}}`))
+				case r.Method == http.MethodPost && r.URL.Path == "/api/v1/companies/current":
+					_, _ = w.Write([]byte(`{"data":{"id":"company1","settings":{"currency_id":"company-currency"}}}`))
+				case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/bank_transactions" || r.URL.Path == "/api/v1/bank_transaction_rules"):
+					_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+				default:
+					http.Error(w, r.Method+" "+r.URL.String(), http.StatusNotFound)
+				}
+			}))
+			defer ts.Close()
+
+			state, err := newExpenseImportTestService(t, ts).loadExpenseImportState(context.Background(), true)
+			if tt.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantError) || !strings.Contains(err.Error(), "expense1") {
+					t.Fatalf("archive safety error = %v", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(state.importedExpenses) != tt.wantImported {
+				t.Fatalf("imported expenses = %#v", state.importedExpenses)
+			}
+		})
+	}
+}
+
 func TestLoadSupplierSettlementStateRejectsDuplicateMarkedTransactions(t *testing.T) {
 	marker := "[GoTradie account-payment:v2:duplicate]"
 	description := "GoTradie historical supplier settlement\n" + supplierAccountMarker("BlueCarve") + "\n" + marker
@@ -152,6 +257,47 @@ func TestLoadSupplierSettlementStateRejectsDuplicateMarkedTransactions(t *testin
 	err = (&Service{client: client}).loadSupplierSettlementState(context.Background(), state)
 	if err == nil || !strings.Contains(err.Error(), "multiple Invoice Ninja bank transactions") {
 		t.Fatalf("duplicate marker error = %v", err)
+	}
+}
+
+func TestLoadSupplierSettlementStateRejectsArchivedOrDeletedMarkedTransactions(t *testing.T) {
+	tests := []struct {
+		name        string
+		transaction invoiceninja.BankTransaction
+	}{
+		{name: "archived", transaction: invoiceninja.BankTransaction{Entity: invoiceninja.Entity{ID: "transaction1", ArchivedAt: 1}}},
+		{name: "deleted", transaction: invoiceninja.BankTransaction{Entity: invoiceninja.Entity{ID: "transaction1", IsDeleted: true}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.transaction.Description = supplierAccountMarker("Bunnings") + "\n[GoTradie account-payment:v2:payment]"
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_integrations":
+					_, _ = w.Write([]byte(`{"data":[{"id":"bank1","bank_account_name":"GoTradie"}],"meta":{"pagination":{"total_pages":1}}}`))
+				case r.Method == http.MethodPost && r.URL.Path == "/api/v1/companies/current":
+					_, _ = w.Write([]byte(`{"data":{"id":"company1","settings":{"currency_id":"company-currency"}}}`))
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_transactions":
+					_ = json.NewEncoder(w).Encode(map[string]any{
+						"data": []invoiceninja.BankTransaction{tt.transaction},
+						"meta": map[string]any{"pagination": map[string]any{"total_pages": 1}},
+					})
+				default:
+					http.Error(w, r.Method+" "+r.URL.String(), http.StatusNotFound)
+				}
+			}))
+			defer ts.Close()
+
+			state := &expenseImportState{
+				transactionByMarker:         make(map[string]invoiceninja.BankTransaction),
+				ambiguousTransactionMarkers: make(map[string]bool),
+			}
+			err := newExpenseImportTestService(t, ts).loadSupplierSettlementState(context.Background(), state)
+			if err == nil || !strings.Contains(err.Error(), "archived or deleted") || !strings.Contains(err.Error(), "restore or resolve") {
+				t.Fatalf("marked transaction archive error = %v", err)
+			}
+		})
 	}
 }
 

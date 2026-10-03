@@ -260,10 +260,14 @@ func (s *Service) loadExpenseImportState(ctx context.Context, settlementEnabled 
 	if err != nil {
 		return nil, fmt.Errorf("list projects: %w", err)
 	}
-	expenses, err := s.client.Expenses.ListAll(ctx, invoiceninja.ExpenseQuery{
+	expenseQuery := invoiceninja.ExpenseQuery{
 		ListOptions: invoiceninja.ListOptions{PerPage: 100, Include: []string{"documents"}},
-		WithTrashed: false,
-	})
+	}
+	if settlementEnabled {
+		expenseQuery.Status = "active,archived,deleted"
+		expenseQuery.WithTrashed = true
+	}
+	expenses, err := s.client.Expenses.ListAll(ctx, expenseQuery)
 	if err != nil {
 		return nil, fmt.Errorf("list expenses: %w", err)
 	}
@@ -322,7 +326,12 @@ func (s *Service) loadExpenseImportState(ctx context.Context, settlementEnabled 
 		state.paymentTypes[name] = paymentType
 	}
 	for _, expense := range expenses {
-		if expense.IsDeleted {
+		supplierMarker := supplierAccountMarkerFromText(expense.PrivateNotes)
+		purchaseMarker := settlementPurchaseMarkerFromText(expense.PrivateNotes)
+		if settlementEnabled && (expense.IsDeleted || expense.ArchivedAt != 0) && (supplierMarker != "" || purchaseMarker != "") {
+			return nil, fmt.Errorf("marked supplier-account Expense %q is archived or deleted; restore or explicitly resolve it before importing again", expense.ID)
+		}
+		if expense.IsDeleted || expense.ArchivedAt != 0 {
 			continue
 		}
 		if marker := sourceMarkerFromNotes(expense.PrivateNotes); marker != "" {
@@ -334,8 +343,8 @@ func (s *Service) loadExpenseImportState(ctx context.Context, settlementEnabled 
 				supplier:                 expenseSourceSupplier(expense, state.vendorByID),
 				date:                     expense.Date,
 				sourceRow:                sourceRowFromNotes(expense.PrivateNotes),
-				supplierAccountMarker:    supplierAccountMarkerFromText(expense.PrivateNotes),
-				settlementPurchaseMarker: settlementPurchaseMarkerFromText(expense.PrivateNotes),
+				supplierAccountMarker:    supplierMarker,
+				settlementPurchaseMarker: purchaseMarker,
 			})
 		}
 	}
