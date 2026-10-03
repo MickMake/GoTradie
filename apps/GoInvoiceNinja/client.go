@@ -27,15 +27,20 @@ type Client struct {
 	httpClient *http.Client
 	userAgent  string
 
-	Clients           *ClientService
-	Products          *ProductService
-	Quotes            *QuoteService
-	Invoices          *InvoiceService
-	Payments          *PaymentService
-	Vendors           *VendorService
-	Projects          *ProjectService
-	ExpenseCategories *ExpenseCategoryService
-	Expenses          *ExpenseService
+	Clients              *ClientService
+	Products             *ProductService
+	Quotes               *QuoteService
+	Invoices             *InvoiceService
+	Payments             *PaymentService
+	Vendors              *VendorService
+	Projects             *ProjectService
+	ExpenseCategories    *ExpenseCategoryService
+	Expenses             *ExpenseService
+	Statics              *StaticService
+	Companies            *CompanyService
+	BankIntegrations     *BankIntegrationService
+	BankTransactions     *BankTransactionService
+	BankTransactionRules *BankTransactionRuleService
 }
 
 // Option customises the client.
@@ -101,6 +106,11 @@ func New(token string, opts ...Option) (*Client, error) {
 	c.Projects = &ProjectService{Service: NewService[Project](c, "projects")}
 	c.ExpenseCategories = &ExpenseCategoryService{Service: NewService[ExpenseCategory](c, "expense_categories")}
 	c.Expenses = &ExpenseService{Service: NewService[Expense](c, "expenses")}
+	c.Statics = &StaticService{client: c}
+	c.Companies = &CompanyService{client: c}
+	c.BankIntegrations = &BankIntegrationService{Service: NewService[BankIntegration](c, "bank_integrations")}
+	c.BankTransactions = &BankTransactionService{Service: NewService[BankTransaction](c, "bank_transactions")}
+	c.BankTransactionRules = &BankTransactionRuleService{Service: NewService[BankTransactionRule](c, "bank_transaction_rules")}
 	return c, nil
 }
 
