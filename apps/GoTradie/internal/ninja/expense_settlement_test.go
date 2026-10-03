@@ -16,6 +16,7 @@ func TestLoadSupplierSettlementStateRequiresDedicatedManualAccount(t *testing.T)
 	tests := []struct {
 		name         string
 		integrations string
+		companyBody  string
 		wantError    string
 	}{
 		{name: "missing", integrations: `[]`, wantError: `manual bank account "GoTradie" was not found`},
@@ -36,9 +37,12 @@ func TestLoadSupplierSettlementStateRequiresDedicatedManualAccount(t *testing.T)
 		{name: "sync enabled", integrations: `[{
 			"id":"bank1","bank_account_name":"GoTradie","auto_sync":true
 		}]`, wantError: "auto sync enabled"},
+		{name: "missing company currency", integrations: `[{
+			"id":"bank1","bank_account_name":"GoTradie","integration_type":"","auto_sync":false
+		}]`, companyBody: `{"data":{"id":"company1","settings":{}}}`, wantError: "no usable default currency_id"},
 		{name: "manual", integrations: `[{
 			"id":"bank1","bank_account_name":"GoTradie","integration_type":"","auto_sync":false
-		}]`},
+		}]`, companyBody: `{"data":{"id":"company1","settings":{"currency_id":"company-currency"}}}`},
 	}
 
 	for _, tt := range tests {
@@ -46,6 +50,15 @@ func TestLoadSupplierSettlementStateRequiresDedicatedManualAccount(t *testing.T)
 			var nonGET int
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.Header().Set("Content-Type", "application/json")
+				if r.Method == http.MethodPost && r.URL.Path == "/api/v1/companies/current" {
+					if tt.companyBody == "" {
+						t.Errorf("unexpected current company lookup")
+						http.Error(w, "unexpected current company lookup", http.StatusInternalServerError)
+						return
+					}
+					_, _ = w.Write([]byte(tt.companyBody))
+					return
+				}
 				if r.Method != http.MethodGet {
 					nonGET++
 					http.Error(w, "unexpected mutation", http.StatusInternalServerError)
@@ -81,6 +94,9 @@ func TestLoadSupplierSettlementStateRequiresDedicatedManualAccount(t *testing.T)
 				if state.bankIntegration == nil || state.bankIntegration.ID != "bank1" {
 					t.Fatalf("resolved account = %#v", state.bankIntegration)
 				}
+				if state.companyCurrencyID != "company-currency" {
+					t.Fatalf("resolved company currency ID = %q", state.companyCurrencyID)
+				}
 			} else if err == nil || !strings.Contains(err.Error(), tt.wantError) {
 				t.Fatalf("error = %v; want containing %q", err, tt.wantError)
 			}
@@ -109,6 +125,8 @@ func TestLoadSupplierSettlementStateRejectsDuplicateMarkedTransactions(t *testin
 		switch r.URL.Path {
 		case "/api/v1/bank_integrations":
 			_, _ = w.Write([]byte(`{"data":[{"id":"bank1","bank_account_name":"GoTradie"}],"meta":{"pagination":{"total_pages":1}}}`))
+		case "/api/v1/companies/current":
+			_, _ = w.Write([]byte(`{"data":{"id":"company1","settings":{"currency_id":"company-currency"}}}`))
 		case "/api/v1/bank_transactions":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"data": []map[string]any{
@@ -145,6 +163,8 @@ func TestAccountPaymentAutoConvertDebitRuleFailsBeforeWrites(t *testing.T) {
 			return
 		}
 		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/companies/current":
+			_, _ = w.Write([]byte(`{"data":{"id":"company1","settings":{"currency_id":"company-currency"}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_integrations":
 			_, _ = w.Write([]byte(`{"data":[{"id":"bank1","bank_account_name":"GoTradie"}],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_transactions":
@@ -186,7 +206,7 @@ func TestSupplierSettlementNotificationPreflightFailsBeforeWrites(t *testing.T) 
 		case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/bank_transactions" || r.URL.Path == "/api/v1/bank_transaction_rules"):
 			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/companies/current":
-			_, _ = w.Write([]byte(`{"data":{"id":"company1","notify_vendor_when_paid":true}}`))
+			_, _ = w.Write([]byte(`{"data":{"id":"company1","settings":{"currency_id":"company-currency"},"notify_vendor_when_paid":true}}`))
 		default:
 			mutationCount++
 			http.Error(w, r.Method+" "+r.URL.String(), http.StatusInternalServerError)
@@ -216,6 +236,8 @@ func TestAccountPaymentPreviewMakesNoWrites(t *testing.T) {
 			return
 		}
 		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/companies/current":
+			_, _ = w.Write([]byte(`{"data":{"id":"company1","settings":{"currency_id":"company-currency"}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_integrations":
 			_, _ = w.Write([]byte(`{"data":[{"id":"bank1","bank_account_name":"GoTradie"}],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/bank_transactions" || r.URL.Path == "/api/v1/bank_transaction_rules"):
@@ -253,6 +275,8 @@ func TestAccountPaymentTransactionIsIdempotentAcrossImports(t *testing.T) {
 			return
 		}
 		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/companies/current":
+			_, _ = w.Write([]byte(`{"data":{"id":"company1","settings":{"currency_id":"company-currency"}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_integrations":
 			_, _ = w.Write([]byte(`{"data":[{"id":"bank1","bank_account_name":"GoTradie"}],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_transactions":

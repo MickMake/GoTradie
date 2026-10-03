@@ -13,7 +13,7 @@ func TestCurrentCompanyReadsVendorPaidNotificationSetting(t *testing.T) {
 		gotMethod = r.Method
 		gotPath = r.URL.Path
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":{"id":"company1","notify_vendor_when_paid":false}}`))
+		_, _ = w.Write([]byte(`{"data":{"id":"company1","settings":{"currency_id":"company-currency"},"notify_vendor_when_paid":false}}`))
 	}))
 	defer ts.Close()
 
@@ -31,12 +31,15 @@ func TestCurrentCompanyReadsVendorPaidNotificationSetting(t *testing.T) {
 	if company.NotifyVendorWhenPaid == nil || *company.NotifyVendorWhenPaid {
 		t.Fatalf("notification setting = %#v", company.NotifyVendorWhenPaid)
 	}
+	if company.Settings.CurrencyID != "company-currency" {
+		t.Fatalf("currency ID = %q", company.Settings.CurrencyID)
+	}
 }
 
 func TestCurrentCompanyPreservesMissingVendorPaidNotificationSetting(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"data":{"id":"company1"}}`))
+		_, _ = w.Write([]byte(`{"data":{"id":"company1","settings":{"currency_id":"company-currency"}}}`))
 	}))
 	defer ts.Close()
 

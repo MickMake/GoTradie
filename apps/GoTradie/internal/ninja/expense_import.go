@@ -66,7 +66,8 @@ type expenseImportState struct {
 	importedExpenses            []importedExpenseState
 	seenMarkers                 map[string]int
 	bankIntegration             *invoiceninja.BankIntegration
-	bankCurrencyID              string
+	currentCompany              *invoiceninja.Company
+	companyCurrencyID           string
 	bankTransactions            []invoiceninja.BankTransaction
 	transactionByMarker         map[string]invoiceninja.BankTransaction
 	ambiguousTransactionMarkers map[string]bool
@@ -722,9 +723,13 @@ func (s *Service) preflightExpensePaymentNotifications(ctx context.Context, stat
 	if dryRun || !couldSetExpensePaymentDate(state, rows, actions) {
 		return nil
 	}
-	company, err := s.client.Companies.Current(ctx)
-	if err != nil {
-		return fmt.Errorf("verify Invoice Ninja notify_vendor_when_paid before writes: %w", err)
+	company := state.currentCompany
+	if company == nil {
+		var err error
+		company, err = s.client.Companies.Current(ctx)
+		if err != nil {
+			return fmt.Errorf("verify Invoice Ninja notify_vendor_when_paid before writes: %w", err)
+		}
 	}
 	if company.NotifyVendorWhenPaid == nil {
 		return fmt.Errorf("verify Invoice Ninja notify_vendor_when_paid before writes: current company response did not expose the setting")
@@ -779,7 +784,7 @@ func (s *Service) importAccountPaymentRow(ctx context.Context, state *expenseImp
 	}
 	created, err := s.client.BankTransactions.Create(ctx, invoiceninja.CreateBankTransactionRequest{
 		BankIntegrationID: state.bankIntegration.ID,
-		CurrencyID:        state.bankCurrencyID,
+		CurrencyID:        state.companyCurrencyID,
 		Amount:            centsAmount(row.grossCents),
 		BaseType:          "DEBIT",
 		Date:              row.date,

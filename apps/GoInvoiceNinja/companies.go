@@ -10,7 +10,14 @@ import (
 // not expose the setting at all.
 type Company struct {
 	Entity
-	NotifyVendorWhenPaid *bool `json:"notify_vendor_when_paid"`
+	Settings             CompanySettings `json:"settings"`
+	NotifyVendorWhenPaid *bool           `json:"notify_vendor_when_paid"`
+}
+
+// CompanySettings contains the company defaults exposed by the current
+// company response.
+type CompanySettings struct {
+	CurrencyID string `json:"currency_id"`
 }
 
 // CompanyService reads company-level configuration.

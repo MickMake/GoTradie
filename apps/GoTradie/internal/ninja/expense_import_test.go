@@ -292,7 +292,7 @@ func TestImportExpenseCreatesProjectFromNumericMasterQuote(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/statics":
 			_, _ = w.Write([]byte(`{"payment_types":[{"id":"5","name":"Visa Card","gateway_type_id":1}]}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/companies/current":
-			_, _ = w.Write([]byte(`{"data":{"id":"company1","notify_vendor_when_paid":false}}`))
+			_, _ = w.Write([]byte(`{"data":{"id":"company1","settings":{"currency_id":"company-currency"},"notify_vendor_when_paid":false}}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/projects":
 			if err := json.NewDecoder(r.Body).Decode(&projectRequest); err != nil {
 				t.Error(err)
@@ -417,6 +417,8 @@ func TestAccountPaymentCommitCreatesWithdrawalWithoutFakeExpenseOrCustomerPaymen
 			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_transaction_rules":
 			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/companies/current":
+			_, _ = w.Write([]byte(`{"data":{"id":"company1","settings":{"currency_id":"company-currency"},"notify_vendor_when_paid":false}}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/bank_transactions":
 			transactionCreates++
 			if err := json.NewDecoder(r.Body).Decode(&transactionRequest); err != nil {
@@ -463,7 +465,7 @@ func TestAccountPaymentCommitCreatesWithdrawalWithoutFakeExpenseOrCustomerPaymen
 	if transactionCreates != 1 || expenseCreates != 0 || customerPaymentCreates != 0 {
 		t.Fatalf("unexpected writes: transactions=%d expenses=%d customer payments=%d", transactionCreates, expenseCreates, customerPaymentCreates)
 	}
-	if transactionRequest.BankIntegrationID != "bank1" || transactionRequest.BaseType != "DEBIT" || transactionRequest.Amount != 71.84 || transactionRequest.Date != "2026-11-01" || transactionRequest.ParticipantName != "Bunnings" {
+	if transactionRequest.BankIntegrationID != "bank1" || transactionRequest.CurrencyID != "company-currency" || transactionRequest.BaseType != "DEBIT" || transactionRequest.Amount != 71.84 || transactionRequest.Date != "2026-11-01" || transactionRequest.ParticipantName != "Bunnings" {
 		t.Fatalf("unexpected transaction request: %#v", transactionRequest)
 	}
 	if !strings.Contains(transactionRequest.Description, "[GoTradie account-payment:") || !strings.Contains(transactionRequest.Description, supplierAccountMarker("Bunnings")) {
@@ -736,8 +738,8 @@ func TestExpensePaymentNotificationPreflightFailsBeforeWrites(t *testing.T) {
 		name        string
 		companyBody string
 	}{
-		{name: "enabled", companyBody: `{"data":{"id":"company1","notify_vendor_when_paid":true}}`},
-		{name: "missing", companyBody: `{"data":{"id":"company1"}}`},
+		{name: "enabled", companyBody: `{"data":{"id":"company1","settings":{"currency_id":"company-currency"},"notify_vendor_when_paid":true}}`},
+		{name: "missing", companyBody: `{"data":{"id":"company1","settings":{"currency_id":"company-currency"}}}`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
