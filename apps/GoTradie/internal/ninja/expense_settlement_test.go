@@ -331,6 +331,107 @@ func TestAccountPaymentTransactionIsIdempotentAcrossImports(t *testing.T) {
 	}
 }
 
+func TestMatchingExistingAccountPaymentTransactionIsUnchanged(t *testing.T) {
+	row := settlementTestPayment("Bunnings", "2026-11-01", "payment-1", 7184)
+	row.rowNo = 2
+	transaction := invoiceninja.BankTransaction{
+		Entity:   invoiceninja.Entity{ID: "transaction1"},
+		Amount:   71.84,
+		BaseType: "DEBIT",
+		Date:     "2026-11-01",
+	}
+	state := &expenseImportState{transactionByMarker: map[string]invoiceninja.BankTransaction{
+		row.sourceMarker: transaction,
+	}}
+
+	validateExistingTransactionIdentities(state, []*preparedExpenseImportRow{row})
+	if row.err != nil || row.existingTransaction == nil {
+		t.Fatalf("existing transaction validation = row %#v", row)
+	}
+	result := (&Service{}).importAccountPaymentRow(context.Background(), state, row, false)
+	if result.Action != "unchanged" || result.ID != "transaction1" {
+		t.Fatalf("existing transaction result = %#v", result)
+	}
+}
+
+func TestExistingAccountPaymentTransactionDriftFailsRow(t *testing.T) {
+	tests := []struct {
+		name        string
+		transaction invoiceninja.BankTransaction
+		wantError   string
+	}{
+		{
+			name:        "amount",
+			transaction: invoiceninja.BankTransaction{Entity: invoiceninja.Entity{ID: "transaction1"}, Amount: 70, BaseType: "DEBIT", Date: "2026-11-01"},
+			wantError:   "amount drift",
+		},
+		{
+			name:        "date",
+			transaction: invoiceninja.BankTransaction{Entity: invoiceninja.Entity{ID: "transaction1"}, Amount: 71.84, BaseType: "DEBIT", Date: "2026-11-02"},
+			wantError:   "date drift",
+		},
+		{
+			name:        "direction",
+			transaction: invoiceninja.BankTransaction{Entity: invoiceninja.Entity{ID: "transaction1"}, Amount: 71.84, BaseType: "CREDIT", Date: "2026-11-01"},
+			wantError:   "want DEBIT",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			row := settlementTestPayment("Bunnings", "2026-11-01", "payment-1", 7184)
+			row.rowNo = 2
+			tt.transaction.Description = supplierAccountMarker("Bunnings") + "\n" + row.sourceMarker
+			state := &expenseImportState{transactionByMarker: map[string]invoiceninja.BankTransaction{
+				row.sourceMarker: tt.transaction,
+			}, bankTransactions: []invoiceninja.BankTransaction{tt.transaction}}
+
+			validateExistingTransactionIdentities(state, []*preparedExpenseImportRow{row})
+			if row.err == nil || !strings.Contains(row.err.Error(), tt.wantError) || row.existingTransaction != nil {
+				t.Fatalf("drift validation = error %v transaction %#v", row.err, row.existingTransaction)
+			}
+			purchase := settlementTestPurchase("Bunnings", "2026-10-01", "purchase-1", 10000)
+			mustAllocateAccountPayments(t, state, []*preparedExpenseImportRow{row, purchase})
+			if purchase.remainingCents != 10000 {
+				t.Fatalf("drifted transaction affected settlement: %#v", purchase)
+			}
+		})
+	}
+}
+
+func TestAcceptedExistingTransactionDrivesSettlementReconstruction(t *testing.T) {
+	purchase := settlementTestPurchase("Bunnings", "2026-10-01", "purchase-1", 10000)
+	payment := settlementTestPayment("Bunnings", "2026-11-01", "payment-1", 6000)
+	payment.rowNo = 3
+	transaction := invoiceninja.BankTransaction{
+		Entity:   invoiceninja.Entity{ID: "transaction1"},
+		Amount:   60,
+		BaseType: "DEBIT",
+		Date:     "2026-11-01",
+	}
+	state := &expenseImportState{transactionByMarker: map[string]invoiceninja.BankTransaction{
+		payment.sourceMarker: transaction,
+	}}
+
+	validateExistingTransactionIdentities(state, []*preparedExpenseImportRow{payment})
+	if payment.err != nil || payment.existingTransaction == nil {
+		t.Fatalf("existing transaction validation = row %#v", payment)
+	}
+	// Prove reconstruction does not fall back to mutable spreadsheet values
+	// after the durable Transaction has been accepted.
+	payment.date = "2026-12-01"
+	payment.grossCents = 10000
+	mustAllocateAccountPayments(t, state, []*preparedExpenseImportRow{payment, purchase})
+
+	if purchase.remainingCents != 4000 || len(payment.allocations) != 1 {
+		t.Fatalf("durable transaction allocation = purchase %#v payment %#v", purchase, payment)
+	}
+	allocation := payment.allocations[0]
+	if moneyCents(allocation.Amount) != 6000 || allocation.PaymentDate != "2026-11-01" {
+		t.Fatalf("allocation used spreadsheet values: %#v", allocation)
+	}
+}
+
 func TestAllocateBlueCarveCanonicalPaymentsInIntegerCents(t *testing.T) {
 	purchaseOne := settlementTestPurchase("BlueCarve", "2026-01-01", "purchase-7014", 701400)
 	purchaseTwo := settlementTestPurchase("BlueCarve", "2026-01-02", "purchase-380", 38000)
@@ -353,6 +454,105 @@ func TestAllocateBlueCarveCanonicalPaymentsInIntegerCents(t *testing.T) {
 	}
 	if paymentOne.unappliedCents != 0 || paymentTwo.unappliedCents != 0 || paymentThree.unappliedCents != 0 {
 		t.Fatalf("unapplied cents: %d, %d, %d", paymentOne.unappliedCents, paymentTwo.unappliedCents, paymentThree.unappliedCents)
+	}
+}
+
+func TestNegativeSupplierReturnReducesOutstandingBalance(t *testing.T) {
+	tests := []struct {
+		name               string
+		paymentCents       int64
+		wantRemaining      int64
+		wantSettlementDate string
+	}{
+		{name: "fully settled", paymentCents: 8000, wantRemaining: 0, wantSettlementDate: "2026-01-03"},
+		{name: "partially settled", paymentCents: 5000, wantRemaining: 3000},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			purchase := settlementTestPurchase("Bunnings", "2026-01-01", "purchase-100", 10000)
+			credit := settlementTestPurchase("Bunnings", "2026-01-02", "return-20", -2000)
+			payment := settlementTestPayment("Bunnings", "2026-01-03", "payment", tt.paymentCents)
+
+			mustAllocateAccountPayments(t, &expenseImportState{}, []*preparedExpenseImportRow{payment, credit, purchase})
+
+			if purchase.remainingCents != tt.wantRemaining || purchase.desiredPaymentDate != tt.wantSettlementDate {
+				t.Fatalf("purchase settlement = %#v", purchase)
+			}
+			if payment.unappliedCents != 0 {
+				t.Fatalf("unapplied payment cents = %d", payment.unappliedCents)
+			}
+			if credit.remainingCents != 0 {
+				t.Fatalf("credit remaining cents = %d", credit.remainingCents)
+			}
+		})
+	}
+}
+
+func TestSupplierCreditIsCappedAndCarriesForward(t *testing.T) {
+	first := settlementTestPurchase("Bunnings", "2026-01-01", "purchase-1", 10000)
+	credit := settlementTestPurchase("Bunnings", "2026-01-02", "return-150", -15000)
+	second := settlementTestPurchase("Bunnings", "2026-01-03", "purchase-2", 10000)
+	payment := settlementTestPayment("Bunnings", "2026-01-04", "payment-50", 5000)
+
+	mustAllocateAccountPayments(t, &expenseImportState{}, []*preparedExpenseImportRow{payment, second, credit, first})
+
+	if first.remainingCents != 0 || second.remainingCents != 0 || payment.unappliedCents != 0 {
+		t.Fatalf("credit carry-forward = first %#v second %#v payment %#v", first, second, payment)
+	}
+	if len(payment.allocations) != 1 || payment.allocations[0].PurchaseSourceID != "purchase-2" || moneyCents(payment.allocations[0].Amount) != 5000 {
+		t.Fatalf("payment allocation after credit = %#v", payment.allocations)
+	}
+}
+
+func TestExistingMarkedRecordsReconstructSupplierReturnBalance(t *testing.T) {
+	supplierMarker := supplierAccountMarker("Bunnings")
+	purchaseMarker := settlementPurchaseMarker("purchase-100")
+	creditMarker := settlementPurchaseMarker("return-20")
+	paymentMarker := "[GoTradie account-payment:v2:payment-80]"
+	state := &expenseImportState{
+		paymentTypes: map[string]invoiceninja.PaymentType{"Visa Card": {ID: "5", Name: "Visa Card"}},
+		importedExpenses: []importedExpenseState{
+			{
+				expense: invoiceninja.Expense{Entity: invoiceninja.Entity{ID: "expense-purchase"}, PrivateNotes: "Source total inc GST: $100.00"},
+				date:    "2026-01-01", supplierAccountMarker: supplierMarker, settlementPurchaseMarker: purchaseMarker,
+			},
+			{
+				expense: invoiceninja.Expense{Entity: invoiceninja.Entity{ID: "expense-return"}, PrivateNotes: "Source total inc GST: -$20.00"},
+				date:    "2026-01-02", supplierAccountMarker: supplierMarker, settlementPurchaseMarker: creditMarker,
+			},
+		},
+		bankTransactions: []invoiceninja.BankTransaction{{
+			Entity: invoiceninja.Entity{ID: "transaction-payment"}, Amount: 80, BaseType: "DEBIT", Date: "2026-01-03",
+			Description: "Payment type: Visa Card\n" + supplierMarker + "\n" + paymentMarker,
+		}},
+	}
+
+	actions, err := allocateAccountPayments(state, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(actions) != 1 || actions[0].expense.ID != "expense-purchase" || actions[0].desiredDate != "2026-01-03" {
+		t.Fatalf("reconstructed actions = %#v", actions)
+	}
+	if len(actions[0].allocations) != 1 || moneyCents(actions[0].allocations[0].Amount) != 8000 {
+		t.Fatalf("reconstructed allocations = %#v", actions[0].allocations)
+	}
+}
+
+func TestSupplierSettlementSameDateOrderingUsesStableIdentity(t *testing.T) {
+	first := settlementTestPurchase("Bunnings", "2026-01-01", "a-purchase", 10000)
+	credit := settlementTestPurchase("Bunnings", "2026-01-01", "b-return", -2000)
+	second := settlementTestPurchase("Bunnings", "2026-01-01", "c-purchase", 5000)
+	payment := settlementTestPayment("Bunnings", "2026-01-01", "payment", 8000)
+
+	mustAllocateAccountPayments(t, &expenseImportState{}, []*preparedExpenseImportRow{second, payment, credit, first})
+
+	if first.remainingCents != 0 || second.remainingCents != 5000 || payment.unappliedCents != 0 {
+		t.Fatalf("same-date settlement = first %#v second %#v payment %#v", first, second, payment)
+	}
+	if len(payment.allocations) != 1 || payment.allocations[0].PurchaseSourceID != "a-purchase" {
+		t.Fatalf("same-date allocation order = %#v", payment.allocations)
 	}
 }
 

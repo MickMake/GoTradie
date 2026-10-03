@@ -30,6 +30,8 @@ type settlementPurchase struct {
 	date            string
 	grossCents      int64
 	remainingCents  int64
+	creditApplied   bool
+	settledDate     string
 	allocations     []ExpensePaymentAllocation
 }
 
@@ -170,10 +172,38 @@ func validateExistingTransactionIdentities(state *expenseImportState, rows []*pr
 			continue
 		}
 		if transaction, ok := state.transactionByMarker[row.sourceMarker]; ok {
+			date, amountCents, err := durableSupplierSettlementValues(transaction)
+			if err != nil {
+				row.err = fmt.Errorf("row %d: marked Invoice Ninja Transaction %q is invalid: %w", row.rowNo, transaction.ID, err)
+				continue
+			}
+			if amountCents != row.grossCents {
+				row.err = fmt.Errorf("row %d: marked Invoice Ninja Transaction %q amount drift: durable amount %.2f does not match source amount %.2f", row.rowNo, transaction.ID, centsAmount(amountCents), centsAmount(row.grossCents))
+				continue
+			}
+			if date != row.date {
+				row.err = fmt.Errorf("row %d: marked Invoice Ninja Transaction %q date drift: durable date %q does not match source date %q", row.rowNo, transaction.ID, date, row.date)
+				continue
+			}
 			transactionCopy := transaction
 			row.existingTransaction = &transactionCopy
 		}
 	}
+}
+
+func durableSupplierSettlementValues(transaction invoiceninja.BankTransaction) (string, int64, error) {
+	if strings.TrimSpace(transaction.BaseType) != "DEBIT" {
+		return "", 0, fmt.Errorf("base_type is %q; want DEBIT", transaction.BaseType)
+	}
+	amountCents := moneyCents(transaction.Amount)
+	if amountCents <= 0 {
+		return "", 0, fmt.Errorf("amount %.2f is not a positive withdrawal", transaction.Amount)
+	}
+	date := strings.TrimSpace(transaction.Date)
+	if date == "" {
+		return "", 0, fmt.Errorf("date is empty")
+	}
+	return date, amountCents, nil
 }
 
 func allocateAccountPayments(state *expenseImportState, rows []*preparedExpenseImportRow, committedOnly bool) ([]expenseSettlementAction, error) {
@@ -186,6 +216,11 @@ func allocateAccountPayments(state *expenseImportState, rows []*preparedExpenseI
 	var payments []*settlementPayment
 
 	for _, row := range rows {
+		if row.documentType == documentTypeAccountPayment {
+			if transaction, ok := state.transactionByMarker[row.sourceMarker]; ok {
+				representedTransactions[transaction.ID] = true
+			}
+		}
 		if row.err != nil || row.duplicateRow != 0 {
 			continue
 		}
@@ -193,7 +228,7 @@ func allocateAccountPayments(state *expenseImportState, rows []*preparedExpenseI
 			representedExpenses[row.existingExpense.ID] = true
 		}
 		switch {
-		case isPurchaseRow(row) && row.paymentType == "" && row.grossCents > 0:
+		case isPurchaseRow(row) && row.paymentType == "" && row.grossCents != 0:
 			if committedOnly && row.existingExpense == nil {
 				continue
 			}
@@ -212,7 +247,7 @@ func allocateAccountPayments(state *expenseImportState, rows []*preparedExpenseI
 				sourceID:        purchaseMarker,
 				date:            row.date,
 				grossCents:      row.grossCents,
-				remainingCents:  row.grossCents,
+				remainingCents:  max(row.grossCents, int64(0)),
 			}
 			purchases = append(purchases, purchase)
 		case row.documentType == documentTypeAccountPayment:
@@ -223,21 +258,28 @@ func allocateAccountPayments(state *expenseImportState, rows []*preparedExpenseI
 			if supplierMarker == "" {
 				supplierMarker = supplierAccountMarker(row.supplier)
 			}
+			paymentDate := row.date
+			paymentAmountCents := row.grossCents
+			if row.existingTransaction != nil {
+				var err error
+				paymentDate, paymentAmountCents, err = durableSupplierSettlementValues(*row.existingTransaction)
+				if err != nil {
+					row.err = fmt.Errorf("row %d: marked Invoice Ninja Transaction %q is invalid: %w", row.rowNo, row.existingTransaction.ID, err)
+					continue
+				}
+			}
 			payment := &settlementPayment{
 				row:             row,
 				transaction:     row.existingTransaction,
 				supplierAccount: supplierMarker,
 				sourceID:        row.sourceMarker,
-				date:            row.date,
-				amountCents:     row.grossCents,
+				date:            paymentDate,
+				amountCents:     paymentAmountCents,
 				paymentType:     row.paymentType,
 				paymentTypeID:   row.paymentTypeID,
 				reference:       row.reference,
 			}
 			payments = append(payments, payment)
-			if row.existingTransaction != nil {
-				representedTransactions[row.existingTransaction.ID] = true
-			}
 		}
 	}
 
@@ -249,8 +291,9 @@ func allocateAccountPayments(state *expenseImportState, rows []*preparedExpenseI
 			return nil, fmt.Errorf("marked supplier-account Expense %q has no stable GoTradie supplier-purchase identity", imported.expense.ID)
 		}
 		total, err := parseExpenseMoney(privateNoteValues(imported.expense.PrivateNotes)["Source total inc GST"])
-		if err != nil || moneyCents(total) <= 0 {
-			return nil, fmt.Errorf("marked supplier-account Expense %q has no valid positive Source total inc GST", imported.expense.ID)
+		totalCents := moneyCents(total)
+		if err != nil || totalCents == 0 {
+			return nil, fmt.Errorf("marked supplier-account Expense %q has no valid non-zero Source total inc GST", imported.expense.ID)
 		}
 		expenseCopy := imported.expense
 		purchases = append(purchases, &settlementPurchase{
@@ -258,8 +301,8 @@ func allocateAccountPayments(state *expenseImportState, rows []*preparedExpenseI
 			supplierAccount: imported.supplierAccountMarker,
 			sourceID:        imported.settlementPurchaseMarker,
 			date:            imported.date,
-			grossCents:      moneyCents(total),
-			remainingCents:  moneyCents(total),
+			grossCents:      totalCents,
+			remainingCents:  max(totalCents, int64(0)),
 		})
 	}
 
@@ -275,8 +318,9 @@ func allocateAccountPayments(state *expenseImportState, rows []*preparedExpenseI
 		if supplierMarker == "" {
 			return nil, fmt.Errorf("marked GoTradie bank transaction %q has no supplier-account marker", transaction.ID)
 		}
-		if transaction.BaseType != "DEBIT" || moneyCents(transaction.Amount) <= 0 || strings.TrimSpace(transaction.Date) == "" {
-			return nil, fmt.Errorf("marked GoTradie bank transaction %q is not a valid dated withdrawal", transaction.ID)
+		date, amountCents, err := durableSupplierSettlementValues(transaction)
+		if err != nil {
+			return nil, fmt.Errorf("marked GoTradie bank transaction %q is not a valid dated withdrawal: %w", transaction.ID, err)
 		}
 		values := privateNoteValues(transaction.Description)
 		paymentType := values["Payment type"]
@@ -289,8 +333,8 @@ func allocateAccountPayments(state *expenseImportState, rows []*preparedExpenseI
 			transaction:     &transactionCopy,
 			supplierAccount: supplierMarker,
 			sourceID:        paymentMarker,
-			date:            transaction.Date,
-			amountCents:     moneyCents(transaction.Amount),
+			date:            date,
+			amountCents:     amountCents,
 			paymentType:     paymentType,
 			paymentTypeID:   paymentTypeID,
 			reference:       values["Payment reference"],
@@ -314,12 +358,60 @@ func allocateAccountPayments(state *expenseImportState, rows []*preparedExpenseI
 		return payments[i].date < payments[j].date
 	})
 
+	// Purchase-side events become eligible in date/identity order before any
+	// payments on that date, preserving the existing on-or-before rule.
+	eligiblePurchases := make([]*settlementPurchase, 0, len(purchases))
+	creditBalances := make(map[string]int64)
+	applyCredit := func(supplier string, creditCents int64, date string) int64 {
+		for _, purchase := range eligiblePurchases {
+			if creditCents == 0 {
+				break
+			}
+			if purchase.supplierAccount != supplier || purchase.remainingCents <= 0 {
+				continue
+			}
+			applied := minInt64(creditCents, purchase.remainingCents)
+			purchase.remainingCents -= applied
+			purchase.creditApplied = true
+			creditCents -= applied
+			if purchase.remainingCents == 0 {
+				purchase.settledDate = date
+			}
+		}
+		return creditCents
+	}
+	processPurchase := func(purchase *settlementPurchase) {
+		if purchase.grossCents < 0 {
+			remainingCredit := applyCredit(purchase.supplierAccount, -purchase.grossCents, purchase.date)
+			creditBalances[purchase.supplierAccount] += remainingCredit
+			return
+		}
+		if creditCents := creditBalances[purchase.supplierAccount]; creditCents > 0 {
+			applied := minInt64(creditCents, purchase.remainingCents)
+			purchase.remainingCents -= applied
+			purchase.creditApplied = true
+			creditBalances[purchase.supplierAccount] -= applied
+			if purchase.remainingCents == 0 {
+				purchase.settledDate = purchase.date
+			}
+		}
+		eligiblePurchases = append(eligiblePurchases, purchase)
+	}
+	purchaseIndex := 0
+	processPurchasesThrough := func(date string) {
+		for purchaseIndex < len(purchases) && purchases[purchaseIndex].date <= date {
+			processPurchase(purchases[purchaseIndex])
+			purchaseIndex++
+		}
+	}
+
 	for _, payment := range payments {
 		if payment.row != nil && payment.row.err != nil {
 			continue
 		}
+		processPurchasesThrough(payment.date)
 		remaining := payment.amountCents
-		for _, purchase := range purchases {
+		for _, purchase := range eligiblePurchases {
 			if remaining == 0 {
 				break
 			}
@@ -340,6 +432,9 @@ func allocateAccountPayments(state *expenseImportState, rows []*preparedExpenseI
 			payment.allocations = append(payment.allocations, allocation)
 			purchase.remainingCents -= allocated
 			remaining -= allocated
+			if purchase.remainingCents == 0 {
+				purchase.settledDate = payment.date
+			}
 		}
 		payment.unappliedCents = remaining
 		if payment.row != nil {
@@ -347,9 +442,19 @@ func allocateAccountPayments(state *expenseImportState, rows []*preparedExpenseI
 			payment.row.unappliedCents = remaining
 		}
 	}
+	for purchaseIndex < len(purchases) {
+		processPurchase(purchases[purchaseIndex])
+		purchaseIndex++
+	}
 
 	var actions []expenseSettlementAction
 	for _, purchase := range purchases {
+		if purchase.grossCents < 0 {
+			if purchase.row != nil {
+				purchase.row.remainingCents = 0
+			}
+			continue
+		}
 		desiredDate, desiredTypeID := finalSettlementState(purchase)
 		if purchase.row != nil {
 			purchase.row.remainingCents = purchase.remainingCents
@@ -376,7 +481,7 @@ func resetSettlementRows(rows []*preparedExpenseImportRow) {
 		row.allocations = nil
 		row.unappliedCents = row.grossCents
 		if isPurchaseRow(row) && row.paymentType == "" {
-			row.remainingCents = row.grossCents
+			row.remainingCents = max(row.grossCents, int64(0))
 			row.desiredPaymentDate = ""
 			row.desiredPaymentTypeID = ""
 		}
@@ -384,10 +489,12 @@ func resetSettlementRows(rows []*preparedExpenseImportRow) {
 }
 
 func finalSettlementState(purchase *settlementPurchase) (string, string) {
-	if purchase.remainingCents != 0 || len(purchase.allocations) == 0 {
+	if purchase.remainingCents != 0 || purchase.settledDate == "" {
 		return "", ""
 	}
-	date := purchase.allocations[len(purchase.allocations)-1].PaymentDate
+	if purchase.creditApplied || len(purchase.allocations) == 0 {
+		return purchase.settledDate, ""
+	}
 	typeID := purchase.allocations[0].PaymentTypeID
 	for _, allocation := range purchase.allocations[1:] {
 		if allocation.PaymentTypeID == "" || allocation.PaymentTypeID != typeID {
@@ -395,7 +502,7 @@ func finalSettlementState(purchase *settlementPurchase) (string, string) {
 			break
 		}
 	}
-	return date, typeID
+	return purchase.settledDate, typeID
 }
 
 func blockPaymentsWithInvalidPurchases(rows []*preparedExpenseImportRow) {

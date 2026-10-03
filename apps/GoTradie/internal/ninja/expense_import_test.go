@@ -476,6 +476,58 @@ func TestAccountPaymentCommitCreatesWithdrawalWithoutFakeExpenseOrCustomerPaymen
 	}
 }
 
+func TestNegativeSupplierReturnCreatesExpenseWithoutBankTransaction(t *testing.T) {
+	var expenseRequest invoiceninja.CreateExpenseRequest
+	var expenseCreates, transactionCreates int
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/vendors":
+			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings - Dural"}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expense_categories":
+			_, _ = w.Write([]byte(`{"data":[{"id":"category1","name":"Materials"}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/projects" || r.URL.Path == "/api/v1/expenses" || r.URL.Path == "/api/v1/quotes"):
+			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/statics":
+			_, _ = w.Write([]byte(`{"payment_types":[]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/expenses":
+			expenseCreates++
+			if err := json.NewDecoder(r.Body).Decode(&expenseRequest); err != nil {
+				t.Error(err)
+			}
+			_, _ = w.Write([]byte(`{"data":{"id":"expense-return"}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/bank_transactions":
+			transactionCreates++
+			http.Error(w, "unexpected bank transaction", http.StatusInternalServerError)
+		default:
+			http.Error(w, r.Method+" "+r.URL.String(), http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	client, err := invoiceninja.New("token", invoiceninja.WithBaseURL(ts.URL), invoiceninja.WithHTTPClient(ts.Client()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	csv := strings.Join([]string{
+		"Date,Supplier,Store,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST,Invoice Number",
+		"2/1/2026,Bunnings,Dural,Invoice,,Expense - Materials,Materials,Consumables,-20,100,-20,-1.82,RETURN-1",
+	}, "\n")
+	results, err := (&Service{client: client}).ImportExpensesCSV(context.Background(), strings.NewReader(csv), false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Action != "created" || results[0].ID != "expense-return" {
+		t.Fatalf("return import results = %#v", results)
+	}
+	if expenseCreates != 1 || transactionCreates != 0 {
+		t.Fatalf("writes: expenses=%d bank transactions=%d", expenseCreates, transactionCreates)
+	}
+	if expenseRequest.Amount != -20 || !strings.Contains(expenseRequest.PrivateNotes, supplierAccountMarkerPrefix) || !strings.Contains(expenseRequest.PrivateNotes, settlementPurchaseMarkerPrefix) {
+		t.Fatalf("return expense request = %#v", expenseRequest)
+	}
+}
+
 func TestExpensePreviewTracksPlannedDependencies(t *testing.T) {
 	idx := headerIndex([]string{
 		"Date", "Supplier", "Store", "Document Type", "Payment Type", "Tax Treatment", "Category", "Option",
