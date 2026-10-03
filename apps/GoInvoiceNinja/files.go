@@ -1,7 +1,6 @@
 package goinvoiceninja
 
 import (
-	"strconv"
 	"bytes"
 	"context"
 	"io"
@@ -10,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 const DefaultDocumentFormField = "documents"

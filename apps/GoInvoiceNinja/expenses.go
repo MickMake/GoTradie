@@ -163,8 +163,9 @@ type UpdateExpenseRequest CreateExpenseRequest
 // ExpensePaymentStatusRequest deliberately includes empty values so callers can
 // clear an expense's paid state as well as set it.
 type ExpensePaymentStatusRequest struct {
-	PaymentDate   string `json:"payment_date"`
-	PaymentTypeID string `json:"payment_type_id"`
+	PaymentDate   string  `json:"payment_date"`
+	PaymentTypeID string  `json:"payment_type_id"`
+	PrivateNotes  *string `json:"private_notes,omitempty"`
 }
 
 type VendorService struct{ *Service[Vendor] }

@@ -8,6 +8,7 @@
 - Added exact payment-type discovery through Invoice Ninja statics and expense `payment_type_id` support.
 - Added focused expense payment-status updates that can explicitly mark an expense paid or clear an incorrect paid state.
 - Added read-only access to the current company's vendor-paid notification setting for safe expense imports.
+- Added focused Bank Integration, Bank Transaction, and Bank Transaction Rule services for resolving manual accounts, creating withdrawals, and preflighting auto-convert rules.
 
 ## v0.3
 

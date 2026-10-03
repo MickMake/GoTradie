@@ -9,7 +9,8 @@
 - Expense imports derive a missing Business Amount from the total and percentage without replacing an explicit zero.
 - Numeric Job Number values reuse an existing project or create one from the matching master quote client.
 - Expense imports now enforce canonical Document Type values and exact Invoice Ninja Payment Type labels.
-- Invoice and Receipt rows now preserve paid/unpaid timing, while Account Payment rows allocate by supplier, purchase date and stable source order without creating fake expenses.
+- Invoice and Receipt rows now preserve paid/unpaid timing, while Account Payment rows create idempotent withdrawal Transactions in the existing manual `GoTradie` bank account and allocate by supplier, purchase date, and stable source order without creating fake expenses or customer Payments.
+- Supplier settlement fails before writes when the `GoTradie` account is missing, ambiguous, remote-backed, archived/deleted, sync-enabled, or exposed to an active auto-convert DEBIT rule.
 - Partial supplier-account allocations remain unpaid in Invoice Ninja, mixed payment methods are retained in allocation detail, and unapplied payment remainders are reported.
 - Purchase source identity now ignores Document Type, Payment Type and analytical corrections while retaining exact legacy-marker migration support.
 - Adjustment rows are explicitly deferred instead of receiving invented accounting behaviour.

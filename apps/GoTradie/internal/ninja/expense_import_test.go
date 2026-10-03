@@ -362,12 +362,25 @@ func TestImportExistingUnpaidPurchaseClearsLegacyPaidState(t *testing.T) {
 			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/statics":
 			_, _ = w.Write([]byte(`{"payment_types":[{"id":"5","name":"Visa Card","gateway_type_id":1}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_integrations":
+			_, _ = w.Write([]byte(`{"data":[{"id":"bank1","bank_account_name":"GoTradie","integration_type":"","auto_sync":false}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_transactions":
+			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_transaction_rules":
+			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/expenses/expense1":
 			writeCount++
 			if err := json.NewDecoder(r.Body).Decode(&paymentStatus); err != nil {
 				t.Error(err)
 			}
-			_, _ = w.Write([]byte(`{"data":{"id":"expense1","payment_date":"","payment_type_id":""}}`))
+			if err := json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{
+				"id":              "expense1",
+				"payment_date":    paymentStatus.PaymentDate,
+				"payment_type_id": paymentStatus.PaymentTypeID,
+				"private_notes":   paymentStatus.PrivateNotes,
+			}}); err != nil {
+				t.Error(err)
+			}
 		default:
 			http.Error(w, r.Method+" "+r.URL.String(), http.StatusNotFound)
 		}
@@ -384,7 +397,7 @@ func TestImportExistingUnpaidPurchaseClearsLegacyPaidState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 1 || results[0].Action != "updated" || writeCount != 1 {
+	if len(results) != 1 || results[0].Action != "updated" || writeCount != 2 {
 		t.Fatalf("unexpected result=%#v writes=%d", results, writeCount)
 	}
 	if paymentStatus.PaymentDate != "" || paymentStatus.PaymentTypeID != "" {
@@ -392,18 +405,39 @@ func TestImportExistingUnpaidPurchaseClearsLegacyPaidState(t *testing.T) {
 	}
 }
 
-func TestAccountPaymentCommitDoesNotCreateFakeExpense(t *testing.T) {
-	var writeCount int
+func TestAccountPaymentCommitCreatesWithdrawalWithoutFakeExpenseOrCustomerPayment(t *testing.T) {
+	var transactionRequest invoiceninja.CreateBankTransactionRequest
+	var transactionCreates, expenseCreates, customerPaymentCreates int
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.Method != http.MethodGet {
-			writeCount++
-		}
-		switch r.URL.Path {
-		case "/api/v1/vendors", "/api/v1/expense_categories", "/api/v1/projects", "/api/v1/expenses", "/api/v1/quotes":
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_integrations":
+			_, _ = w.Write([]byte(`{"data":[{"id":"bank1","bank_account_name":"GoTradie","integration_type":"","auto_sync":false}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_transactions":
 			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
-		case "/api/v1/statics":
-			_, _ = w.Write([]byte(`{"payment_types":[{"id":"5","name":"Visa Card","gateway_type_id":1}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_transaction_rules":
+			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/bank_transactions":
+			transactionCreates++
+			if err := json.NewDecoder(r.Body).Decode(&transactionRequest); err != nil {
+				t.Error(err)
+			}
+			_, _ = w.Write([]byte(`{"data":{"id":"transaction1","bank_integration_id":"bank1","amount":71.84,"base_type":"DEBIT","date":"2026-11-01"}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/expenses":
+			expenseCreates++
+			http.Error(w, "unexpected expense", http.StatusInternalServerError)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/payments":
+			customerPaymentCreates++
+			http.Error(w, "unexpected payment", http.StatusInternalServerError)
+		case r.Method == http.MethodGet:
+			switch r.URL.Path {
+			case "/api/v1/vendors", "/api/v1/expense_categories", "/api/v1/projects", "/api/v1/expenses", "/api/v1/quotes":
+				_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+			case "/api/v1/statics":
+				_, _ = w.Write([]byte(`{"payment_types":[{"id":"5","name":"Visa Card","gateway_type_id":1}]}`))
+			default:
+				http.Error(w, r.Method+" "+r.URL.String(), http.StatusNotFound)
+			}
 		default:
 			http.Error(w, r.Method+" "+r.URL.String(), http.StatusNotFound)
 		}
@@ -423,8 +457,17 @@ func TestAccountPaymentCommitDoesNotCreateFakeExpense(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 1 || results[0].Action != "allocated" || results[0].UnappliedAmount != 71.84 || writeCount != 0 {
-		t.Fatalf("unexpected result=%#v writes=%d", results, writeCount)
+	if len(results) != 1 || results[0].Action != "created-transaction" || results[0].ID != "transaction1" || results[0].UnappliedAmount != 71.84 {
+		t.Fatalf("unexpected result=%#v", results)
+	}
+	if transactionCreates != 1 || expenseCreates != 0 || customerPaymentCreates != 0 {
+		t.Fatalf("unexpected writes: transactions=%d expenses=%d customer payments=%d", transactionCreates, expenseCreates, customerPaymentCreates)
+	}
+	if transactionRequest.BankIntegrationID != "bank1" || transactionRequest.BaseType != "DEBIT" || transactionRequest.Amount != 71.84 || transactionRequest.Date != "2026-11-01" || transactionRequest.ParticipantName != "Bunnings" {
+		t.Fatalf("unexpected transaction request: %#v", transactionRequest)
+	}
+	if !strings.Contains(transactionRequest.Description, "[GoTradie account-payment:") || !strings.Contains(transactionRequest.Description, supplierAccountMarker("Bunnings")) {
+		t.Fatalf("transaction markers missing: %q", transactionRequest.Description)
 	}
 	if !containsChange(results[0].Changes, "supporting-document:unattached:payment.pdf") {
 		t.Fatalf("supporting document not reported: %#v", results[0])
@@ -455,8 +498,8 @@ func TestExpensePreviewTracksPlannedDependencies(t *testing.T) {
 
 	firstRow := prepareExpenseImportRow(state, nil, idx, row("INV-1"), 2)
 	secondRow := prepareExpenseImportRow(state, nil, idx, row("INV-2"), 3)
-	first := service.importExpenseRow(context.Background(), state, idx, firstRow, true)
-	second := service.importExpenseRow(context.Background(), state, idx, secondRow, true)
+	first := service.importExpenseRow(context.Background(), state, idx, firstRow, true, false)
+	second := service.importExpenseRow(context.Background(), state, idx, secondRow, true, false)
 	for _, want := range []string{"vendor:create:Bunnings - Dural", "category:create:Materials", "project:create:1234"} {
 		if !containsChange(first.Changes, want) {
 			t.Fatalf("first preview changes %v do not contain %q", first.Changes, want)
@@ -481,7 +524,7 @@ func TestAllocateAccountPaymentsOldestFirstAndLeavesPartialUnpaid(t *testing.T) 
 		sourceMarker: "payment-1", grossCents: 8000, paymentType: "Visa Card", paymentTypeID: "5", reference: "PAY-1",
 	}
 
-	allocateAccountPayments(&expenseImportState{}, []*preparedExpenseImportRow{purchaseTwo, payment, purchaseOne})
+	mustAllocateAccountPayments(t, &expenseImportState{}, []*preparedExpenseImportRow{purchaseTwo, payment, purchaseOne})
 
 	if purchaseOne.remainingCents != 0 || purchaseOne.desiredPaymentDate != "2026-11-01" || purchaseOne.desiredPaymentTypeID != "5" {
 		t.Fatalf("first purchase settlement = %#v", purchaseOne)
@@ -511,7 +554,7 @@ func TestAllocateAccountPaymentsUsesEligibilityAndReportsRemainder(t *testing.T)
 		sourceMarker: "payment", grossCents: 3000, paymentType: "PayPal", paymentTypeID: "13",
 	}
 
-	allocateAccountPayments(&expenseImportState{}, []*preparedExpenseImportRow{future, otherSupplier, payment})
+	mustAllocateAccountPayments(t, &expenseImportState{}, []*preparedExpenseImportRow{future, otherSupplier, payment})
 	if len(payment.allocations) != 0 || payment.unappliedCents != 3000 {
 		t.Fatalf("payment should be unapplied: %#v", payment)
 	}
@@ -531,7 +574,7 @@ func TestAllocateAccountPaymentsBlocksOnInvalidEarlierPurchase(t *testing.T) {
 		sourceMarker: "payment", grossCents: 5000, paymentType: "Visa Card", paymentTypeID: "5",
 	}
 
-	allocateAccountPayments(&expenseImportState{}, []*preparedExpenseImportRow{invalid, later, payment})
+	mustAllocateAccountPayments(t, &expenseImportState{}, []*preparedExpenseImportRow{invalid, later, payment})
 	if payment.err == nil || !strings.Contains(payment.err.Error(), "row 2") || len(payment.allocations) != 0 || later.remainingCents != 5000 {
 		t.Fatalf("invalid earlier purchase did not block allocation: later=%#v payment=%#v", later, payment)
 	}
@@ -552,7 +595,7 @@ func TestAllocateAccountPaymentsBlocksOnMissingOlderImportedPurchase(t *testing.
 		sourceMarker: "payment", grossCents: 5000, paymentType: "Visa Card", paymentTypeID: "5",
 	}
 
-	allocateAccountPayments(state, []*preparedExpenseImportRow{later, payment})
+	mustAllocateAccountPayments(t, state, []*preparedExpenseImportRow{later, payment})
 	if payment.err == nil || !strings.Contains(payment.err.Error(), "expense-old") || len(payment.allocations) != 0 || later.remainingCents != 5000 {
 		t.Fatalf("missing older imported purchase did not block allocation: later=%#v payment=%#v", later, payment)
 	}
@@ -573,7 +616,7 @@ func TestDuplicatePurchaseDoesNotConsumePaymentTwice(t *testing.T) {
 	}
 
 	duplicate.duplicateRow = first.rowNo
-	allocateAccountPayments(&expenseImportState{}, []*preparedExpenseImportRow{first, duplicate, payment})
+	mustAllocateAccountPayments(t, &expenseImportState{}, []*preparedExpenseImportRow{first, duplicate, payment})
 	if len(payment.allocations) != 1 || first.remainingCents != 0 || duplicate.remainingCents != 5000 || payment.unappliedCents != 2500 {
 		t.Fatalf("duplicate affected allocation: first=%#v duplicate=%#v payment=%#v", first, duplicate, payment)
 	}
@@ -593,7 +636,7 @@ func TestMultiplePaymentMethodsDoNotInventExpensePaymentType(t *testing.T) {
 		sourceMarker: "paypal", grossCents: 6000, paymentType: "PayPal", paymentTypeID: "13",
 	}
 
-	allocateAccountPayments(&expenseImportState{}, []*preparedExpenseImportRow{paypal, purchase, visa})
+	mustAllocateAccountPayments(t, &expenseImportState{}, []*preparedExpenseImportRow{paypal, purchase, visa})
 	if purchase.desiredPaymentDate != "2026-11-01" || purchase.desiredPaymentTypeID != "" {
 		t.Fatalf("mixed settlement = date %q type %q", purchase.desiredPaymentDate, purchase.desiredPaymentTypeID)
 	}
@@ -619,7 +662,7 @@ func TestPrepareAccountPaymentIgnoresPurchaseAnalyticsAndLeavesDocumentUnattache
 	if row.grossCents != 7184 || row.paymentTypeID != "5" || row.receiptPath != "" {
 		t.Fatalf("unexpected account payment row: %#v", row)
 	}
-	result := accountPaymentResult(row, true)
+	result := refreshAccountPaymentResult(CSVImportResult{Name: row.name, Action: "would-create-transaction"}, row)
 	if !containsChange(result.Changes, "supporting-document:unattached:payment.pdf") {
 		t.Fatalf("supporting document not reported: %#v", result)
 	}
@@ -751,6 +794,12 @@ func TestAdjustmentIsDeferredAfterUnrelatedCommit(t *testing.T) {
 			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/statics":
 			_, _ = w.Write([]byte(`{"payment_types":[]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_integrations":
+			_, _ = w.Write([]byte(`{"data":[{"id":"bank1","bank_account_name":"GoTradie","integration_type":"","auto_sync":false}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_transactions":
+			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_transaction_rules":
+			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/expenses":
 			expenseCreates++
 			_, _ = w.Write([]byte(`{"data":{"id":"expense1"}}`))
@@ -786,6 +835,13 @@ func containsChange(changes []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func mustAllocateAccountPayments(t *testing.T, state *expenseImportState, rows []*preparedExpenseImportRow) {
+	t.Helper()
+	if _, err := allocateAccountPayments(state, rows, false); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func assertJSONText(t *testing.T, values map[string]json.RawMessage, field, want string) {
