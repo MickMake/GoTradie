@@ -16,7 +16,7 @@ func TestExpenseServicesAreRegistered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Vendors == nil || c.Projects == nil || c.ExpenseCategories == nil || c.Expenses == nil {
+	if c.Vendors == nil || c.Projects == nil || c.ExpenseCategories == nil || c.Expenses == nil || c.Statics == nil {
 		t.Fatal("expense-related services were not registered")
 	}
 	if c.Expenses.Endpoint() != "expenses" {
@@ -54,6 +54,8 @@ func TestCreateExpenseRequest(t *testing.T) {
 		CategoryID:           "category1",
 		Amount:               99.90,
 		Date:                 "2026-10-02",
+		PaymentDate:          "2026-10-02",
+		PaymentTypeID:        "5",
 		TaxName1:             "GST",
 		TaxRate1:             10,
 		TaxAmount1:           9.08,
@@ -76,8 +78,8 @@ func TestCreateExpenseRequest(t *testing.T) {
 	if gotBody["category_id"] != "category1" {
 		t.Fatalf("category_id = %#v in %#v", gotBody["category_id"], gotBody)
 	}
-	if _, ok := gotBody["category_id"]; ok {
-		t.Fatalf("unexpected category_id in %#v", gotBody)
+	if gotBody["payment_type_id"] != "5" {
+		t.Fatalf("payment_type_id = %#v in %#v", gotBody["payment_type_id"], gotBody)
 	}
 	if got.TaxAmount1 != 9.08 || !got.CalculateTaxByAmount {
 		t.Fatalf("unexpected tax fields: %#v", got)
@@ -101,23 +103,56 @@ func TestVendorProjectAndCategoryQueries(t *testing.T) {
 	if got := values.Get("category_id"); got != "category1" {
 		t.Fatalf("expense category query = %q", got)
 	}
-	if got := values.Get("category_id"); got != "" {
-		t.Fatalf("unexpected category_id query = %q", got)
-	}
 }
 
 func TestExpenseDecodesExpenseCategoryID(t *testing.T) {
 	var expense Expense
-	if err := json.Unmarshal([]byte(`{"id":"expense1","category_id":"category1"}`), &expense); err != nil {
+	if err := json.Unmarshal([]byte(`{"id":"expense1","category_id":"category1","payment_type_id":"5"}`), &expense); err != nil {
 		t.Fatal(err)
 	}
 	if expense.CategoryID != "category1" {
 		t.Fatalf("category ID = %q", expense.CategoryID)
 	}
+	if expense.PaymentTypeID != "5" {
+		t.Fatalf("payment type ID = %q", expense.PaymentTypeID)
+	}
+}
+
+func TestExpenseUpdatePaymentStatusCanClearFields(t *testing.T) {
+	var gotMethod, gotPath string
+	var got ExpensePaymentStatusRequest
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"id":"expense1","payment_date":"","payment_type_id":""}}`))
+	}))
+	defer ts.Close()
+
+	c, err := New("token", WithBaseURL(ts.URL), WithHTTPClient(ts.Client()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := c.Expenses.UpdatePaymentStatus(context.Background(), "expense1", ExpensePaymentStatusRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotMethod != http.MethodPut || gotPath != "/api/v1/expenses/expense1" {
+		t.Fatalf("unexpected request: %s %s", gotMethod, gotPath)
+	}
+	if got.PaymentDate != "" || got.PaymentTypeID != "" {
+		t.Fatalf("unexpected payment status payload: %#v", got)
+	}
+	if updated.ID != "expense1" {
+		t.Fatalf("unexpected updated expense: %#v", updated)
+	}
 }
 
 func TestExpenseUploadDocument(t *testing.T) {
-	var gotMethod, gotPath, gotField, gotFilename, gotContent string
+	var gotMethod, gotPath, gotField, gotFilename, gotContent, gotIsPublic string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotMethod = r.Method
 		gotPath = r.URL.Path
@@ -125,20 +160,26 @@ func TestExpenseUploadDocument(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		part, err := mr.NextPart()
-		if err != nil {
-			t.Fatal(err)
-		}
-		defer part.Close()
-		body, err := io.ReadAll(part)
-		if err != nil {
-			t.Fatal(err)
-		}
-		gotField = part.FormName()
-		gotFilename = part.FileName()
-		gotContent = string(body)
-		if _, err := mr.NextPart(); !errors.Is(err, io.EOF) {
-			t.Fatalf("unexpected extra multipart part: %v", err)
+		for {
+			part, err := mr.NextPart()
+			if errors.Is(err, io.EOF) {
+				break
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, err := io.ReadAll(part)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if part.FormName() == "is_public" {
+				gotIsPublic = string(body)
+			} else {
+				gotField = part.FormName()
+				gotFilename = part.FileName()
+				gotContent = string(body)
+			}
+			_ = part.Close()
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"data":{"id":"expense1","documents":[{"name":"receipt.pdf"}]}}`))
@@ -153,8 +194,8 @@ func TestExpenseUploadDocument(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if gotMethod != http.MethodPut || gotPath != "/api/v1/expenses/expense1/upload" || gotField != "documents[]" || gotFilename != "receipt.pdf" || gotContent != "receipt body" {
-		t.Fatalf("unexpected upload: method=%q path=%q field=%q filename=%q content=%q", gotMethod, gotPath, gotField, gotFilename, gotContent)
+	if gotMethod != http.MethodPut || gotPath != "/api/v1/expenses/expense1/upload" || gotField != "documents[]" || gotFilename != "receipt.pdf" || gotContent != "receipt body" || gotIsPublic != "false" {
+		t.Fatalf("unexpected upload: method=%q path=%q field=%q filename=%q content=%q is_public=%q", gotMethod, gotPath, gotField, gotFilename, gotContent, gotIsPublic)
 	}
 	if len(updated.Documents) != 1 || updated.Documents[0].Name != "receipt.pdf" {
 		t.Fatalf("unexpected updated expense: %#v", updated)

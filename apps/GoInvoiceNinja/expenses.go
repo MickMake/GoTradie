@@ -58,6 +58,7 @@ type Expense struct {
 	ExchangeRate         float64          `json:"exchange_rate,omitempty"`
 	Date                 string           `json:"date,omitempty"`
 	PaymentDate          string           `json:"payment_date,omitempty"`
+	PaymentTypeID        string           `json:"payment_type_id,omitempty"`
 	PrivateNotes         string           `json:"private_notes,omitempty"`
 	PublicNotes          string           `json:"public_notes,omitempty"`
 	TransactionReference string           `json:"transaction_reference,omitempty"`
@@ -134,6 +135,7 @@ type CreateExpenseRequest struct {
 	ExchangeRate         float64 `json:"exchange_rate,omitempty"`
 	Date                 string  `json:"date,omitempty"`
 	PaymentDate          string  `json:"payment_date,omitempty"`
+	PaymentTypeID        string  `json:"payment_type_id,omitempty"`
 	PrivateNotes         string  `json:"private_notes,omitempty"`
 	PublicNotes          string  `json:"public_notes,omitempty"`
 	TransactionReference string  `json:"transaction_reference,omitempty"`
@@ -149,7 +151,7 @@ type CreateExpenseRequest struct {
 	UsesInclusiveTaxes   bool    `json:"uses_inclusive_taxes,omitempty"`
 	CalculateTaxByAmount bool    `json:"calculate_tax_by_amount,omitempty"`
 	ShouldBeInvoiced     bool    `json:"should_be_invoiced,omitempty"`
-	InvoiceDocuments     *bool    `json:"invoice_documents,omitempty"`
+	InvoiceDocuments     *bool   `json:"invoice_documents,omitempty"`
 	CustomValue1         string  `json:"custom_value1,omitempty"`
 	CustomValue2         string  `json:"custom_value2,omitempty"`
 	CustomValue3         string  `json:"custom_value3,omitempty"`
@@ -157,6 +159,13 @@ type CreateExpenseRequest struct {
 }
 
 type UpdateExpenseRequest CreateExpenseRequest
+
+// ExpensePaymentStatusRequest deliberately includes empty values so callers can
+// clear an expense's paid state as well as set it.
+type ExpensePaymentStatusRequest struct {
+	PaymentDate   string `json:"payment_date"`
+	PaymentTypeID string `json:"payment_type_id"`
+}
 
 type VendorService struct{ *Service[Vendor] }
 type ProjectService struct{ *Service[Project] }
@@ -288,5 +297,11 @@ func (s *ExpenseService) Create(ctx context.Context, req CreateExpenseRequest) (
 	return s.Service.Create(ctx, req)
 }
 func (s *ExpenseService) Update(ctx context.Context, id string, req UpdateExpenseRequest) (*Expense, error) {
+	return s.Service.Update(ctx, id, req)
+}
+
+// UpdatePaymentStatus sets or clears the fields Invoice Ninja uses for an
+// expense's paid state.
+func (s *ExpenseService) UpdatePaymentStatus(ctx context.Context, id string, req ExpensePaymentStatusRequest) (*Expense, error) {
 	return s.Service.Update(ctx, id, req)
 }

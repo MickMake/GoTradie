@@ -15,11 +15,13 @@ import (
 var productCSVHeader = []string{"ID", "Product", "Description", "Price", "Default Quantity", "Max Quantity", "Image URL"}
 
 type CSVImportResult struct {
-	ID      string
-	Name    string
-	Action  string
-	Changes []string
-	Error   error
+	ID              string
+	Name            string
+	Action          string
+	Changes         []string
+	Allocations     []ExpensePaymentAllocation
+	UnappliedAmount float64
+	Error           error
 }
 
 func (s *Service) ExportProductsCSV(ctx context.Context, w io.Writer) error {

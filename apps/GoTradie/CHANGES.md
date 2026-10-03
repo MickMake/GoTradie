@@ -5,9 +5,14 @@
 
 - Added preview-by-default `ninja import expenses` for the master purchase ledger.
 - Added recursive receipt indexing through `--receipts-root`; `File Name` matches are exact and missing or ambiguous matches are reported.
-- Expense imports preserve source-row idempotency, leave `should_be_invoiced` unset, copy the purchase date to `payment_date`, and name vendors from Supplier plus Store.
+- Expense imports preserve source-row idempotency, leave `should_be_invoiced` unset, and name vendors from Supplier plus Store.
 - Expense imports derive a missing Business Amount from the total and percentage without replacing an explicit zero.
 - Numeric Job Number values reuse an existing project or create one from the matching master quote client.
+- Expense imports now enforce canonical Document Type values and exact Invoice Ninja Payment Type labels.
+- Invoice and Receipt rows now preserve paid/unpaid timing, while Account Payment rows allocate by supplier, purchase date and stable source order without creating fake expenses.
+- Partial supplier-account allocations remain unpaid in Invoice Ninja, mixed payment methods are retained in allocation detail, and unapplied payment remainders are reported.
+- Purchase source identity now ignores Document Type, Payment Type and analytical corrections while retaining exact legacy-marker migration support.
+- Adjustment rows are explicitly deferred instead of receiving invented accounting behaviour.
 - Added hidden `ninja export tax [directory] [--commit]` command for Mick's accounting workflow.
 - Produces `Invoices.csv` and `Detail.csv` without changing the existing invoice or payment export contracts.
 - Reuses existing Invoice Ninja invoice/payment pagination and line-item models.

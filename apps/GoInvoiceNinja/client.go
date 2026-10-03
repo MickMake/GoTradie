@@ -36,6 +36,7 @@ type Client struct {
 	Projects          *ProjectService
 	ExpenseCategories *ExpenseCategoryService
 	Expenses          *ExpenseService
+	Statics           *StaticService
 }
 
 // Option customises the client.
@@ -101,6 +102,7 @@ func New(token string, opts ...Option) (*Client, error) {
 	c.Projects = &ProjectService{Service: NewService[Project](c, "projects")}
 	c.ExpenseCategories = &ExpenseCategoryService{Service: NewService[ExpenseCategory](c, "expense_categories")}
 	c.Expenses = &ExpenseService{Service: NewService[Expense](c, "expenses")}
+	c.Statics = &StaticService{client: c}
 	return c, nil
 }
 
