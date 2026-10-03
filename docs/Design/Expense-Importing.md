@@ -195,6 +195,10 @@ Initial rule:
 6. An uncovered expense remains unpaid.
 7. Any unapplied payment remainder is reported explicitly.
 8. Never fabricate a paid state simply because a payment exists somewhere on the supplier account.
+9. Do not allocate past an earlier eligible purchase row which is invalid or otherwise cannot participate reliably.
+10. Do not allocate past an older unpaid GoTradie-imported expense which is absent from the valid source purchase rows in the current input.
+
+If either source data or existing imported history makes oldest-first allocation indeterminate, report the account payment as blocked rather than marking a later expense paid.
 
 Example:
 
@@ -322,6 +326,8 @@ Before the revised importer is committed against data that may already have been
 
 Do not solve this with fuzzy matching. Define a stable source identity from genuinely identifying source fields, or provide an explicit migration path for existing markers.
 
+When otherwise-identical purchase facts occur on legitimate split rows, use stable source order within that collision group as the deterministic discriminator. The discriminator must not make corrections to Job Number, Category, Option, Document Type, or Payment Type look like a new purchase. Existing legacy markers remain valid migration aliases. Byte-identical Account Payment rows are ambiguous and must be reported rather than silently discarded.
+
 ## Known implementation gaps before paid/unpaid work is complete
 
 The current branch still needs the following narrow changes to satisfy this design:
@@ -341,6 +347,7 @@ The existing GoTradie CLI safety contract remains unchanged:
 - preview/default behaviour is safe;
 - `--commit` is the only flag that permits persistent remote changes;
 - no additional `--apply`, `--force`, or alternate write flags should be invented for this importer.
+- before a commit which could set an expense payment date, read the current Invoice Ninja company `notify_vendor_when_paid` setting and abort before any writes if it is enabled or cannot be determined reliably.
 
 See [Command-Line-Spec.md](./Command-Line-Spec.md).
 

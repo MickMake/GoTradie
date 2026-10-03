@@ -78,6 +78,98 @@ func TestPurchaseSourceMarkerIgnoresControlAndAnalyticalCorrections(t *testing.T
 	}
 }
 
+func TestPurchaseSourceIdentityKeepsSplitRowsDistinct(t *testing.T) {
+	header := []string{
+		"Date", "Supplier", "Store", "Document Type", "Payment Type", "Tax Treatment", "Category", "Option",
+		"Total Inc GST", "Business %", "Business Amount", "Business GST", "Invoice Number", "Item Number",
+		"Item Description", "Qty", "Unit", "Unit Price", "Total Ex GST", "GST", "$ Currency", "Job Number",
+	}
+	idx := headerIndex(header)
+	state := &expenseImportState{paymentTypes: map[string]invoiceninja.PaymentType{
+		"Visa Card": {ID: "5", Name: "Visa Card"},
+	}}
+	row := func(category, option, job string) []string {
+		return []string{"2/10/2026", "Bunnings", "Dural", "Invoice", "", "Expense", category, option, "10", "100", "10", "0.91", "INV-1", "123", "Nails", "2", "EA", "5", "9.09", "0.91", "AUD", job}
+	}
+
+	first := prepareExpenseImportRow(state, nil, idx, row("Materials", "Consumables", "100"), 2)
+	second := prepareExpenseImportRow(state, nil, idx, row("Hardware", "Fixings", "200"), 3)
+	assignExpenseRowIdentities([]*preparedExpenseImportRow{first, second})
+	if first.err != nil || second.err != nil || first.sourceMarker == second.sourceMarker {
+		t.Fatalf("split identities collapsed: first=%#v second=%#v", first, second)
+	}
+
+	correctedFirst := prepareExpenseImportRow(state, nil, idx, row("Corrected A", "Corrected option A", "300"), 2)
+	correctedSecond := prepareExpenseImportRow(state, nil, idx, row("Corrected B", "Corrected option B", "400"), 3)
+	assignExpenseRowIdentities([]*preparedExpenseImportRow{correctedFirst, correctedSecond})
+	if correctedFirst.sourceMarker != first.sourceMarker || correctedSecond.sourceMarker != second.sourceMarker {
+		t.Fatalf("analytical corrections changed identities: before=%q,%q after=%q,%q", first.sourceMarker, second.sourceMarker, correctedFirst.sourceMarker, correctedSecond.sourceMarker)
+	}
+
+	original := row("Materials", "Consumables", "100")
+	controlChanged := row("Materials", "Consumables", "100")
+	controlChanged[idx["Document Type"]] = "Receipt"
+	controlChanged[idx["Payment Type"]] = "Visa Card"
+	originalRow := prepareExpenseImportRow(state, nil, idx, original, 2)
+	controlChangedRow := prepareExpenseImportRow(state, nil, idx, controlChanged, 3)
+	assignExpenseRowIdentities([]*preparedExpenseImportRow{originalRow, controlChangedRow})
+	if controlChangedRow.duplicateRow != originalRow.rowNo {
+		t.Fatalf("control-only correction was not treated as the same source row: %#v", controlChangedRow)
+	}
+}
+
+func TestAccountPaymentIdentityDisambiguation(t *testing.T) {
+	header := []string{
+		"Date", "Supplier", "Document Type", "Payment Type", "Tax Treatment", "Category", "Option",
+		"Total Inc GST", "Business %", "Business Amount", "Business GST", "Invoice Number", "File Name", "Notes",
+	}
+	idx := headerIndex(header)
+	state := &expenseImportState{paymentTypes: map[string]invoiceninja.PaymentType{
+		"Visa Card": {ID: "5", Name: "Visa Card"},
+		"PayPal":    {ID: "13", Name: "PayPal"},
+	}}
+	payment := func(method, reference, file, notes string) []string {
+		return []string{"1/11/2026", "Bunnings", "Account Payment", method, "", "", "", "71.84", "", "", "", reference, file, notes}
+	}
+
+	t.Run("same facts use stable source order", func(t *testing.T) {
+		first := prepareExpenseImportRow(state, nil, idx, payment("Visa Card", "PAY-1", "one.pdf", "first"), 2)
+		second := prepareExpenseImportRow(state, nil, idx, payment("Visa Card", "PAY-1", "two.pdf", "second"), 3)
+		assignExpenseRowIdentities([]*preparedExpenseImportRow{first, second})
+		if first.err != nil || second.err != nil || first.sourceMarker == second.sourceMarker {
+			t.Fatalf("legitimate payments collided: first=%#v second=%#v", first, second)
+		}
+	})
+
+	t.Run("blank references remain distinct", func(t *testing.T) {
+		first := prepareExpenseImportRow(state, nil, idx, payment("Visa Card", "", "one.pdf", "first"), 2)
+		second := prepareExpenseImportRow(state, nil, idx, payment("Visa Card", "", "two.pdf", "second"), 3)
+		assignExpenseRowIdentities([]*preparedExpenseImportRow{first, second})
+		if first.err != nil || second.err != nil || first.sourceMarker == second.sourceMarker {
+			t.Fatalf("blank-reference payments collided: first=%#v second=%#v", first, second)
+		}
+	})
+
+	t.Run("payment method participates in identity", func(t *testing.T) {
+		visa := prepareExpenseImportRow(state, nil, idx, payment("Visa Card", "PAY-1", "", ""), 2)
+		paypal := prepareExpenseImportRow(state, nil, idx, payment("PayPal", "PAY-1", "", ""), 3)
+		assignExpenseRowIdentities([]*preparedExpenseImportRow{visa, paypal})
+		if visa.err != nil || paypal.err != nil || visa.sourceMarker == paypal.sourceMarker {
+			t.Fatalf("different methods collided: visa=%#v paypal=%#v", visa, paypal)
+		}
+	})
+
+	t.Run("identical input is ambiguous", func(t *testing.T) {
+		rec := payment("Visa Card", "", "", "")
+		first := prepareExpenseImportRow(state, nil, idx, append([]string(nil), rec...), 2)
+		second := prepareExpenseImportRow(state, nil, idx, append([]string(nil), rec...), 3)
+		assignExpenseRowIdentities([]*preparedExpenseImportRow{first, second})
+		if first.err == nil || second.err == nil || !strings.Contains(first.err.Error(), "ambiguous") {
+			t.Fatalf("identical payments were not rejected: first=%v second=%v", first.err, second.err)
+		}
+	})
+}
+
 func TestProjectNumberAcceptsOnlyNumericMasterQuoteNumber(t *testing.T) {
 	idx := map[string]int{"Job Number": 0}
 	for _, test := range []struct {
@@ -199,6 +291,8 @@ func TestImportExpenseCreatesProjectFromNumericMasterQuote(t *testing.T) {
 			_, _ = w.Write([]byte(`{"data":[{"id":"quote1","number":"1234","client_id":"client1"}],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/statics":
 			_, _ = w.Write([]byte(`{"payment_types":[{"id":"5","name":"Visa Card","gateway_type_id":1}]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/companies/current":
+			_, _ = w.Write([]byte(`{"data":{"id":"company1","notify_vendor_when_paid":false}}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/projects":
 			if err := json.NewDecoder(r.Body).Decode(&projectRequest); err != nil {
 				t.Error(err)
@@ -387,7 +481,7 @@ func TestAllocateAccountPaymentsOldestFirstAndLeavesPartialUnpaid(t *testing.T) 
 		sourceMarker: "payment-1", grossCents: 8000, paymentType: "Visa Card", paymentTypeID: "5", reference: "PAY-1",
 	}
 
-	allocateAccountPayments([]*preparedExpenseImportRow{purchaseTwo, payment, purchaseOne})
+	allocateAccountPayments(&expenseImportState{}, []*preparedExpenseImportRow{purchaseTwo, payment, purchaseOne})
 
 	if purchaseOne.remainingCents != 0 || purchaseOne.desiredPaymentDate != "2026-11-01" || purchaseOne.desiredPaymentTypeID != "5" {
 		t.Fatalf("first purchase settlement = %#v", purchaseOne)
@@ -417,9 +511,50 @@ func TestAllocateAccountPaymentsUsesEligibilityAndReportsRemainder(t *testing.T)
 		sourceMarker: "payment", grossCents: 3000, paymentType: "PayPal", paymentTypeID: "13",
 	}
 
-	allocateAccountPayments([]*preparedExpenseImportRow{future, otherSupplier, payment})
+	allocateAccountPayments(&expenseImportState{}, []*preparedExpenseImportRow{future, otherSupplier, payment})
 	if len(payment.allocations) != 0 || payment.unappliedCents != 3000 {
 		t.Fatalf("payment should be unapplied: %#v", payment)
+	}
+}
+
+func TestAllocateAccountPaymentsBlocksOnInvalidEarlierPurchase(t *testing.T) {
+	invalid := &preparedExpenseImportRow{
+		rowNo: 2, documentType: documentTypeInvoice, supplier: "Bunnings", date: "2026-09-01",
+		grossCents: 5000, grossKnown: true, err: fmt.Errorf("missing category"),
+	}
+	later := &preparedExpenseImportRow{
+		rowNo: 3, documentType: documentTypeInvoice, supplier: "Bunnings", date: "2026-09-02",
+		sourceMarker: "later", grossCents: 5000, grossKnown: true, remainingCents: 5000,
+	}
+	payment := &preparedExpenseImportRow{
+		rowNo: 4, documentType: documentTypeAccountPayment, supplier: "Bunnings", date: "2026-10-01",
+		sourceMarker: "payment", grossCents: 5000, paymentType: "Visa Card", paymentTypeID: "5",
+	}
+
+	allocateAccountPayments(&expenseImportState{}, []*preparedExpenseImportRow{invalid, later, payment})
+	if payment.err == nil || !strings.Contains(payment.err.Error(), "row 2") || len(payment.allocations) != 0 || later.remainingCents != 5000 {
+		t.Fatalf("invalid earlier purchase did not block allocation: later=%#v payment=%#v", later, payment)
+	}
+}
+
+func TestAllocateAccountPaymentsBlocksOnMissingOlderImportedPurchase(t *testing.T) {
+	state := &expenseImportState{importedExpenses: []importedExpenseState{{
+		expense:  invoiceninja.Expense{Entity: invoiceninja.Entity{ID: "expense-old"}},
+		supplier: "Bunnings",
+		date:     "2026-09-01",
+	}}}
+	later := &preparedExpenseImportRow{
+		rowNo: 2, documentType: documentTypeInvoice, supplier: "Bunnings", date: "2026-09-02",
+		sourceMarker: "later", grossCents: 5000, grossKnown: true, remainingCents: 5000,
+	}
+	payment := &preparedExpenseImportRow{
+		rowNo: 3, documentType: documentTypeAccountPayment, supplier: "Bunnings", date: "2026-10-01",
+		sourceMarker: "payment", grossCents: 5000, paymentType: "Visa Card", paymentTypeID: "5",
+	}
+
+	allocateAccountPayments(state, []*preparedExpenseImportRow{later, payment})
+	if payment.err == nil || !strings.Contains(payment.err.Error(), "expense-old") || len(payment.allocations) != 0 || later.remainingCents != 5000 {
+		t.Fatalf("missing older imported purchase did not block allocation: later=%#v payment=%#v", later, payment)
 	}
 }
 
@@ -437,7 +572,8 @@ func TestDuplicatePurchaseDoesNotConsumePaymentTwice(t *testing.T) {
 		sourceMarker: "payment", grossCents: 7500, paymentType: "Visa Card", paymentTypeID: "5",
 	}
 
-	allocateAccountPayments([]*preparedExpenseImportRow{first, duplicate, payment})
+	duplicate.duplicateRow = first.rowNo
+	allocateAccountPayments(&expenseImportState{}, []*preparedExpenseImportRow{first, duplicate, payment})
 	if len(payment.allocations) != 1 || first.remainingCents != 0 || duplicate.remainingCents != 5000 || payment.unappliedCents != 2500 {
 		t.Fatalf("duplicate affected allocation: first=%#v duplicate=%#v payment=%#v", first, duplicate, payment)
 	}
@@ -457,7 +593,7 @@ func TestMultiplePaymentMethodsDoNotInventExpensePaymentType(t *testing.T) {
 		sourceMarker: "paypal", grossCents: 6000, paymentType: "PayPal", paymentTypeID: "13",
 	}
 
-	allocateAccountPayments([]*preparedExpenseImportRow{paypal, purchase, visa})
+	allocateAccountPayments(&expenseImportState{}, []*preparedExpenseImportRow{paypal, purchase, visa})
 	if purchase.desiredPaymentDate != "2026-11-01" || purchase.desiredPaymentTypeID != "" {
 		t.Fatalf("mixed settlement = date %q type %q", purchase.desiredPaymentDate, purchase.desiredPaymentTypeID)
 	}
@@ -505,8 +641,12 @@ func TestPrepareRowsRejectUnknownPaymentTypeAndDefersAdjustment(t *testing.T) {
 	}
 	adjustment := []string{"1/11/2026", "Bunnings", "Adjustment", "", "Expense", "Materials", "", "-10", "100", "-10", "-0.91"}
 	row = prepareExpenseImportRow(state, nil, idx, adjustment, 3)
-	if row.err == nil || !strings.Contains(row.err.Error(), "Adjustment is deferred") {
-		t.Fatalf("adjustment error = %v", row.err)
+	if row.err != nil || !row.deferred {
+		t.Fatalf("adjustment was not deferred: %#v", row)
+	}
+	result := deferredAdjustmentResult(row)
+	if result.Action != "deferred" || result.Error != nil {
+		t.Fatalf("adjustment result = %#v", result)
 	}
 }
 
@@ -526,6 +666,116 @@ func TestLegacyExpenseIdentityReconstructsStableMarker(t *testing.T) {
 	got := legacyExpenseSourceMarker(expense, map[string]invoiceninja.Vendor{"vendor1": {Name: "Bunnings - Dural"}})
 	if got != want {
 		t.Fatalf("legacy marker = %q; want %q", got, want)
+	}
+}
+
+func TestLegacySplitExpenseIdentitiesUseStoredSourceOrder(t *testing.T) {
+	state := &expenseImportState{
+		expenseByMarker:  map[string]invoiceninja.Expense{},
+		ambiguousMarkers: map[string]bool{},
+		ambiguousBases:   map[string]bool{},
+		importedExpenses: []importedExpenseState{
+			{expense: invoiceninja.Expense{Entity: invoiceninja.Entity{ID: "expense-two"}}, baseMarker: "base", sourceRow: 3},
+			{expense: invoiceninja.Expense{Entity: invoiceninja.Entity{ID: "expense-one"}}, baseMarker: "base", sourceRow: 2},
+		},
+	}
+	indexImportedExpenseIdentities(state)
+	if got := state.expenseByMarker[purchaseOccurrenceMarker("base", 1)].ID; got != "expense-one" {
+		t.Fatalf("first legacy split expense = %q", got)
+	}
+	if got := state.expenseByMarker[purchaseOccurrenceMarker("base", 2)].ID; got != "expense-two" {
+		t.Fatalf("second legacy split expense = %q", got)
+	}
+}
+
+func TestExpensePaymentNotificationPreflightFailsBeforeWrites(t *testing.T) {
+	tests := []struct {
+		name        string
+		companyBody string
+	}{
+		{name: "enabled", companyBody: `{"data":{"id":"company1","notify_vendor_when_paid":true}}`},
+		{name: "missing", companyBody: `{"data":{"id":"company1"}}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var mutationCount int
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				switch {
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/vendors":
+					_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings"}],"meta":{"pagination":{"total_pages":1}}}`))
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expense_categories":
+					_, _ = w.Write([]byte(`{"data":[{"id":"category1","name":"Materials"}],"meta":{"pagination":{"total_pages":1}}}`))
+				case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/projects" || r.URL.Path == "/api/v1/expenses" || r.URL.Path == "/api/v1/quotes"):
+					_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+				case r.Method == http.MethodGet && r.URL.Path == "/api/v1/statics":
+					_, _ = w.Write([]byte(`{"payment_types":[{"id":"5","name":"Visa Card"}]}`))
+				case r.Method == http.MethodPost && r.URL.Path == "/api/v1/companies/current":
+					_, _ = w.Write([]byte(tt.companyBody))
+				default:
+					mutationCount++
+					http.Error(w, r.Method+" "+r.URL.String(), http.StatusNotFound)
+				}
+			}))
+			defer ts.Close()
+
+			client, err := invoiceninja.New("token", invoiceninja.WithBaseURL(ts.URL), invoiceninja.WithHTTPClient(ts.Client()))
+			if err != nil {
+				t.Fatal(err)
+			}
+			service := &Service{client: client}
+			csv := strings.Join([]string{
+				"Date,Supplier,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST",
+				"2/10/2026,Bunnings,Invoice,Visa Card,Expense,Materials,Consumables,110,100,110,10",
+			}, "\n")
+			if _, err := service.ImportExpensesCSV(context.Background(), strings.NewReader(csv), false, ""); err == nil || !strings.Contains(err.Error(), "notify_vendor_when_paid") {
+				t.Fatalf("preflight error = %v", err)
+			}
+			if mutationCount != 0 {
+				t.Fatalf("writes occurred before failed preflight: %d", mutationCount)
+			}
+		})
+	}
+}
+
+func TestAdjustmentIsDeferredAfterUnrelatedCommit(t *testing.T) {
+	var expenseCreates int
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/vendors":
+			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings"}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expense_categories":
+			_, _ = w.Write([]byte(`{"data":[{"id":"category1","name":"Materials"}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/projects" || r.URL.Path == "/api/v1/expenses" || r.URL.Path == "/api/v1/quotes"):
+			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/statics":
+			_, _ = w.Write([]byte(`{"payment_types":[]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/expenses":
+			expenseCreates++
+			_, _ = w.Write([]byte(`{"data":{"id":"expense1"}}`))
+		default:
+			http.Error(w, r.Method+" "+r.URL.String(), http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	client, err := invoiceninja.New("token", invoiceninja.WithBaseURL(ts.URL), invoiceninja.WithHTTPClient(ts.Client()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := &Service{client: client}
+	csv := strings.Join([]string{
+		"Date,Supplier,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST",
+		"2/10/2026,Bunnings,Invoice,,Expense,Materials,Consumables,110,100,110,10",
+		"3/10/2026,Bunnings,Adjustment,,Expense,Materials,Consumables,-10,100,-10,-0.91",
+	}, "\n")
+	results, err := service.ImportExpensesCSV(context.Background(), strings.NewReader(csv), false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 || results[0].Action != "created" || results[1].Action != "deferred" || expenseCreates != 1 {
+		t.Fatalf("unexpected results=%#v expense creates=%d", results, expenseCreates)
 	}
 }
 

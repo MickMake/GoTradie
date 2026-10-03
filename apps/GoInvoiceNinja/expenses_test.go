@@ -16,7 +16,7 @@ func TestExpenseServicesAreRegistered(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Vendors == nil || c.Projects == nil || c.ExpenseCategories == nil || c.Expenses == nil || c.Statics == nil {
+	if c.Vendors == nil || c.Projects == nil || c.ExpenseCategories == nil || c.Expenses == nil || c.Statics == nil || c.Companies == nil {
 		t.Fatal("expense-related services were not registered")
 	}
 	if c.Expenses.Endpoint() != "expenses" {

@@ -13,6 +13,8 @@
 - Partial supplier-account allocations remain unpaid in Invoice Ninja, mixed payment methods are retained in allocation detail, and unapplied payment remainders are reported.
 - Purchase source identity now ignores Document Type, Payment Type and analytical corrections while retaining exact legacy-marker migration support.
 - Adjustment rows are explicitly deferred instead of receiving invented accounting behaviour.
+- Supplier payments now stop at invalid or missing older imported purchases instead of allocating around indeterminate account history.
+- Commit imports fail before any writes when Invoice Ninja could email a vendor after an expense is marked paid.
 - Added hidden `ninja export tax [directory] [--commit]` command for Mick's accounting workflow.
 - Produces `Invoices.csv` and `Detail.csv` without changing the existing invoice or payment export contracts.
 - Reuses existing Invoice Ninja invoice/payment pagination and line-item models.

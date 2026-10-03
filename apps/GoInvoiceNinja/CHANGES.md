@@ -7,6 +7,7 @@
 - Corrected expense document uploads to use PUT with a multipart `documents[]` array while preserving product upload behavior.
 - Added exact payment-type discovery through Invoice Ninja statics and expense `payment_type_id` support.
 - Added focused expense payment-status updates that can explicitly mark an expense paid or clear an incorrect paid state.
+- Added read-only access to the current company's vendor-paid notification setting for safe expense imports.
 
 ## v0.3
 
