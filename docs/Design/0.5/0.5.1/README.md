@@ -6,7 +6,7 @@ The aim is to stop later work from reconstructing the premise from code, old cha
 
 ## Documents
 
-### [0.5.1/Expense-Importing.md](./0.5.1/Expense-Importing.md)
+### [Expense-Importing.md](./Expense-Importing.md)
 
 Accepted architecture for historical Expense import and supplier-account settlement. It locks in:
 
@@ -24,26 +24,3 @@ Accepted architecture for historical Expense import and supplier-account settlem
 - explicit rejection of a GoTradie cache/SQLite side ledger, duplicate settlement Expenses, misuse of customer Payments, and required native partial links.
 
 The document supersedes earlier spreadsheet-dependent or import-run-only allocation designs. The Invoice-Ninja-only integrity test describes the target post-migration architecture; it does not block completion of the current historical importer.
-
-### Command-Line-Spec.md
-
-The existing GoTradie command-line behaviour contract remains authoritative and is not replaced by this package.
-
-Its safety rules continue to apply, especially:
-
-- preview by default;
-- `--commit` as the single persistent-write flag;
-- command grouping and repository/SDK ownership boundaries.
-
-## Working rule
-
-These documents describe deliberate behaviour, not whatever happens to fall out of today's implementation.
-
-When implementation and design disagree:
-
-1. inspect the current GitHub branch and tests;
-2. decide whether the code or the accepted design is wrong;
-3. obtain approval before replacing an accepted invariant;
-4. update code, tests, and affected documentation together.
-
-Do not silently reinterpret a design contract because a nearby function looked persuasive. Functions are excellent at being confident and have never once had to explain themselves to an accountant.
