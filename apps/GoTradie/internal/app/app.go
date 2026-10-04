@@ -16,7 +16,7 @@ import (
 	"github.com/MickMake/GoTradie/internal/syncer"
 )
 
-const version = "v0.5"
+const version = "v0.5.1"
 
 type App struct {
 	Out io.Writer
@@ -667,7 +667,7 @@ func exitCode(results []syncer.Result) int {
 func (a App) usage() {
 	fmt.Fprintln(a.Out, `GoTradie syncs Bunnings products into Invoice Ninja.
 
-Version: v0.5
+Version: v0.5.1
 
 Global options:
   --config <path>       Optional key=value config file. File values override environment variables.

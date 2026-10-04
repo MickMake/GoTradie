@@ -1,6 +1,6 @@
 # GoTradie Command Intention Spec
 
-Version: `v0.5`  
+Version: `v0.5.1`  
 Status: Draft command contract / behaviour lock-in  
 Primary repository: `MickMake/GoTradie`
 

@@ -1,26 +1,47 @@
-# GoTradie Design Documents
+# GoTradie v0.5.1
 
-This directory contains authoritative behaviour and architecture contracts for GoTradie features where intent matters as much as implementation.
+Status: **Closed**
 
-The aim is to stop later work from reconstructing the premise from code, old chats, sedimentary layers, or the position of the moon.
+Branch: `feature/ninja-expense-import-2`  
+PR: `#6`  
+Merge commit: `db579dee2ffe99732b4d80807ba044acc1673247`
+
+## Purpose
+
+`v0.5.1` closes the historical Expense-import and supplier-account settlement work.
+
+The primary goal was to import MickMake historical purchase data into Invoice Ninja safely and idempotently, while preserving enough source and accounting information for BAS/EOFY work.
 
 ## Documents
 
 ### [Expense-Importing.md](./Expense-Importing.md)
 
-Accepted architecture for historical Expense import and supplier-account settlement. It locks in:
+Accepted architecture and bookkeeping model for:
 
-- Invoice Ninja as the durable source of truth after import;
-- spreadsheets as migration sources which may be archived after validation;
-- Expenses as purchase and tax records;
-- Bank Transactions/Transactions as supplier-account withdrawals and settlement records;
-- customer Payments as money received, never supplier payments;
-- deterministic supplier/date/FIFO reconstruction from Invoice Ninja records and stable GoTradie markers;
-- tolerance of intermediate Unpaid state during partial settlement;
-- optional Paid-state tidying only after full settlement;
-- cash and non-cash BAS timing without double-counting;
-- the Bunnings and BlueCarve canonical examples;
-- an Invoice-Ninja-only target architectural/post-migration integrity test;
-- explicit rejection of a GoTradie cache/SQLite side ledger, duplicate settlement Expenses, misuse of customer Payments, and required native partial links.
+- historical purchase Expenses;
+- supplier-account payments;
+- deterministic FIFO settlement;
+- Invoice Ninja as the durable source of truth;
+- stable GoTradie identities;
+- Paid/Unpaid handling;
+- BAS/EOFY separation between purchases and settlement.
 
-The document supersedes earlier spreadsheet-dependent or import-run-only allocation designs. The Invoice-Ninja-only integrity test describes the target post-migration architecture; it does not block completion of the current historical importer.
+### [Expense-Importing-Possible-Scenarios.md](./Expense-Importing-Possible-Scenarios.md)
+
+Deferred scenarios discovered during implementation and review.
+
+These are **not unfinished v0.5.1 requirements** and must not be treated as blockers merely because they are documented.
+
+### [Expense-Importing-Review.md](./Expense-Importing-Review.md)
+
+Historical implementation review retained as evidence of the review process.
+
+Its findings were subsequently triaged. The review itself is not an open work list.
+
+## Closure rule
+
+`v0.5.1` is closed.
+
+New feature work belongs in `v0.5.2` unless a genuine defect is discovered in released `v0.5.1` behaviour.
+
+Do not reopen this slice simply because a later requirement touches the same code.

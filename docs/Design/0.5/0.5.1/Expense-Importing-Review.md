@@ -1,5 +1,24 @@
 # Code review: `feature/ninja-expense-import-2`
 
+> **Historical review snapshot — v0.5.1**
+>
+> This document records the branch review performed before PR #6 was merged.
+> Findings were subsequently triaged and this file is retained as review evidence,
+> not as an open work list.
+>
+> In particular:
+>
+> - F1 overstated the foreign-currency problem: normal Expense creation correctly uses `Business Amount` and `Business GST`; the remaining foreign-currency concern applies to supplier-account settlement arithmetic and is deferred.
+> - F2 was an intentional schema change.
+> - F3 is deliberate fail-safe settlement behaviour.
+> - F4 is an accepted idempotent-rerun recovery model.
+> - F5 is benign.
+> - F6 repository-hygiene suggestions were not adopted as release blockers; `.idea` files and the `build.sh` double `clear` are intentional.
+> - F7 is non-blocking test coverage.
+>
+> Remaining genuinely possible future scenarios are tracked in
+> [Expense-Importing-Possible-Scenarios.md](./Expense-Importing-Possible-Scenarios.md).
+
 ## 1. Branch, status, and intent
 
 **Branch:** `feature/ninja-expense-import-2` (tracks `origin/feature/ninja-expense-import-2`)

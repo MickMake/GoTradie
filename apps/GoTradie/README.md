@@ -2,13 +2,13 @@
 
 `GoTradie` is a small CLI client that connects the local `GoBunnings` and `GoInvoiceNinja` packages.
 
-Version: `v0.5`
+Version: `v0.5.1`
 
 The goal is deliberately modest: refresh Invoice Ninja products from Bunnings product data, add selected Bunnings products safely, and export/import selected Invoice Ninja CSV data without turning the accounts into a surprised octopus.
 
 ## Requirements
 
-- Go `1.22`
+- Go `1.25`
 - Local checkout of `GoBunnings`
 - Local checkout of `GoInvoiceNinja` v0.5 or later
 
@@ -275,4 +275,4 @@ ID, Client ID, Client Name, Invoice ID, Invoice Number, Date, Amount, Applied, R
 
 ## Notes
 
-For complete Invoice Ninja exports, this version uses `GoInvoiceNinja` v0.5 `ListAll` helpers rather than single-page `List` calls.
+For complete Invoice Ninja exports, this version uses `GoInvoiceNinja` v0.5.1 `ListAll` helpers rather than single-page `List` calls.

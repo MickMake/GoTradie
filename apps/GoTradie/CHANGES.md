@@ -3,6 +3,18 @@
 
 ## Unreleased
 
+
+## v0.6 planning docs
+
+- Added supplier import overview document.
+- Added supplier import implementation prompt document.
+- Captured v0.6.x staged implementation plan for supplier CSV/XLSX price list import.
+- Captured proposed `supplier` command family: `init`, `check`, `import`, and `list`.
+- Captured YAML profile model using `input`, `aliases`, and `fields`.
+
+
+## v0.5.1
+
 - Added preview-by-default `ninja import expenses` for the master purchase ledger.
 - Added recursive receipt indexing through `--receipts-root`; `File Name` matches are exact and missing or ambiguous matches are reported.
 - Expense imports preserve source-row idempotency, leave `should_be_invoiced` unset, and name vendors from Supplier plus Store.
@@ -22,14 +34,6 @@
 - Keeps multiple payment dates when an invoice has partial payments across dates.
 - Intentionally isolated: this exists to avoid adding two kitchens to an otherwise well-designed carport.
 - Tax export now writes `Customers.csv`, references customers by ID from `Invoices.csv`, and restores the leading `Type` column in `Detail.csv`.
-
-## v0.6 planning docs
-
-- Added supplier import overview document.
-- Added supplier import implementation prompt document.
-- Captured v0.6.x staged implementation plan for supplier CSV/XLSX price list import.
-- Captured proposed `supplier` command family: `init`, `check`, `import`, and `list`.
-- Captured YAML profile model using `input`, `aliases`, and `fields`.
 
 
 ## v0.5

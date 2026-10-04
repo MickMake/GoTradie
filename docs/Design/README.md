@@ -5,8 +5,11 @@ This directory contains authoritative behaviour and architecture contracts for G
 The aim is to stop later work from reconstructing the premise from code, old chats, sedimentary layers, or the position of the moon.
 
 ## Documents
+### [v0.5 design series](./0.5/README.md)
 
-### [0.5.1/Expense-Importing.md](./0.5.1/Expense-Importing.md)
+Release/slice-specific design and closeout material for the `v0.5.x` series.
+
+### [v0.5.1 Expense Importing](./0.5/0.5.1/Expense-Importing.md)
 
 Accepted architecture for historical Expense import and supplier-account settlement. It locks in:
 
@@ -24,6 +27,11 @@ Accepted architecture for historical Expense import and supplier-account settlem
 - explicit rejection of a GoTradie cache/SQLite side ledger, duplicate settlement Expenses, misuse of customer Payments, and required native partial links.
 
 The document supersedes earlier spreadsheet-dependent or import-run-only allocation designs. The Invoice-Ninja-only integrity test describes the target post-migration architecture; it does not block completion of the current historical importer.
+
+Related v0.5.1 records:
+
+- [Possible Future Scenarios](./0.5/0.5.1/Expense-Importing-Possible-Scenarios.md) — explicitly deferred, non-blocking scenarios.
+- [Implementation Review](./0.5/0.5.1/Expense-Importing-Review.md) — historical review evidence, not an open work list.
 
 ### Command-Line-Spec.md
 

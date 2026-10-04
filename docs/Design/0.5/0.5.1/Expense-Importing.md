@@ -1,7 +1,7 @@
 # Historical Expense Importing and Supplier-Account Settlement
 
-Status: **Accepted architecture and bookkeeping invariant**  
-Software version: Not yet assigned
+Status: **Closed — accepted architecture and bookkeeping invariant**  
+Software version: `v0.5.1`
 
 ## Purpose and authority
 
@@ -32,7 +32,9 @@ The target architecture is not complete until GoTradie can reproduce the require
 
 ## Purchase records: Invoice Ninja Expenses
 
-One source purchase creates one Invoice Ninja Expense. `Invoice`, `Receipt`, and a safely defined `Adjustment` are purchase-side records.
+One source purchase creates one Invoice Ninja Expense.
+
+In `v0.5.1`, `Invoice` and `Receipt` are imported as purchase-side records. `Adjustment` is recognised but deliberately deferred rather than being given invented accounting behaviour. A future version may define Adjustment handling if a real requirement exists.
 
 The Expense owns the analytical and tax meaning of the purchase, including:
 
@@ -69,12 +71,28 @@ Current mapping terminology is preserved:
 | Invoice Number / purchase reference | Transaction Reference |
 | Store, job fields, item detail, source totals, notes, source file | Private Notes or equivalent durable fields |
 | Receipt filename | Private attached document |
+| Card Holder | Not currently imported in v0.5.1 |
 
 Job Number and Child Job Number must remain on the purchase record. A numeric Job Number may additionally resolve to an Invoice Ninja Project, but project linkage must not be the only durable copy.
 
 Receipt uploads remain private (`is_public=false`). `Should be Invoiced` remains OFF/untouched. `Add Documents to Invoice` remains OFF.
 
 An immediately paid purchase remains an Expense and may be marked Paid using its truthful purchase/payment date and Invoice Ninja Payment Type. It must not be duplicated merely to manufacture settlement history.
+
+### Foreign-currency purchase values
+
+GoTradie `v0.5.1` does not perform foreign-exchange conversion.
+
+Where a source purchase is denominated in a foreign currency, the import source is expected to provide the already-converted company-currency accounting values in:
+
+- `Business Amount`;
+- `Business GST`.
+
+These values become the Invoice Ninja Expense amount and tax amount.
+
+`Total Inc GST`, source GST totals, and `$ Currency` remain source metadata and identity inputs.
+
+Foreign-currency supplier-account settlement is a separate deferred scenario documented in [Expense-Importing-Possible-Scenarios.md](./Expense-Importing-Possible-Scenarios.md).
 
 ## Supplier-account payments: Invoice Ninja Bank Transactions
 
@@ -101,6 +119,21 @@ An account payment must never create:
 - a GoTradie-only durable allocation record.
 
 Only Transactions carrying the stable GoTradie supplier-settlement marker may participate in automatic supplier-account settlement. GoTradie must not guess that every unrelated withdrawal to a vaguely similar name is an account payment.
+
+### v0.5.1 settlement safety prerequisites
+
+Supplier `Account Payment` import is deliberately guarded.
+
+When settlement records are present, GoTradie requires:
+
+- exactly one active Invoice Ninja manual bank account named `GoTradie`;
+- that account must not be remote-backed;
+- auto-sync must be disabled;
+- the current Invoice Ninja company must expose a usable default currency;
+- no active auto-convert DEBIT bank rule may be able to turn the imported withdrawal into another Expense;
+- vendor-paid notifications must be disabled before GoTradie performs payment-state writes.
+
+These are safety prerequisites, not a request for GoTradie to create or manage a banking integration.
 
 ## Invoice Ninja Payments are customer receipts
 
@@ -276,7 +309,13 @@ Every imported Expense and supplier Transaction must carry a durable, versioned 
 
 Identity must not depend on the continued presence or filesystem location of the source spreadsheet. Fuzzy matching is not an identity strategy.
 
-Deleted or trashed imported records must be handled explicitly. They must not silently reappear as active duplicates or disappear from reconciliation without an exception.
+Deleted or trashed imported records must be handled explicitly.
+
+In `v0.5.1`, an archived or deleted Expense carrying a GoTradie supplier-account or supplier-purchase marker causes settlement reconstruction to stop until that record is restored or explicitly resolved.
+
+Likewise, an archived or deleted GoTradie-marked supplier Bank Transaction causes settlement reconstruction to stop.
+
+Marked accounting history must not silently disappear from reconciliation or reappear as an active duplicate.
 
 ## Architectural integrity test: Invoice Ninja alone
 
