@@ -18,6 +18,13 @@ type CSVImportResult struct {
 	ID              string
 	Name            string
 	Action          string
+	RowNo           int
+	ImportID        string
+	Date            string
+	Supplier        string
+	BusinessAmount  float64
+	ReceiptName     string
+	DocumentType    string
 	Changes         []string
 	Allocations     []ExpensePaymentAllocation
 	UnappliedAmount float64

@@ -1,6 +1,6 @@
 # GoTradie v0.5.2
 
-Status: **Design drafted — implementation not started**
+Status: **Implemented on `feature/ninja-expense-import-3` — pending review and merge**
 
 ## Purpose
 
@@ -40,9 +40,9 @@ New work must not weaken the accounting and supplier-settlement invariants estab
 
 ## Implementation status
 
-Implementation has not started.
-
-When implementation begins, create a fresh `v0.5.2` implementation branch from current `main` and keep the slice bounded to this design.
+Implementation is complete on `feature/ninja-expense-import-3`, based on the
+current `main` at the start of the slice. It remains unmerged until the pull
+request is reviewed.
 
 ## In scope
 

@@ -58,6 +58,46 @@ func TestCreateBankTransactionRequest(t *testing.T) {
 	}
 }
 
+func TestUpdateBankTransactionRequest(t *testing.T) {
+	var gotMethod, gotPath string
+	var got UpdateBankTransactionRequest
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"id":"transaction1","description":"updated"}}`))
+	}))
+	defer ts.Close()
+
+	c, err := New("token", WithBaseURL(ts.URL), WithHTTPClient(ts.Client()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, err := c.BankTransactions.Update(context.Background(), "transaction1", UpdateBankTransactionRequest{
+		BankIntegrationID: "bank1",
+		CurrencyID:        "currency1",
+		Amount:            394,
+		BaseType:          "DEBIT",
+		Date:              "2026-11-01",
+		Description:       "updated",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotMethod != http.MethodPut || gotPath != "/api/v1/bank_transactions/transaction1" {
+		t.Fatalf("unexpected request: %s %s", gotMethod, gotPath)
+	}
+	if got.BankIntegrationID != "bank1" || got.CurrencyID != "currency1" || got.Amount != 394 || got.Description != "updated" {
+		t.Fatalf("unexpected request body: %#v", got)
+	}
+	if updated.ID != "transaction1" || updated.Description != "updated" {
+		t.Fatalf("unexpected transaction: %#v", updated)
+	}
+}
+
 func TestBankQueriesPreserveSafetyFilters(t *testing.T) {
 	if got := (BankIntegrationQuery{ListOptions: ListOptions{Status: "active"}}).Values().Get("status"); got != "active" {
 		t.Fatalf("bank integration status = %q", got)

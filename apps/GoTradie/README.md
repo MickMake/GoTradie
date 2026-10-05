@@ -2,13 +2,13 @@
 
 `GoTradie` is a small CLI client that connects the local `GoBunnings` and `GoInvoiceNinja` packages.
 
-Version: `v0.5.1`
+Version: `v0.5.2`
 
 The goal is deliberately modest: refresh Invoice Ninja products from Bunnings product data, add selected Bunnings products safely, and export/import selected Invoice Ninja CSV data without turning the accounts into a surprised octopus.
 
 ## Requirements
 
-- Go `1.25`
+- Go `1.22`
 - Local checkout of `GoBunnings`
 - Local checkout of `GoInvoiceNinja` v0.5 or later
 
@@ -205,14 +205,25 @@ clients
 expenses
 ```
 
-Expense imports can recursively index a receipt directory. Each non-empty
-`File Name` value must match one filename exactly; missing and duplicate
-matches are reported without guessing.
+Expense imports require a named CSV file and a non-blank, file-unique
+`Import ID` for every non-empty row. The complete file is preflighted before
+execution, then each row and a final summary are reported. Stdin is not
+accepted for Expense imports.
+
+A receipt directory can be indexed recursively. Each non-empty `File Name`
+must match one filename exactly; missing and duplicate matches are reported
+without guessing. Reused receipt content is uploaded once with durable
+ownership recorded in Invoice Ninja.
 
 ```bash
 GoTradie ninja import expenses purchases.csv --receipts-root receipts
 GoTradie ninja import expenses purchases.csv --receipts-root receipts --commit
+GoTradie ninja import expenses purchases.csv --batch-size 100 --pause --commit
 ```
+
+`--batch-size` and optional `--pause` apply to ordinary Expense-only files.
+Any file containing Account Payment rows uses settlement-safe whole-file
+execution so batching cannot change supplier FIFO settlement.
 
 Quote, invoice, and payment commands are export-only.
 

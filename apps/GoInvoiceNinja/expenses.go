@@ -158,7 +158,30 @@ type CreateExpenseRequest struct {
 	CustomValue4         string  `json:"custom_value4,omitempty"`
 }
 
-type UpdateExpenseRequest CreateExpenseRequest
+// UpdateExpenseRequest deliberately keeps accounting values in the JSON even
+// when they are zero so corrections can clear a previously non-zero amount or
+// tax value. Fields outside this focused set remain untouched by the API.
+type UpdateExpenseRequest struct {
+	VendorID             string  `json:"vendor_id"`
+	ProjectID            string  `json:"project_id"`
+	CategoryID           string  `json:"category_id"`
+	Amount               float64 `json:"amount"`
+	Date                 string  `json:"date"`
+	PaymentDate          string  `json:"payment_date"`
+	PaymentTypeID        string  `json:"payment_type_id"`
+	PrivateNotes         string  `json:"private_notes"`
+	TransactionReference string  `json:"transaction_reference"`
+	TaxName1             string  `json:"tax_name1"`
+	TaxRate1             float64 `json:"tax_rate1"`
+	TaxAmount1           float64 `json:"tax_amount1"`
+	UsesInclusiveTaxes   bool    `json:"uses_inclusive_taxes"`
+	CalculateTaxByAmount bool    `json:"calculate_tax_by_amount"`
+	InvoiceDocuments     *bool   `json:"invoice_documents,omitempty"`
+	CustomValue1         string  `json:"custom_value1"`
+	CustomValue2         string  `json:"custom_value2"`
+	CustomValue3         string  `json:"custom_value3"`
+	CustomValue4         string  `json:"custom_value4"`
+}
 
 // ExpensePaymentStatusRequest deliberately includes empty values so callers can
 // clear an expense's paid state as well as set it.

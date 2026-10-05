@@ -159,6 +159,14 @@ func TestLoadExpenseImportStateSettlementExpenseArchiveSafety(t *testing.T) {
 			},
 		},
 		{
+			name: "archived Import ID",
+			expense: invoiceninja.Expense{
+				Entity:       invoiceninja.Entity{ID: "expense1", ArchivedAt: 1},
+				PrivateNotes: importIDMarker("EXP-1"),
+			},
+			wantError: "restore or explicitly resolve",
+		},
+		{
 			name: "unmarked deleted",
 			expense: invoiceninja.Expense{
 				Entity:       invoiceninja.Entity{ID: "expense1", IsDeleted: true},
@@ -361,9 +369,9 @@ func TestSupplierSettlementNotificationPreflightFailsBeforeWrites(t *testing.T) 
 	defer ts.Close()
 
 	csv := strings.Join([]string{
-		"Date,Supplier,Store,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST,Invoice Number",
-		"1/10/2026,Bunnings,Dural,Invoice,,Expense - Materials,Materials,Consumables,71.84,100,71.84,6.53,INV-1",
-		"1/11/2026,Bunnings,Dural,Account Payment,Visa Card,formula,formula,formula,71.84,formula,formula,formula,PAY-1",
+		"Import ID,Date,Supplier,Store,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST,Invoice Number",
+		"expense-1,1/10/2026,Bunnings,Dural,Invoice,,Expense - Materials,Materials,Consumables,71.84,100,71.84,6.53,INV-1",
+		"payment-1,1/11/2026,Bunnings,Dural,Account Payment,Visa Card,formula,formula,formula,71.84,formula,formula,formula,PAY-1",
 	}, "\n")
 	_, err := newExpenseImportTestService(t, ts).ImportExpensesCSV(context.Background(), strings.NewReader(csv), false, "")
 	if err == nil || !strings.Contains(err.Error(), "notify_vendor_when_paid") {
@@ -371,6 +379,50 @@ func TestSupplierSettlementNotificationPreflightFailsBeforeWrites(t *testing.T) 
 	}
 	if mutationCount != 0 {
 		t.Fatalf("writes occurred before failed notification preflight: %d", mutationCount)
+	}
+}
+
+func TestSettlementCommitStopsBeforePaymentWhenPurchaseWriteFails(t *testing.T) {
+	var transactionCreates int
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/vendors":
+			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings - Dural"}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expense_categories":
+			_, _ = w.Write([]byte(`{"data":[{"id":"category1","name":"Materials"}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/projects" || r.URL.Path == "/api/v1/expenses" || r.URL.Path == "/api/v1/quotes"):
+			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/statics":
+			_, _ = w.Write([]byte(`{"payment_types":[{"id":"5","name":"Visa Card"}]}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/bank_integrations":
+			_, _ = w.Write([]byte(`{"data":[{"id":"bank1","bank_account_name":"GoTradie"}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/bank_transactions" || r.URL.Path == "/api/v1/bank_transaction_rules"):
+			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/companies/current":
+			_, _ = w.Write([]byte(`{"data":{"id":"company1","settings":{"currency_id":"company-currency"},"notify_vendor_when_paid":false}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/expenses":
+			http.Error(w, "purchase write failed", http.StatusInternalServerError)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/bank_transactions":
+			transactionCreates++
+			http.Error(w, "must not run", http.StatusInternalServerError)
+		default:
+			http.Error(w, r.Method+" "+r.URL.String(), http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	csv := strings.Join([]string{
+		"Import ID,Date,Supplier,Store,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST,Invoice Number",
+		"expense-1,1/10/2026,Bunnings,Dural,Invoice,,Expense - Materials,Materials,Consumables,71.84,100,71.84,6.53,INV-1",
+		"payment-1,1/11/2026,Bunnings,Dural,Account Payment,Visa Card,formula,formula,formula,71.84,formula,formula,formula,PAY-1",
+	}, "\n")
+	_, err := newExpenseImportTestService(t, ts).ImportExpensesCSV(context.Background(), strings.NewReader(csv), false, "")
+	if err == nil || !strings.Contains(err.Error(), "settlement-safe execution stopped after purchase row") {
+		t.Fatalf("settlement failure = %v", err)
+	}
+	if transactionCreates != 0 {
+		t.Fatalf("created %d transactions after purchase failure", transactionCreates)
 	}
 }
 
@@ -497,6 +549,68 @@ func TestMatchingExistingAccountPaymentTransactionIsUnchanged(t *testing.T) {
 	result := (&Service{}).importAccountPaymentRow(context.Background(), state, row, false)
 	if result.Action != "unchanged" || result.ID != "transaction1" {
 		t.Fatalf("existing transaction result = %#v", result)
+	}
+}
+
+func TestLegacyAccountPaymentPersistsImportIDMarker(t *testing.T) {
+	var request invoiceninja.UpdateBankTransactionRequest
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != http.MethodPut || r.URL.Path != "/api/v1/bank_transactions/transaction1" {
+			http.Error(w, r.Method+" "+r.URL.String(), http.StatusNotFound)
+			return
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Error(err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": "transaction1", "description": request.Description}})
+	}))
+	defer ts.Close()
+
+	row := settlementTestPayment("Bunnings", "2026-11-01", importIDMarker("PAY-1"), 7184)
+	row.rowNo = 2
+	row.importID = "PAY-1"
+	row.existingTransaction = &invoiceninja.BankTransaction{
+		Entity:            invoiceninja.Entity{ID: "transaction1"},
+		BankIntegrationID: "bank1",
+		CurrencyID:        "currency1",
+		Amount:            71.84,
+		BaseType:          "DEBIT",
+		Date:              "2026-11-01",
+		Description:       "legacy settlement",
+		ParticipantName:   "Bunnings",
+	}
+	state := &expenseImportState{transactionByMarker: map[string]invoiceninja.BankTransaction{}}
+	result := newExpenseImportTestService(t, ts).importAccountPaymentRow(context.Background(), state, row, false)
+	if result.Error != nil || result.Action != "updated" {
+		t.Fatalf("result = %#v", result)
+	}
+	if !strings.Contains(request.Description, importIDMarker("PAY-1")) || !strings.Contains(request.Description, "GoTradie Import ID: PAY-1") {
+		t.Fatalf("updated description = %q", request.Description)
+	}
+}
+
+func TestImportIDTransactionMatchTakesPrecedenceOverLegacyFallback(t *testing.T) {
+	row := settlementTestPayment("Bunnings", "2026-11-01", importIDMarker("PAY-1"), 7184)
+	row.rowNo = 2
+	row.importID = "PAY-1"
+	row.legacyMarker = "[GoTradie account-payment:v3:legacy]"
+	transaction := func(id string) invoiceninja.BankTransaction {
+		return invoiceninja.BankTransaction{
+			Entity:   invoiceninja.Entity{ID: id},
+			Amount:   71.84,
+			BaseType: "DEBIT",
+			Date:     "2026-11-01",
+		}
+	}
+	state := &expenseImportState{transactionByMarker: map[string]invoiceninja.BankTransaction{
+		row.sourceMarker: transaction("import-id-transaction"),
+		row.legacyMarker: transaction("legacy-transaction"),
+	}}
+
+	validateExistingTransactionIdentities(state, []*preparedExpenseImportRow{row})
+	if row.err != nil || row.existingTransaction == nil || row.existingTransaction.ID != "import-id-transaction" {
+		t.Fatalf("existing transaction = %#v, err=%v", row.existingTransaction, row.err)
 	}
 }
 
@@ -765,8 +879,8 @@ func newExpenseImportTestService(t *testing.T, ts *httptest.Server) *Service {
 
 func testAccountPaymentCSV() string {
 	return strings.Join([]string{
-		"Date,Supplier,Store,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST,Invoice Number,File Name",
-		"1/11/2026,Bunnings,Dural,Account Payment,Visa Card,formula,formula,formula,71.84,formula,formula,formula,PAY-1,payment.pdf",
+		"Import ID,Date,Supplier,Store,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST,Invoice Number,File Name",
+		"payment-1,1/11/2026,Bunnings,Dural,Account Payment,Visa Card,formula,formula,formula,71.84,formula,formula,formula,PAY-1,payment.pdf",
 	}, "\n")
 }
 

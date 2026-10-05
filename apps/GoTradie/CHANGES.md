@@ -3,6 +3,19 @@
 
 ## Unreleased
 
+- Implemented the v0.5.2 Expense-import UX with required durable `Import ID`
+  identity, named-file-only input and complete local preflight before remote
+  reads or writes.
+- Added arithmetic and suspicious-duplicate warnings, live per-row progress,
+  richer error context, truthful preview states and final summaries.
+- Added configurable sequential batches and optional pauses for ordinary
+  Expense-only files while retaining whole-file supplier settlement whenever
+  Account Payment rows are present.
+- Added correction-by-`Import ID`, legacy v0.5.1 identity migration and
+  content-derived receipt deduplication with durable owner markers.
+- Preserved integer-cent FIFO settlement, stopped settlement execution after a
+  failed prerequisite write, and added no checkpoint database or concurrent
+  mutation path.
 
 ## v0.6 planning docs
 

@@ -335,18 +335,27 @@ Invoice Ninja import commands
       Stdin example:
         cat clients.csv | GoTradie ninja import clients -
 
-  ninja import expenses <file|-> [--receipts-root <dir>] [--commit]
-      Preview or create purchase-ledger expenses in Invoice Ninja.
+  ninja import expenses <file> [--receipts-root <dir>] [--batch-size <n>] [--pause] [--commit]
+      Preflight, preview or create purchase-ledger expenses in Invoice Ninja.
+      Import ID is required, non-blank and unique for every non-empty row.
+      Expense import requires a named file; stdin is not supported.
       A receipts root is indexed recursively. File Name matching is exact;
       missing or ambiguous matches are reported and never guessed.
+      Receipt content is uploaded once and its owner is recorded durably.
       Numeric Job Number values link an existing project or create one from
       the matching master quote client.
+      --batch-size applies only to ordinary Expense-only files. --pause asks
+      before each later batch. Account Payment rows always use settlement-safe
+      whole-file execution, regardless of batch size.
 
       Example preview:
         GoTradie ninja import expenses purchases.csv --receipts-root receipts
 
       Example commit:
         GoTradie ninja import expenses purchases.csv --receipts-root receipts --commit
+
+      Example batched commit:
+        GoTradie ninja import expenses purchases.csv --batch-size 100 --pause --commit
 
 Deprecated or rejected command forms
 

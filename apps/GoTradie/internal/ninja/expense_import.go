@@ -3,6 +3,7 @@ package ninja
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/csv"
 	"encoding/hex"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 )
 
 var expenseImportRequiredColumns = []string{
+	"Import ID",
 	"Date",
 	"Supplier",
 	"Document Type",
@@ -38,6 +40,9 @@ const (
 	documentTypeAdjustment     = "Adjustment"
 	documentTypeAccountPayment = "Account Payment"
 	goTradieBankAccountName    = "GoTradie"
+	importIDMarkerPrefix       = "[GoTradie import-id:v1:"
+	receiptMarkerPrefix        = "[GoTradie receipt:v1:"
+	receiptOwnerMarker         = "[GoTradie receipt-owner:v1]"
 )
 
 // ExpensePaymentAllocation is the deterministic, in-memory link between a
@@ -72,6 +77,8 @@ type expenseImportState struct {
 	transactionByMarker         map[string]invoiceninja.BankTransaction
 	ambiguousTransactionMarkers map[string]bool
 	bankTransactionRules        []invoiceninja.BankTransactionRule
+	receiptOwnerByKey           map[string]invoiceninja.Expense
+	receiptOwnerAmbiguous       map[string]bool
 }
 
 type importedExpenseState struct {
@@ -88,6 +95,7 @@ type importedExpenseState struct {
 type preparedExpenseImportRow struct {
 	rec                      []string
 	rowNo                    int
+	importID                 string
 	documentType             string
 	supplier                 string
 	date                     string
@@ -103,6 +111,9 @@ type preparedExpenseImportRow struct {
 	reference                string
 	receiptName              string
 	receiptPath              string
+	receiptKey               string
+	receiptOwner             bool
+	receiptHasDocument       bool
 	businessPct              float64
 	businessAmount           float64
 	businessGST              float64
@@ -131,32 +142,32 @@ type receiptIndex map[string][]string
 // rows become marked withdrawal Transactions; deterministic allocations may
 // only change the paid fields of a fully covered purchase Expense.
 func (s *Service) ImportExpensesCSV(ctx context.Context, r io.Reader, dryRun bool, receiptsRoot string) ([]CSVImportResult, error) {
+	return s.ImportExpensesCSVWithOptions(ctx, r, ExpenseImportOptions{
+		DryRun:       dryRun,
+		ReceiptsRoot: receiptsRoot,
+	})
+}
+
+// ImportExpensesCSVWithOptions implements the v0.5.2 whole-file preflight,
+// progress and batching contract while retaining ImportExpensesCSV for callers
+// that do not need operational callbacks.
+func (s *Service) ImportExpensesCSVWithOptions(ctx context.Context, r io.Reader, options ExpenseImportOptions) ([]CSVImportResult, error) {
 	cr := csv.NewReader(r)
 	cr.FieldsPerRecord = -1
 	recs, err := cr.ReadAll()
 	if err != nil {
 		return nil, err
 	}
-	if len(recs) == 0 {
-		return nil, fmt.Errorf("CSV is empty")
-	}
 
-	idx := headerIndex(recs[0])
-	for _, name := range expenseImportRequiredColumns {
-		if _, ok := idx[name]; !ok {
-			return nil, fmt.Errorf("missing required column %q", name)
-		}
+	preflight := preflightExpenseSource(recs, options.ReceiptsRoot, options.BatchSize)
+	if options.OnPreflight != nil {
+		options.OnPreflight(preflight.report)
 	}
-	if strings.TrimSpace(receiptsRoot) != "" {
-		if _, ok := idx["File Name"]; !ok {
-			return nil, fmt.Errorf("missing required column %q when --receipts-root is used", "File Name")
-		}
+	if len(preflight.report.Errors) > 0 {
+		return nil, &ExpenseImportPreflightError{Report: preflight.report}
 	}
-
-	receipts, err := indexReceipts(receiptsRoot)
-	if err != nil {
-		return nil, err
-	}
+	idx := preflight.index
+	receipts := preflight.receipts
 
 	settlementEnabled := expenseCSVNeedsSettlement(recs[1:], idx)
 	state, err := s.loadExpenseImportState(ctx, settlementEnabled)
@@ -169,11 +180,18 @@ func (s *Service) ImportExpensesCSV(ctx context.Context, r io.Reader, dryRun boo
 		if emptyRecord(rec) {
 			continue
 		}
-		rows = append(rows, prepareExpenseImportRow(state, receipts, idx, rec, rowNo+2))
+		row := prepareExpenseImportRow(state, receipts, idx, rec, rowNo+2)
+		if row.receiptPath != "" {
+			row.receiptKey = preflight.receiptKeys[row.receiptPath]
+		}
+		rows = append(rows, row)
 	}
 	assignExpenseRowIdentities(rows)
 	validateExistingExpenseIdentities(state, rows)
 	validateExistingTransactionIdentities(state, rows)
+	if err := validateAndAssignReceiptOwnership(state, rows); err != nil {
+		return nil, err
+	}
 	settlementActions, err := allocateAccountPayments(state, rows, false)
 	if err != nil {
 		return nil, err
@@ -181,32 +199,76 @@ func (s *Service) ImportExpensesCSV(ctx context.Context, r io.Reader, dryRun boo
 	if err := preflightBankTransactionRules(state, rows); err != nil {
 		return nil, err
 	}
-	if err := s.preflightExpensePaymentNotifications(ctx, state, rows, settlementActions, dryRun); err != nil {
+	if err := s.preflightExpensePaymentNotifications(ctx, state, rows, settlementActions, options.DryRun); err != nil {
 		return nil, err
 	}
 
-	if dryRun {
+	if options.DryRun {
 		results := make([]CSVImportResult, len(rows))
-		for i, row := range rows {
-			results[i] = s.previewExpenseImportRow(ctx, state, idx, row)
+		batchSize := effectiveExpenseBatchSize(len(rows), options.BatchSize, settlementEnabled)
+		for start, batchNumber := 0, 1; start < len(rows); start, batchNumber = start+batchSize, batchNumber+1 {
+			end := minInt(start+batchSize, len(rows))
+			for i := start; i < end; i++ {
+				results[i] = s.previewExpenseImportRow(ctx, state, idx, rows[i])
+				emitExpenseProgress(options, i+1, len(rows), results[i])
+			}
+			if err := completeExpenseBatch(options, preflight.report.Mode, batchNumber, results[start:end], end == len(rows)); err != nil {
+				return results[:end], err
+			}
 		}
 		return append(results, previewRemoteSettlementActions(settlementActions)...), nil
+	}
+	if !settlementEnabled {
+		results := make([]CSVImportResult, len(rows))
+		batchSize := effectiveExpenseBatchSize(len(rows), options.BatchSize, false)
+		for start, batchNumber := 0, 1; start < len(rows); start, batchNumber = start+batchSize, batchNumber+1 {
+			end := minInt(start+batchSize, len(rows))
+			for i := start; i < end; i++ {
+				row := rows[i]
+				switch {
+				case row.err != nil || row.duplicateRow != 0 || row.documentType == documentTypeAdjustment:
+					results[i] = s.previewExpenseImportRow(ctx, state, idx, row)
+				case isPurchaseRow(row):
+					results[i] = s.importExpenseRow(ctx, state, idx, row, false, false)
+				default:
+					results[i] = unsupportedExpenseImportRow(row)
+				}
+				emitExpenseProgress(options, i+1, len(rows), results[i])
+			}
+			if err := completeExpenseBatch(options, preflight.report.Mode, batchNumber, results[start:end], end == len(rows)); err != nil {
+				return results[:end], err
+			}
+		}
+		return results, nil
 	}
 
 	// Commit in three stages: purchases without speculative supplier settlement,
 	// durable withdrawal Transactions, then derived Paid/Unpaid state.
 	results := make([]CSVImportResult, len(rows))
+	progressIndex := 0
+	emitSettlementProgress := func(result CSVImportResult) {
+		progressIndex++
+		emitExpenseProgress(options, progressIndex, len(rows), result)
+	}
 	for i, row := range rows {
 		if row.err != nil || row.duplicateRow != 0 || row.documentType == documentTypeAdjustment {
 			results[i] = s.previewExpenseImportRow(ctx, state, idx, row)
+			emitSettlementProgress(results[i])
 			continue
 		}
 		if isPurchaseRow(row) {
 			results[i] = s.importExpenseRow(ctx, state, idx, row, false, true)
+			emitSettlementProgress(results[i])
 			continue
 		}
 		if row.documentType != documentTypeAccountPayment {
 			results[i] = unsupportedExpenseImportRow(row)
+			emitSettlementProgress(results[i])
+		}
+	}
+	for i, row := range rows {
+		if isPurchaseRow(row) && results[i].Error != nil {
+			return results, fmt.Errorf("settlement-safe execution stopped after purchase row %d failed; correct the error and rerun the original import: %w", row.rowNo, results[i].Error)
 		}
 	}
 	for i, row := range rows {
@@ -214,6 +276,10 @@ func (s *Service) ImportExpensesCSV(ctx context.Context, r io.Reader, dryRun boo
 			continue
 		}
 		results[i] = s.importAccountPaymentRow(ctx, state, row, false)
+		emitSettlementProgress(results[i])
+		if results[i].Error != nil {
+			return results, fmt.Errorf("settlement-safe execution stopped after Account Payment row %d failed; correct the error and rerun the original import: %w", row.rowNo, results[i].Error)
+		}
 	}
 
 	committedActions, err := allocateAccountPayments(state, rows, true)
@@ -261,11 +327,8 @@ func (s *Service) loadExpenseImportState(ctx context.Context, settlementEnabled 
 		return nil, fmt.Errorf("list projects: %w", err)
 	}
 	expenseQuery := invoiceninja.ExpenseQuery{
-		ListOptions: invoiceninja.ListOptions{PerPage: 100, Include: []string{"documents"}},
-	}
-	if settlementEnabled {
-		expenseQuery.Status = "active,archived,deleted"
-		expenseQuery.WithTrashed = true
+		ListOptions: invoiceninja.ListOptions{PerPage: 100, Include: []string{"documents"}, Status: "active,archived,deleted"},
+		WithTrashed: true,
 	}
 	expenses, err := s.client.Expenses.ListAll(ctx, expenseQuery)
 	if err != nil {
@@ -296,6 +359,8 @@ func (s *Service) loadExpenseImportState(ctx context.Context, settlementEnabled 
 		seenMarkers:                 make(map[string]int),
 		transactionByMarker:         make(map[string]invoiceninja.BankTransaction),
 		ambiguousTransactionMarkers: make(map[string]bool),
+		receiptOwnerByKey:           make(map[string]invoiceninja.Expense),
+		receiptOwnerAmbiguous:       make(map[string]bool),
 	}
 	for _, vendor := range vendors {
 		state.vendors[key(vendor.Name)] = vendor
@@ -326,19 +391,26 @@ func (s *Service) loadExpenseImportState(ctx context.Context, settlementEnabled 
 		state.paymentTypes[name] = paymentType
 	}
 	for _, expense := range expenses {
+		sourceMarker := sourceMarkerFromNotes(expense.PrivateNotes)
 		supplierMarker := supplierAccountMarkerFromText(expense.PrivateNotes)
 		purchaseMarker := settlementPurchaseMarkerFromText(expense.PrivateNotes)
+		if err := registerExistingReceiptState(state, expense); err != nil {
+			return nil, err
+		}
+		if (expense.IsDeleted || expense.ArchivedAt != 0) && strings.HasPrefix(sourceMarker, importIDMarkerPrefix) {
+			return nil, fmt.Errorf("Import ID marker on Invoice Ninja Expense %q is archived or deleted; restore or explicitly resolve it before importing again", expense.ID)
+		}
 		if settlementEnabled && (expense.IsDeleted || expense.ArchivedAt != 0) && (supplierMarker != "" || purchaseMarker != "") {
 			return nil, fmt.Errorf("marked supplier-account Expense %q is archived or deleted; restore or explicitly resolve it before importing again", expense.ID)
 		}
 		if expense.IsDeleted || expense.ArchivedAt != 0 {
 			continue
 		}
-		if marker := sourceMarkerFromNotes(expense.PrivateNotes); marker != "" {
-			addExpenseMarker(state, marker, expense)
+		if sourceMarker != "" {
+			addExpenseMarker(state, sourceMarker, expense)
 			state.importedExpenses = append(state.importedExpenses, importedExpenseState{
 				expense:                  expense,
-				marker:                   marker,
+				marker:                   sourceMarker,
 				baseMarker:               expensePurchaseBaseMarker(expense, state.vendorByID),
 				supplier:                 expenseSourceSupplier(expense, state.vendorByID),
 				date:                     expense.Date,
@@ -402,14 +474,15 @@ func indexImportedExpenseIdentities(state *expenseImportState) {
 
 func legacyExpenseSourceMarker(expense invoiceninja.Expense, vendors map[string]invoiceninja.Vendor) string {
 	marker := sourceMarkerFromNotes(expense.PrivateNotes)
-	if marker == "" || strings.HasPrefix(marker, "[GoTradie source:v2:") {
+	if marker == "" || strings.HasPrefix(marker, "[GoTradie source:v2:") || strings.HasPrefix(marker, importIDMarkerPrefix) {
 		return ""
 	}
 	return expensePurchaseBaseMarker(expense, vendors)
 }
 
 func expensePurchaseBaseMarker(expense invoiceninja.Expense, vendors map[string]invoiceninja.Vendor) string {
-	if sourceMarkerFromNotes(expense.PrivateNotes) == "" {
+	marker := sourceMarkerFromNotes(expense.PrivateNotes)
+	if marker == "" || strings.HasPrefix(marker, importIDMarkerPrefix) {
 		return ""
 	}
 	vendor, ok := vendors[expense.VendorID]
@@ -459,6 +532,7 @@ func sourceRowFromNotes(notes string) int {
 }
 
 func prepareExpenseImportRow(state *expenseImportState, receipts receiptIndex, idx map[string]int, rec []string, rowNo int) *preparedExpenseImportRow {
+	importID := strings.TrimSpace(cell(rec, idx, "Import ID"))
 	supplier := cell(rec, idx, "Supplier")
 	store := cell(rec, idx, "Store")
 	vendorName := expenseVendorName(supplier, store)
@@ -470,6 +544,7 @@ func prepareExpenseImportRow(state *expenseImportState, receipts receiptIndex, i
 	row := &preparedExpenseImportRow{
 		rec:          rec,
 		rowNo:        rowNo,
+		importID:     importID,
 		documentType: strings.TrimSpace(cell(rec, idx, "Document Type")),
 		supplier:     supplier,
 		name:         name,
@@ -479,16 +554,14 @@ func prepareExpenseImportRow(state *expenseImportState, receipts receiptIndex, i
 		reference:    cell(rec, idx, "Invoice Number"),
 		receiptName:  strings.TrimSpace(cell(rec, idx, "File Name")),
 	}
+	if importID != "" {
+		row.sourceBaseMarker = importIDMarker(importID)
+		row.sourceMarker = row.sourceBaseMarker
+	}
 	if row.documentType == documentTypeInvoice || row.documentType == documentTypeReceipt {
 		row.legacyMarker = sourceMarker(rec)
 		row.duplicateMarker = purchaseDuplicateMarker(rec, idx)
 	}
-	if row.documentType == documentTypeAdjustment {
-		row.name = strings.TrimSpace(supplier + " adjustment")
-		row.deferred = true
-		return row
-	}
-
 	if supplier == "" {
 		row.err = fmt.Errorf("row %d: Supplier is required", rowNo)
 		return row
@@ -499,6 +572,14 @@ func prepareExpenseImportRow(state *expenseImportState, receipts receiptIndex, i
 		return row
 	}
 	row.date = date
+	if row.documentType == documentTypeAdjustment {
+		row.name = strings.TrimSpace(supplier + " adjustment")
+		row.deferred = true
+		if amount, parseErr := parseExpenseMoney(cell(rec, idx, "Business Amount")); parseErr == nil {
+			row.businessAmount = amount
+		}
+		return row
+	}
 
 	switch row.documentType {
 	case documentTypeInvoice, documentTypeReceipt:
@@ -523,13 +604,18 @@ func prepareExpenseImportRow(state *expenseImportState, receipts receiptIndex, i
 		}
 		row.grossCents = moneyCents(gross)
 		row.grossKnown = true
+		row.businessAmount = gross
 		if row.grossCents <= 0 {
 			row.err = fmt.Errorf("row %d: Account Payment Total Inc GST must be greater than zero", rowNo)
 			return row
 		}
 		row.unappliedCents = row.grossCents
-		row.sourceBaseMarker = accountPaymentBaseMarker(row)
-		row.sourceMarker = row.sourceBaseMarker
+		if row.importID == "" {
+			row.sourceBaseMarker = accountPaymentBaseMarker(row)
+			row.sourceMarker = row.sourceBaseMarker
+		} else {
+			row.legacyMarker = accountPaymentBaseMarker(row)
+		}
 		return row
 	case documentTypeAdjustment:
 		return row
@@ -543,9 +629,15 @@ func prepareExpenseImportRow(state *expenseImportState, receipts receiptIndex, i
 }
 
 func preparePurchaseRow(state *expenseImportState, receipts receiptIndex, idx map[string]int, row *preparedExpenseImportRow) *preparedExpenseImportRow {
-	row.sourceBaseMarker = purchaseSourceMarker(row.rec, idx, row.date)
-	row.sourceMarker = row.sourceBaseMarker
-	row.legacyMarker = sourceMarker(row.rec)
+	if row.importID == "" {
+		row.sourceBaseMarker = purchaseSourceMarker(row.rec, idx, row.date)
+		row.sourceMarker = row.sourceBaseMarker
+	}
+	if row.importID == "" {
+		row.legacyMarker = sourceMarker(row.rec)
+	} else {
+		row.legacyMarker = purchaseSourceMarker(row.rec, idx, row.date)
+	}
 	if row.categoryName == "" {
 		row.err = fmt.Errorf("row %d: Category is required", row.rowNo)
 		return row
@@ -605,10 +697,21 @@ func preparePurchaseRow(state *expenseImportState, receipts receiptIndex, idx ma
 
 func assignExpenseRowIdentities(rows []*preparedExpenseImportRow) {
 	markExactPurchaseDuplicates(rows)
+	for _, row := range rows {
+		if row.importID == "" {
+			continue
+		}
+		row.sourceBaseMarker = importIDMarker(row.importID)
+		row.sourceMarker = row.sourceBaseMarker
+		if isPurchaseRow(row) && row.paymentType == "" {
+			row.supplierAccountMarker = supplierAccountMarker(row.supplier)
+			row.settlementPurchaseMarker = settlementPurchaseMarker(row.sourceMarker)
+		}
+	}
 
 	purchaseGroups := make(map[string][]*preparedExpenseImportRow)
 	for _, row := range rows {
-		if !isPurchaseRow(row) || row.duplicateRow != 0 || row.sourceBaseMarker == "" {
+		if row.importID != "" || !isPurchaseRow(row) || row.duplicateRow != 0 || row.sourceBaseMarker == "" {
 			continue
 		}
 		purchaseGroups[row.sourceBaseMarker] = append(purchaseGroups[row.sourceBaseMarker], row)
@@ -627,7 +730,7 @@ func assignExpenseRowIdentities(rows []*preparedExpenseImportRow) {
 	paymentGroups := make(map[string][]*preparedExpenseImportRow)
 	exactPayments := make(map[string][]*preparedExpenseImportRow)
 	for _, row := range rows {
-		if row.documentType != documentTypeAccountPayment || row.err != nil || row.sourceBaseMarker == "" {
+		if row.importID != "" || row.documentType != documentTypeAccountPayment || row.err != nil || row.sourceBaseMarker == "" {
 			continue
 		}
 		exactKey := strings.Join(trimmedValues(row.rec), "\x00")
@@ -646,7 +749,7 @@ func assignExpenseRowIdentities(rows []*preparedExpenseImportRow) {
 		}
 	}
 	for _, row := range rows {
-		if row.documentType != documentTypeAccountPayment || row.err != nil || row.sourceBaseMarker == "" {
+		if row.importID != "" || row.documentType != documentTypeAccountPayment || row.err != nil || row.sourceBaseMarker == "" {
 			continue
 		}
 		paymentGroups[row.sourceBaseMarker] = append(paymentGroups[row.sourceBaseMarker], row)
@@ -662,7 +765,7 @@ func assignExpenseRowIdentities(rows []*preparedExpenseImportRow) {
 func markExactPurchaseDuplicates(rows []*preparedExpenseImportRow) {
 	seen := make(map[string]int)
 	for _, row := range rows {
-		if !isPurchaseRow(row) || row.duplicateMarker == "" {
+		if row.importID != "" || !isPurchaseRow(row) || row.duplicateMarker == "" {
 			continue
 		}
 		if previous, ok := seen[row.duplicateMarker]; ok {
@@ -699,6 +802,17 @@ func validateExistingExpenseIdentities(state *expenseImportState, rows []*prepar
 }
 
 func existingExpenseForRow(state *expenseImportState, row *preparedExpenseImportRow) (invoiceninja.Expense, bool, bool) {
+	// The v0.5.1 legacy marker is only a migration fallback. Once an Import ID
+	// marker exists, it is authoritative even when mutable source fields happen
+	// to resemble a different legacy record.
+	if row.importID != "" {
+		if state.ambiguousMarkers[row.sourceMarker] {
+			return invoiceninja.Expense{}, false, true
+		}
+		if existing, ok := state.expenseByMarker[row.sourceMarker]; ok {
+			return existing, true, false
+		}
+	}
 	if row.legacyMarker != "" {
 		if existing, ok := state.expenseByMarker[row.legacyMarker]; ok {
 			return existing, true, false
@@ -707,8 +821,10 @@ func existingExpenseForRow(state *expenseImportState, row *preparedExpenseImport
 			return invoiceninja.Expense{}, false, true
 		}
 	}
-	if existing, ok := state.expenseByMarker[row.sourceMarker]; ok {
-		return existing, true, false
+	if row.importID == "" {
+		if existing, ok := state.expenseByMarker[row.sourceMarker]; ok {
+			return existing, true, false
+		}
 	}
 	if state.ambiguousMarkers[row.sourceMarker] || state.ambiguousBases[row.sourceBaseMarker] {
 		return invoiceninja.Expense{}, false, true
@@ -721,11 +837,10 @@ func isPurchaseRow(row *preparedExpenseImportRow) bool {
 }
 
 func deferredAdjustmentResult(row *preparedExpenseImportRow) CSVImportResult {
-	return CSVImportResult{
-		Name:    row.name,
-		Action:  "deferred",
-		Changes: []string{"adjustment:deferred:no-safe-settlement-rule"},
-	}
+	result := expenseResultForRow(row)
+	result.Action = "deferred"
+	result.Changes = []string{"adjustment:deferred:no-safe-settlement-rule"}
+	return result
 }
 
 func (s *Service) preflightExpensePaymentNotifications(ctx context.Context, state *expenseImportState, rows []*preparedExpenseImportRow, actions []expenseSettlementAction, dryRun bool) error {
@@ -771,13 +886,41 @@ func couldSetExpensePaymentDate(state *expenseImportState, rows []*preparedExpen
 }
 
 func (s *Service) importAccountPaymentRow(ctx context.Context, state *expenseImportState, row *preparedExpenseImportRow, dryRun bool) CSVImportResult {
-	res := CSVImportResult{Name: row.name}
+	res := expenseResultForRow(row)
 	if row.existingTransaction != nil {
 		res.ID = row.existingTransaction.ID
+		needsIdentityUpdate := row.importID != "" && !strings.Contains(row.existingTransaction.Description, row.sourceMarker)
 		res.Action = "unchanged"
 		res.Changes = []string{"transaction:already-imported", "bank-account:" + goTradieBankAccountName, "transaction-marker:" + row.sourceMarker}
+		if needsIdentityUpdate {
+			res.Action = "would-update-transaction"
+			res.Changes = append(res.Changes, "transaction-marker:add")
+		}
 		if dryRun {
 			return refreshAccountPaymentResult(res, row)
+		}
+		if needsIdentityUpdate {
+			existing := *row.existingTransaction
+			description := appendAccountPaymentIdentity(existing.Description, row)
+			updated, err := s.client.BankTransactions.Update(ctx, existing.ID, invoiceninja.UpdateBankTransactionRequest{
+				BankIntegrationID: existing.BankIntegrationID,
+				CurrencyID:        existing.CurrencyID,
+				Amount:            existing.Amount,
+				BaseType:          existing.BaseType,
+				Date:              existing.Date,
+				Description:       description,
+				Participant:       existing.Participant,
+				ParticipantName:   existing.ParticipantName,
+			})
+			if err != nil {
+				res.Action = "error"
+				res.Error = fmt.Errorf("row %d persist Account Payment Import ID: %w", row.rowNo, err)
+				return res
+			}
+			updated.Description = description
+			row.existingTransaction = updated
+			state.transactionByMarker[row.sourceMarker] = *updated
+			res.Action = "updated"
 		}
 		return res
 	}
@@ -829,10 +972,8 @@ func refreshAccountPaymentResult(res CSVImportResult, row *preparedExpenseImport
 }
 
 func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportState, idx map[string]int, row *preparedExpenseImportRow, dryRun, deferSupplierSettlement bool) CSVImportResult {
-	res := CSVImportResult{
-		Name:        row.name,
-		Allocations: append([]ExpensePaymentAllocation(nil), row.allocations...),
-	}
+	res := expenseResultForRow(row)
+	res.Allocations = append([]ExpensePaymentAllocation(nil), row.allocations...)
 	if previousRow, ok := state.seenMarkers[row.sourceMarker]; ok {
 		res.Action = "unchanged"
 		res.Changes = []string{fmt.Sprintf("duplicate-source-row:%d", previousRow)}
@@ -846,29 +987,32 @@ func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportStat
 		res.Error = fmt.Errorf("row %d: stable source identity matches multiple existing expenses", row.rowNo)
 		return res
 	}
-	if exists {
-		res.ID = existing.ID
-		changes := []string{"already-imported"}
-		targetPaymentDate := row.desiredPaymentDate
-		targetPaymentTypeID := row.desiredPaymentTypeID
-		if deferSupplierSettlement && row.paymentType == "" {
+	refs, err := s.resolveExpenseImportReferences(ctx, state, idx, row, dryRun)
+	if err != nil {
+		res.Action = "error"
+		res.Error = err
+		return res
+	}
+	targetPaymentDate := row.desiredPaymentDate
+	targetPaymentTypeID := row.desiredPaymentTypeID
+	if deferSupplierSettlement && row.paymentType == "" {
+		if exists {
 			targetPaymentDate = existing.PaymentDate
 			targetPaymentTypeID = existing.PaymentTypeID
+		} else {
+			targetPaymentDate = ""
+			targetPaymentTypeID = ""
 		}
-		updatedNotes := expenseNotesForRow(existing.PrivateNotes, row)
-		notesChanged := updatedNotes != existing.PrivateNotes
-		if notesChanged {
-			markerChange := "supplier-account-marker:add"
-			if row.paymentType != "" {
-				markerChange = "supplier-account-marker:remove"
-			}
-			changes = append(changes, markerChange)
-		}
-		paymentChanged := existing.PaymentDate != targetPaymentDate || existing.PaymentTypeID != targetPaymentTypeID
-		if paymentChanged {
-			changes = append(changes, paymentChangeDescription(row))
-		}
-		receiptChanged := row.receiptPath != "" && !hasDocument(existing.Documents, row.receiptName)
+	}
+	payload := expenseCreateRequest(row, idx, refs, targetPaymentDate, targetPaymentTypeID)
+	if exists {
+		res.ID = existing.ID
+		payload.PrivateNotes = mergeExpensePrivateNotes(existing.PrivateNotes, payload.PrivateNotes)
+		desired := expenseUpdateRequest(payload)
+		changes := append([]string{"already-imported"}, refs.changes...)
+		corrections := expenseCorrectionChanges(existing, desired)
+		changes = append(changes, corrections...)
+		receiptChanged := row.receiptOwner && row.receiptPath != "" && !row.receiptHasDocument
 		if receiptChanged {
 			changes = append(changes, "receipt:upload:"+row.receiptName)
 		}
@@ -876,7 +1020,7 @@ func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportStat
 			changes = append(changes, summary)
 		}
 		res.Changes = changes
-		if !paymentChanged && !notesChanged && !receiptChanged {
+		if len(corrections) == 0 && !receiptChanged {
 			res.Action = "unchanged"
 			rememberExpense(state, row, existing)
 			return res
@@ -887,26 +1031,14 @@ func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportStat
 			return res
 		}
 		updated := &existing
-		if paymentChanged || notesChanged {
-			var privateNotes *string
-			if notesChanged {
-				privateNotes = &updatedNotes
-			}
-			updatedExpense, err := s.client.Expenses.UpdatePaymentStatus(ctx, existing.ID, invoiceninja.ExpensePaymentStatusRequest{
-				PaymentDate:   targetPaymentDate,
-				PaymentTypeID: targetPaymentTypeID,
-				PrivateNotes:  privateNotes,
-			})
+		if len(corrections) > 0 {
+			updatedExpense, err := s.client.Expenses.Update(ctx, existing.ID, desired)
 			if err != nil {
 				res.Action = "error"
-				res.Error = fmt.Errorf("row %d update expense payment status: %w", row.rowNo, err)
+				res.Error = fmt.Errorf("row %d update expense correction: %w", row.rowNo, err)
 				return res
 			}
-			updatedExpense.PaymentDate = targetPaymentDate
-			updatedExpense.PaymentTypeID = targetPaymentTypeID
-			if privateNotes != nil {
-				updatedExpense.PrivateNotes = *privateNotes
-			}
+			applyExpenseUpdateState(updatedExpense, desired, existing.Documents)
 			updated = updatedExpense
 		}
 		if receiptChanged {
@@ -916,111 +1048,32 @@ func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportStat
 				res.Error = fmt.Errorf("row %d upload receipt %q: %w", row.rowNo, row.receiptName, err)
 				return res
 			}
+			if updatedExpense.PrivateNotes == "" {
+				updatedExpense.PrivateNotes = updated.PrivateNotes
+			}
+			if updatedExpense.PaymentDate == "" {
+				updatedExpense.PaymentDate = updated.PaymentDate
+			}
+			if updatedExpense.PaymentTypeID == "" {
+				updatedExpense.PaymentTypeID = updated.PaymentTypeID
+			}
+			row.receiptHasDocument = true
+			updated = updatedExpense
+		}
+		if row.receiptOwner {
+			updatedExpense, err := s.persistReceiptOwner(ctx, state, row, *updated)
+			if err != nil {
+				res.Action = "error"
+				res.Error = fmt.Errorf("row %d persist receipt owner: %w", row.rowNo, err)
+				return res
+			}
 			updated = updatedExpense
 		}
 		rememberExpense(state, row, *updated)
 		res.Action = "updated"
 		return res
 	}
-	changes := make([]string, 0, 7)
-	vendor, vendorExists := state.vendors[key(row.vendorName)]
-	if !vendorExists {
-		changes = append(changes, "vendor:create:"+row.vendorName)
-		if dryRun {
-			vendor = invoiceninja.Vendor{Name: row.vendorName}
-			state.vendors[key(row.vendorName)] = vendor
-		} else {
-			created, err := s.client.Vendors.Create(ctx, invoiceninja.CreateVendorRequest{Name: row.vendorName})
-			if err != nil {
-				res.Action = "error"
-				res.Error = fmt.Errorf("row %d create vendor %q: %w", row.rowNo, row.vendorName, err)
-				return res
-			}
-			vendor = *created
-			state.vendors[key(row.vendorName)] = vendor
-			state.vendorByID[vendor.ID] = vendor
-		}
-	}
-
-	category, categoryExists := state.categories[key(row.categoryName)]
-	if !categoryExists {
-		changes = append(changes, "category:create:"+row.categoryName)
-		if dryRun {
-			category = invoiceninja.ExpenseCategory{Name: row.categoryName}
-			state.categories[key(row.categoryName)] = category
-		} else {
-			created, err := s.client.ExpenseCategories.Create(ctx, invoiceninja.CreateExpenseCategoryRequest{Name: row.categoryName})
-			if err != nil {
-				res.Action = "error"
-				res.Error = fmt.Errorf("row %d create category %q: %w", row.rowNo, row.categoryName, err)
-				return res
-			}
-			category = *created
-			state.categories[key(row.categoryName)] = category
-		}
-	}
-
-	projectID := ""
-	jobNumber := projectNumber(row.rec, idx)
-	if jobNumber != "" {
-		if project, ok := state.projects[key(jobNumber)]; ok {
-			projectID = project.ID
-		} else if clientID := state.clientByQuote[key(jobNumber)]; clientID != "" {
-			changes = append(changes, "project:create:"+jobNumber)
-			if dryRun {
-				state.projects[key(jobNumber)] = invoiceninja.Project{ClientID: clientID, Name: "Job " + jobNumber, Number: jobNumber}
-			} else {
-				created, err := s.client.Projects.Create(ctx, invoiceninja.CreateProjectRequest{
-					ClientID: clientID,
-					Name:     "Job " + jobNumber,
-					Number:   jobNumber,
-					TaskRate: 0,
-				})
-				if err != nil {
-					res.Action = "error"
-					res.Error = fmt.Errorf("row %d create project %q: %w", row.rowNo, jobNumber, err)
-					return res
-				}
-				state.projects[key(jobNumber)] = *created
-				projectID = created.ID
-			}
-		} else {
-			changes = append(changes, "project:unresolved:"+jobNumber)
-		}
-	}
-
-	basTreatment := deriveBASTreatment(cell(row.rec, idx, "Tax Treatment"), row.businessPct, row.businessGST)
-	invoiceDocuments := false
-	targetPaymentDate := row.desiredPaymentDate
-	targetPaymentTypeID := row.desiredPaymentTypeID
-	if deferSupplierSettlement && row.paymentType == "" {
-		targetPaymentDate = ""
-		targetPaymentTypeID = ""
-	}
-	payload := invoiceninja.CreateExpenseRequest{
-		VendorID:             vendor.ID,
-		ProjectID:            projectID,
-		CategoryID:           category.ID,
-		Amount:               row.businessAmount,
-		Date:                 row.date,
-		PaymentDate:          targetPaymentDate,
-		PaymentTypeID:        targetPaymentTypeID,
-		PrivateNotes:         expenseNotesForRow(expensePrivateNotes(row.rec, idx, row.rowNo, row.sourceMarker), row),
-		TransactionReference: row.reference,
-		TaxAmount1:           row.businessGST,
-		UsesInclusiveTaxes:   true,
-		CalculateTaxByAmount: true,
-		InvoiceDocuments:     &invoiceDocuments,
-		CustomValue1:         cell(row.rec, idx, "Tax Treatment"),
-		CustomValue2:         cell(row.rec, idx, "Option"),
-		CustomValue3:         cell(row.rec, idx, "Business %"),
-		CustomValue4:         basTreatment,
-	}
-	if row.businessGST != 0 {
-		payload.TaxName1 = "GST"
-		payload.TaxRate1 = 10
-	}
-
+	changes := append([]string(nil), refs.changes...)
 	changes = append(changes, "expense:create")
 	if row.paymentType == "" && row.supplierAccountMarker != "" && row.settlementPurchaseMarker != "" {
 		changes = append(changes, "supplier-account-marker:add")
@@ -1029,8 +1082,10 @@ func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportStat
 	if summary := allocationSummary(row); summary != "" {
 		changes = append(changes, summary)
 	}
-	if row.receiptPath != "" {
+	if row.receiptOwner && row.receiptPath != "" {
 		changes = append(changes, "receipt:upload:"+row.receiptName)
+	} else if row.receiptKey != "" {
+		changes = append(changes, "receipt:shared:"+row.receiptName)
 	}
 	res.Changes = changes
 	if dryRun {
@@ -1044,13 +1099,42 @@ func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportStat
 		res.Error = fmt.Errorf("row %d create expense: %w", row.rowNo, err)
 		return res
 	}
+	if created.PrivateNotes == "" {
+		created.PrivateNotes = payload.PrivateNotes
+	}
+	if created.PaymentDate == "" {
+		created.PaymentDate = payload.PaymentDate
+	}
+	if created.PaymentTypeID == "" {
+		created.PaymentTypeID = payload.PaymentTypeID
+	}
 	res.ID = created.ID
 	rememberExpense(state, row, *created)
-	if row.receiptPath != "" {
+	if row.receiptOwner && row.receiptPath != "" {
 		updated, err := s.client.Expenses.UploadDocumentFile(ctx, created.ID, row.receiptPath)
 		if err != nil {
 			res.Action = "error"
 			res.Error = fmt.Errorf("row %d upload receipt %q: %w", row.rowNo, row.receiptName, err)
+			return res
+		}
+		if updated.PrivateNotes == "" {
+			updated.PrivateNotes = created.PrivateNotes
+		}
+		if updated.PaymentDate == "" {
+			updated.PaymentDate = created.PaymentDate
+		}
+		if updated.PaymentTypeID == "" {
+			updated.PaymentTypeID = created.PaymentTypeID
+		}
+		row.receiptHasDocument = true
+		rememberExpense(state, row, *updated)
+		created = updated
+	}
+	if row.receiptOwner {
+		updated, err := s.persistReceiptOwner(ctx, state, row, *created)
+		if err != nil {
+			res.Action = "error"
+			res.Error = fmt.Errorf("row %d persist receipt owner: %w", row.rowNo, err)
 			return res
 		}
 		rememberExpense(state, row, *updated)
@@ -1061,7 +1145,7 @@ func (s *Service) importExpenseRow(ctx context.Context, state *expenseImportStat
 
 func rememberExpense(state *expenseImportState, row *preparedExpenseImportRow, expense invoiceninja.Expense) {
 	state.expenseByMarker[row.sourceMarker] = expense
-	if row.legacyMarker != "" {
+	if row.importID == "" && row.legacyMarker != "" {
 		state.expenseByMarker[row.legacyMarker] = expense
 	}
 	expenseCopy := expense
@@ -1212,8 +1296,26 @@ func expensePrivateNotes(rec []string, idx map[string]int, rowNo int, marker str
 	add("Business amount", cell(rec, idx, "Business Amount"))
 	add("Business GST", cell(rec, idx, "Business GST"))
 	add("Notes", cell(rec, idx, "Notes"))
+	add("GoTradie Import ID", cell(rec, idx, "Import ID"))
 	lines = append(lines, fmt.Sprintf("GoTradie source row: %d", rowNo), marker)
 	return strings.Join(lines, "\n")
+}
+
+func importIDMarker(importID string) string {
+	encoded := base64.RawURLEncoding.EncodeToString([]byte(strings.TrimSpace(importID)))
+	return importIDMarkerPrefix + encoded + "]"
+}
+
+func importIDFromMarker(marker string) (string, bool) {
+	if !strings.HasPrefix(marker, importIDMarkerPrefix) || !strings.HasSuffix(marker, "]") {
+		return "", false
+	}
+	encoded := strings.TrimSuffix(strings.TrimPrefix(marker, importIDMarkerPrefix), "]")
+	decoded, err := base64.RawURLEncoding.DecodeString(encoded)
+	if err != nil || strings.TrimSpace(string(decoded)) == "" {
+		return "", false
+	}
+	return string(decoded), true
 }
 
 func purchaseSourceMarker(rec []string, idx map[string]int, normalizedDate string) string {
@@ -1314,6 +1416,9 @@ func trimmedValues(values []string) []string {
 }
 
 func sourceMarkerFromNotes(notes string) string {
+	if marker := markerFromText(notes, importIDMarkerPrefix); marker != "" {
+		return marker
+	}
 	const prefix = "[GoTradie source:"
 	start := strings.Index(notes, prefix)
 	if start < 0 {
