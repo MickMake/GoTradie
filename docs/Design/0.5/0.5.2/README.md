@@ -1,18 +1,43 @@
 # GoTradie v0.5.2
 
-Status: **Not started**
+Status: **Design drafted — implementation not started**
 
 ## Purpose
 
-This directory is reserved for the next GoTradie implementation slice after the `v0.5.1` Expense-import closeout.
+`v0.5.2` improves the operational behaviour of the historical Expense importer established in `v0.5.1`.
 
-No implementation contract is locked here yet.
+The accounting model remains unchanged.
+
+The primary work is:
+
+- live per-row import progress;
+- concise NEW / EXISTING / ERROR reporting;
+- expanded error detail;
+- end-of-import summaries;
+- configurable batch processing;
+- re-entrant batch behaviour;
+- removal of CSV row-number dependence from durable identity;
+- receipt deduplication across Expense line items.
+
+## Design
+
+### [Expense-Importing-UX.md](./Expense-Importing-UX.md)
+
+Draft design for Expense-import operational UX, batching, identity cleanup and receipt deduplication.
+
+This document remains draft until the final minor scope additions from real-world testing are agreed.
 
 ## Starting point
 
-`v0.5.2` should start from the closed `v0.5.1` state on `main`.
+`v0.5.2` starts from the closed `v0.5.1` Expense-import architecture.
 
-Do not reopen `v0.5.1` merely because a new requirement touches nearby code. If the work is new scope, document and implement it here.
+New work must not weaken the accounting and supplier-settlement invariants established in `v0.5.1`.
+
+## Implementation status
+
+Implementation has not started.
+
+Once the design is accepted, create a fresh `v0.5.2` implementation branch and keep the slice bounded to the agreed scope.
 
 ## Scope
 

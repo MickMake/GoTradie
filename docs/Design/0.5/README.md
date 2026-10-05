@@ -9,7 +9,7 @@ The purpose is simple: each implementation slice gets a clear home, a clear stat
 | Version | Status | Scope |
 |---|---|---|
 | [v0.5.1](./0.5.1/) | Closed | Historical Expense import and supplier-account settlement |
-| [v0.5.2](./0.5.2/) | Not started | Next implementation slice / remaining v0.5 work |
+| [v0.5.2](./0.5.2/) | Design drafted | Expense importer UX, batching, identity cleanup and receipt deduplication |
 
 ## Working rule
 
@@ -38,6 +38,10 @@ Those deferred scenarios are **not unfinished v0.5.1 requirements**.
 
 ## v0.5.2
 
-`v0.5.2` is the next working slice.
+`v0.5.2` improves the operational usability of the historical Expense importer without changing the `v0.5.1` accounting model.
 
-Its design should be written and reviewed in its own directory before the slice is treated as closed.
+Current draft design:
+
+- [Expense Importing — Operational UX and Batching](./0.5.2/Expense-Importing-UX.md)
+
+Implementation has not started.
