@@ -9,7 +9,7 @@ The purpose is simple: each implementation slice gets a clear home, a clear stat
 | Version | Status | Scope |
 |---|---|---|
 | [v0.5.1](./0.5.1/) | Closed | Historical Expense import and supplier-account settlement |
-| [v0.5.2](./0.5.2/) | Design drafted | Expense importer UX, batching, identity cleanup and receipt deduplication |
+| [v0.5.2](./0.5.2/) | Design drafted | Expense Import ID/preflight, operational UX, batching and receipt deduplication |
 
 ## Working rule
 
@@ -38,10 +38,20 @@ Those deferred scenarios are **not unfinished v0.5.1 requirements**.
 
 ## v0.5.2
 
-`v0.5.2` improves the operational usability of the historical Expense importer without changing the `v0.5.1` accounting model.
+`v0.5.2` improves the operational usability and source safety of the historical Expense importer without changing the `v0.5.1` accounting model.
 
 Current draft design:
 
-- [Expense Importing — Operational UX and Batching](./0.5.2/Expense-Importing-UX.md)
+- [Expense Importing — Identity, Preflight, Operational UX and Batching](./0.5.2/Expense-Importing-UX.md)
+
+The draft now locks in:
+
+- mandatory user-supplied `Import ID`;
+- complete-file preflight before execution;
+- no stdin for Expense import;
+- arithmetic/source sanity checks;
+- true batching only for ordinary Expense-only files;
+- settlement-safe whole-file mode when Account Payment rows exist;
+- durable receipt deduplication/ownership.
 
 Implementation has not started.

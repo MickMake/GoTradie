@@ -10,22 +10,27 @@ The accounting model remains unchanged.
 
 The primary work is:
 
+- mandatory user-supplied `Import ID` identity for every imported source row;
+- whole-file preflight validation before import execution;
+- accounting sanity checks and warnings;
+- removal of CSV row-number dependence from durable identity;
+- named-file-only Expense import; stdin is not supported;
 - live per-row import progress;
 - concise NEW / EXISTING / ERROR reporting;
 - expanded error detail;
 - end-of-import summaries;
-- configurable batch processing;
-- re-entrant batch behaviour;
-- removal of CSV row-number dependence from durable identity;
-- receipt deduplication across Expense line items.
+- configurable batch processing for ordinary Expense-only imports;
+- settlement-safe whole-file processing when Account Payment rows are present;
+- re-entrant behaviour without a GoTradie checkpoint database;
+- receipt deduplication with durable receipt ownership.
 
 ## Design
 
 ### [Expense-Importing-UX.md](./Expense-Importing-UX.md)
 
-Draft design for Expense-import operational UX, batching, identity cleanup and receipt deduplication.
+Design for Expense-import identity, preflight validation, operational UX, batching and receipt deduplication.
 
-This document remains draft until the final minor scope additions from real-world testing are agreed.
+The `v0.5.1` accounting and supplier-settlement architecture remains authoritative except where this document deliberately replaces the old row-derived source-identity mechanism.
 
 ## Starting point
 
@@ -37,23 +42,36 @@ New work must not weaken the accounting and supplier-settlement invariants estab
 
 Implementation has not started.
 
-Once the design is accepted, create a fresh `v0.5.2` implementation branch and keep the slice bounded to the agreed scope.
+When implementation begins, create a fresh `v0.5.2` implementation branch from current `main` and keep the slice bounded to this design.
 
-## Scope
+## In scope
 
-The exact scope of `v0.5.2` is still to be defined.
+- replace row-derived durable purchase/payment identity with required `Import ID`;
+- preflight the entire source file before processing;
+- reject missing, blank or duplicate `Import ID` values;
+- reject stdin for Expense import;
+- report suspicious source/accounting arithmetic before import;
+- preserve preview-by-default and `--commit` as the sole persistent-write flag;
+- stream useful per-row progress;
+- add practical execution batching for ordinary Expense-only files;
+- preserve whole-file supplier-settlement visibility when Account Payment rows exist;
+- make receipt upload ownership durable and re-entrant;
+- retain compatibility with the accepted `v0.5.1` bookkeeping model.
 
-When the slice is selected, this README should be updated with:
+## Deferred / non-goals
 
-- purpose;
-- branch and PR;
-- accepted design documents;
-- explicit in-scope work;
-- explicit deferred work;
-- closure status.
+- general surrogate-ID generation by GoTradie;
+- guessing identity from CSV position or occurrence order;
+- automatic repair of suspicious source arithmetic;
+- concurrent Invoice Ninja writes;
+- persistent checkpoint/state databases;
+- redesign of supplier FIFO settlement;
+- general shared-document infrastructure;
+- foreign-currency supplier-account settlement;
+- Adjustment accounting.
 
 ## Working rule
 
 Keep the slice small enough that it can be designed, implemented, reviewed, verified, and then closed cleanly.
 
-The objective is not to predict every future requirement. It is to make the next piece of work understandable when returning to it a week later.
+The immediate objective is a boring, safe historical import that can get the BAS work done without requiring GoTradie to become a philosopher of identity.
