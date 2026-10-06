@@ -532,12 +532,7 @@ func TestAccountPaymentTransactionIsIdempotentAcrossImports(t *testing.T) {
 func TestMatchingExistingAccountPaymentTransactionIsUnchanged(t *testing.T) {
 	row := settlementTestPayment("Bunnings", "2026-11-01", "payment-1", 7184)
 	row.rowNo = 2
-	transaction := invoiceninja.BankTransaction{
-		Entity:   invoiceninja.Entity{ID: "transaction1"},
-		Amount:   71.84,
-		BaseType: "DEBIT",
-		Date:     "2026-11-01",
-	}
+	transaction := settlementTestTransaction(row, "transaction1")
 	state := &expenseImportState{transactionByMarker: map[string]invoiceninja.BankTransaction{
 		row.sourceMarker: transaction,
 	}}
@@ -596,12 +591,7 @@ func TestImportIDTransactionMatchTakesPrecedenceOverLegacyFallback(t *testing.T)
 	row.importID = "PAY-1"
 	row.legacyMarker = "[GoTradie account-payment:v3:legacy]"
 	transaction := func(id string) invoiceninja.BankTransaction {
-		return invoiceninja.BankTransaction{
-			Entity:   invoiceninja.Entity{ID: id},
-			Amount:   71.84,
-			BaseType: "DEBIT",
-			Date:     "2026-11-01",
-		}
+		return settlementTestTransaction(row, id)
 	}
 	state := &expenseImportState{transactionByMarker: map[string]invoiceninja.BankTransaction{
 		row.sourceMarker: transaction("import-id-transaction"),
@@ -659,16 +649,76 @@ func TestExistingAccountPaymentTransactionDriftFailsRow(t *testing.T) {
 	}
 }
 
+func TestExistingAccountPaymentMetadataCorrectionsFailBeforeUsingSourceValues(t *testing.T) {
+	tests := []struct {
+		name      string
+		wantError string
+		correct   func(*preparedExpenseImportRow)
+	}{
+		{
+			name:      "supplier",
+			wantError: "supplier drift",
+			correct: func(row *preparedExpenseImportRow) {
+				row.supplier = "Other Supplier"
+				row.supplierAccountMarker = supplierAccountMarker(row.supplier)
+			},
+		},
+		{
+			name:      "payment type",
+			wantError: "Payment Type drift",
+			correct: func(row *preparedExpenseImportRow) {
+				row.paymentType = "Mastercard"
+				row.paymentTypeID = "6"
+			},
+		},
+		{
+			name:      "payment reference",
+			wantError: "Payment Reference drift",
+			correct: func(row *preparedExpenseImportRow) {
+				row.reference = "CORRECTED-REF"
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			row := settlementTestPayment("Bunnings", "2026-11-01", importIDMarker("PAY-1"), 7184)
+			row.rowNo = 2
+			row.importID = "PAY-1"
+			row.reference = "ORIGINAL-REF"
+			transaction := settlementTestTransaction(row, "transaction1")
+			tt.correct(row)
+
+			state := &expenseImportState{
+				paymentTypes: map[string]invoiceninja.PaymentType{
+					"Visa Card":  {ID: "5", Name: "Visa Card"},
+					"Mastercard": {ID: "6", Name: "Mastercard"},
+				},
+				transactionByMarker: map[string]invoiceninja.BankTransaction{row.sourceMarker: transaction},
+				bankTransactions:    []invoiceninja.BankTransaction{transaction},
+			}
+			validateExistingTransactionIdentities(state, []*preparedExpenseImportRow{row})
+			if row.err == nil || !strings.Contains(row.err.Error(), tt.wantError) || row.existingTransaction != nil {
+				t.Fatalf("correction validation = error %v transaction %#v", row.err, row.existingTransaction)
+			}
+
+			purchase := settlementTestPurchase("Bunnings", "2026-10-01", "purchase-1", 7184)
+			mustAllocateAccountPayments(t, state, []*preparedExpenseImportRow{row, purchase})
+			if purchase.remainingCents != 0 {
+				t.Fatalf("durable transaction did not reconstruct original settlement: %#v", purchase)
+			}
+			if len(row.allocations) != 0 {
+				t.Fatalf("rejected source correction affected settlement: %#v", row.allocations)
+			}
+		})
+	}
+}
+
 func TestAcceptedExistingTransactionDrivesSettlementReconstruction(t *testing.T) {
 	purchase := settlementTestPurchase("Bunnings", "2026-10-01", "purchase-1", 10000)
 	payment := settlementTestPayment("Bunnings", "2026-11-01", "payment-1", 6000)
 	payment.rowNo = 3
-	transaction := invoiceninja.BankTransaction{
-		Entity:   invoiceninja.Entity{ID: "transaction1"},
-		Amount:   60,
-		BaseType: "DEBIT",
-		Date:     "2026-11-01",
-	}
+	transaction := settlementTestTransaction(payment, "transaction1")
 	state := &expenseImportState{transactionByMarker: map[string]invoiceninja.BankTransaction{
 		payment.sourceMarker: transaction,
 	}}
@@ -896,12 +946,26 @@ func settlementTestPurchase(supplier, date, marker string, cents int64) *prepare
 
 func settlementTestPayment(supplier, date, marker string, cents int64) *preparedExpenseImportRow {
 	return &preparedExpenseImportRow{
-		documentType:  documentTypeAccountPayment,
-		supplier:      supplier,
-		date:          date,
-		sourceMarker:  marker,
-		grossCents:    cents,
-		paymentType:   "Visa Card",
-		paymentTypeID: "5",
+		documentType:          documentTypeAccountPayment,
+		supplier:              supplier,
+		date:                  date,
+		sourceMarker:          marker,
+		grossCents:            cents,
+		paymentType:           "Visa Card",
+		paymentTypeID:         "5",
+		supplierAccountMarker: supplierAccountMarker(supplier),
+	}
+}
+
+func settlementTestTransaction(row *preparedExpenseImportRow, id string) invoiceninja.BankTransaction {
+	return invoiceninja.BankTransaction{
+		Entity:            invoiceninja.Entity{ID: id},
+		BankIntegrationID: "bank1",
+		CurrencyID:        "currency1",
+		Amount:            centsAmount(row.grossCents),
+		BaseType:          "DEBIT",
+		Date:              row.date,
+		Description:       accountPaymentDescription(row),
+		ParticipantName:   row.supplier,
 	}
 }

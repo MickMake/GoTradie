@@ -1,7 +1,9 @@
 # GoTradie Command Intention Spec
 
-Version: `v0.5.1`  
-Status: Draft command contract / behaviour lock-in  
+Version: `v0.5.2`
+
+Status: Draft command contract / behaviour lock-in
+
 Primary repository: `MickMake/GoTradie`
 
 This document defines the intended command-line behaviour for `GoTradie`.
@@ -731,6 +733,61 @@ ID,Name,Address1,Address2,City,State,PostalCode,CountryID,...
 - Update without `--commit`.
 - Guess client IDs.
 - Silently restructure addresses in a surprising way.
+
+---
+
+## `ninja import expenses <file>`
+
+Example:
+
+```bash
+GoTradie ninja import expenses purchases.csv \
+    --receipts-root receipts \
+    --batch-size 100 \
+    --pause \
+    --commit
+```
+
+### User intention
+
+Safely preview or import a historical purchase ledger into Invoice Ninja.
+
+### Programming intention
+
+The complete named file is preflighted before execution. Every non-empty row
+requires a non-blank, file-unique `Import ID`, which is the durable logical
+identity stored in Invoice Ninja. Stdin is deliberately unsupported.
+
+Preview is the default. `--commit` is the only flag that permits Invoice Ninja
+writes. Progress and a final summary must distinguish preview states from
+committed states.
+
+Ordinary Expense-only files may use sequential `--batch-size` execution and
+optional `--pause`. Any file containing Account Payment rows instead uses the
+settlement-safe whole-file model; batching must not change FIFO visibility or
+the v0.5.1 accounting invariants.
+
+Receipt matching is exact by source filename, while durable receipt identity
+uses the content key and a single owner Expense. Renaming identical local
+content must not create a duplicate Invoice Ninja attachment.
+
+### Flags
+
+| Flag | Meaning |
+|---|---|
+| `--receipts-root <dir>` | Recursively index local receipt files. |
+| `--batch-size <n>` | Sequential execution batch size for ordinary Expense-only files. |
+| `--pause` | Ask before continuing to the next true batch; requires `--batch-size`. |
+| `--commit` | Persist Invoice Ninja changes. |
+
+### Must not
+
+- Accept stdin or invent missing `Import ID` values.
+- Make concurrent Invoice Ninja writes.
+- Create checkpoint files or another durable state store.
+- Let batch boundaries alter supplier settlement.
+- Treat corrected Account Payment source values as durable unless the existing
+  Invoice Ninja Bank Transaction agrees with them.
 
 ---
 

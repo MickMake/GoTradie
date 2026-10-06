@@ -401,11 +401,11 @@ func registerExistingReceiptState(state *expenseImportState, expense invoiceninj
 }
 
 func hasExpectedReceiptDocument(expense invoiceninja.Expense) bool {
-	if len(expense.Documents) == 0 {
-		return false
-	}
-	filename := privateNoteValues(expense.PrivateNotes)["Source file"]
-	return filename == "" || hasDocument(expense.Documents, filename)
+	// The durable content key and owner marker identify the physical receipt.
+	// Source file is provenance only: a later import may use the same content
+	// under a different local filename while the Invoice Ninja attachment keeps
+	// its original name.
+	return len(expense.Documents) > 0
 }
 
 func validateAndAssignReceiptOwnership(state *expenseImportState, rows []*preparedExpenseImportRow) error {

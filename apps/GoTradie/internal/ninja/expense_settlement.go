@@ -203,6 +203,26 @@ func validateExistingTransactionIdentities(state *expenseImportState, rows []*pr
 				row.err = fmt.Errorf("row %d: marked Invoice Ninja Transaction %q date drift: durable date %q does not match source date %q", row.rowNo, transaction.ID, date, row.date)
 				continue
 			}
+			durableSupplierMarker := supplierAccountMarkerFromText(transaction.Description)
+			if durableSupplierMarker == "" {
+				row.err = fmt.Errorf("row %d: marked Invoice Ninja Transaction %q has no durable supplier-account marker", row.rowNo, transaction.ID)
+				continue
+			}
+			if durableSupplierMarker != row.supplierAccountMarker {
+				row.err = fmt.Errorf("row %d: marked Invoice Ninja Transaction %q supplier drift: durable supplier account does not match source Supplier %q", row.rowNo, transaction.ID, row.supplier)
+				continue
+			}
+			durableValues := privateNoteValues(transaction.Description)
+			durablePaymentType := strings.TrimSpace(durableValues["Payment type"])
+			if durablePaymentType != row.paymentType {
+				row.err = fmt.Errorf("row %d: marked Invoice Ninja Transaction %q Payment Type drift: durable value %q does not match source value %q", row.rowNo, transaction.ID, durablePaymentType, row.paymentType)
+				continue
+			}
+			durableReference := strings.TrimSpace(durableValues["Payment reference"])
+			if durableReference != strings.TrimSpace(row.reference) {
+				row.err = fmt.Errorf("row %d: marked Invoice Ninja Transaction %q Payment Reference drift: durable value %q does not match source value %q", row.rowNo, transaction.ID, durableReference, row.reference)
+				continue
+			}
 			transactionCopy := transaction
 			row.existingTransaction = &transactionCopy
 		}

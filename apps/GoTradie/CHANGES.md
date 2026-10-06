@@ -13,6 +13,10 @@
   Account Payment rows are present.
 - Added correction-by-`Import ID`, legacy v0.5.1 identity migration and
   content-derived receipt deduplication with durable owner markers.
+- Existing Account Payments now reject Supplier, Payment Type or Payment
+  Reference drift before source values can affect durable settlement.
+- Receipt owners remain valid when identical local content is renamed; the
+  historical Invoice Ninja attachment filename is no longer treated as identity.
 - Preserved integer-cent FIFO settlement, stopped settlement execution after a
   failed prerequisite write, and added no checkpoint database or concurrent
   mutation path.
