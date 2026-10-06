@@ -2,6 +2,8 @@ package goinvoiceninja
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/url"
 )
 
@@ -158,29 +160,119 @@ type CreateExpenseRequest struct {
 	CustomValue4         string  `json:"custom_value4,omitempty"`
 }
 
-// UpdateExpenseRequest deliberately keeps accounting values in the JSON even
-// when they are zero so corrections can clear a previously non-zero amount or
-// tax value. Fields outside this focused set remain untouched by the API.
+// UpdateExpenseRequest omits zero values by default so partial updates do not
+// clear unrelated Expense fields. Use WithExplicitFields when a zero value is
+// itself the intended update.
 type UpdateExpenseRequest struct {
-	VendorID             string  `json:"vendor_id"`
-	ProjectID            string  `json:"project_id"`
-	CategoryID           string  `json:"category_id"`
-	Amount               float64 `json:"amount"`
-	Date                 string  `json:"date"`
-	PaymentDate          string  `json:"payment_date"`
-	PaymentTypeID        string  `json:"payment_type_id"`
-	PrivateNotes         string  `json:"private_notes"`
-	TransactionReference string  `json:"transaction_reference"`
-	TaxName1             string  `json:"tax_name1"`
-	TaxRate1             float64 `json:"tax_rate1"`
-	TaxAmount1           float64 `json:"tax_amount1"`
-	UsesInclusiveTaxes   bool    `json:"uses_inclusive_taxes"`
-	CalculateTaxByAmount bool    `json:"calculate_tax_by_amount"`
+	VendorID             string  `json:"vendor_id,omitempty"`
+	ClientID             string  `json:"client_id,omitempty"`
+	ProjectID            string  `json:"project_id,omitempty"`
+	CategoryID           string  `json:"category_id,omitempty"`
+	CurrencyID           string  `json:"currency_id,omitempty"`
+	Number               string  `json:"number,omitempty"`
+	Amount               float64 `json:"amount,omitempty"`
+	ForeignAmount        float64 `json:"foreign_amount,omitempty"`
+	ExchangeRate         float64 `json:"exchange_rate,omitempty"`
+	Date                 string  `json:"date,omitempty"`
+	PaymentDate          string  `json:"payment_date,omitempty"`
+	PaymentTypeID        string  `json:"payment_type_id,omitempty"`
+	PrivateNotes         string  `json:"private_notes,omitempty"`
+	PublicNotes          string  `json:"public_notes,omitempty"`
+	TransactionReference string  `json:"transaction_reference,omitempty"`
+	TaxName1             string  `json:"tax_name1,omitempty"`
+	TaxRate1             float64 `json:"tax_rate1,omitempty"`
+	TaxName2             string  `json:"tax_name2,omitempty"`
+	TaxRate2             float64 `json:"tax_rate2,omitempty"`
+	TaxName3             string  `json:"tax_name3,omitempty"`
+	TaxRate3             float64 `json:"tax_rate3,omitempty"`
+	TaxAmount1           float64 `json:"tax_amount1,omitempty"`
+	TaxAmount2           float64 `json:"tax_amount2,omitempty"`
+	TaxAmount3           float64 `json:"tax_amount3,omitempty"`
+	UsesInclusiveTaxes   bool    `json:"uses_inclusive_taxes,omitempty"`
+	CalculateTaxByAmount bool    `json:"calculate_tax_by_amount,omitempty"`
+	ShouldBeInvoiced     bool    `json:"should_be_invoiced,omitempty"`
 	InvoiceDocuments     *bool   `json:"invoice_documents,omitempty"`
-	CustomValue1         string  `json:"custom_value1"`
-	CustomValue2         string  `json:"custom_value2"`
-	CustomValue3         string  `json:"custom_value3"`
-	CustomValue4         string  `json:"custom_value4"`
+	CustomValue1         string  `json:"custom_value1,omitempty"`
+	CustomValue2         string  `json:"custom_value2,omitempty"`
+	CustomValue3         string  `json:"custom_value3,omitempty"`
+	CustomValue4         string  `json:"custom_value4,omitempty"`
+
+	explicitFields map[string]struct{}
+}
+
+// WithExplicitFields returns a copy that serializes the named JSON fields even
+// when their values are empty or zero. Unknown field names fail during JSON
+// encoding rather than silently broadening an update.
+func (r UpdateExpenseRequest) WithExplicitFields(fields ...string) UpdateExpenseRequest {
+	explicitFields := make(map[string]struct{}, len(r.explicitFields)+len(fields))
+	for field := range r.explicitFields {
+		explicitFields[field] = struct{}{}
+	}
+	for _, field := range fields {
+		explicitFields[field] = struct{}{}
+	}
+	r.explicitFields = explicitFields
+	return r
+}
+
+// MarshalJSON preserves sparse update semantics while allowing selected zero
+// values to be sent deliberately.
+func (r UpdateExpenseRequest) MarshalJSON() ([]byte, error) {
+	type sparseUpdateExpenseRequest UpdateExpenseRequest
+	encoded, err := json.Marshal(sparseUpdateExpenseRequest(r))
+	if err != nil || len(r.explicitFields) == 0 {
+		return encoded, err
+	}
+
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		return nil, err
+	}
+	values := map[string]any{
+		"vendor_id":               r.VendorID,
+		"client_id":               r.ClientID,
+		"project_id":              r.ProjectID,
+		"category_id":             r.CategoryID,
+		"currency_id":             r.CurrencyID,
+		"number":                  r.Number,
+		"amount":                  r.Amount,
+		"foreign_amount":          r.ForeignAmount,
+		"exchange_rate":           r.ExchangeRate,
+		"date":                    r.Date,
+		"payment_date":            r.PaymentDate,
+		"payment_type_id":         r.PaymentTypeID,
+		"private_notes":           r.PrivateNotes,
+		"public_notes":            r.PublicNotes,
+		"transaction_reference":   r.TransactionReference,
+		"tax_name1":               r.TaxName1,
+		"tax_rate1":               r.TaxRate1,
+		"tax_name2":               r.TaxName2,
+		"tax_rate2":               r.TaxRate2,
+		"tax_name3":               r.TaxName3,
+		"tax_rate3":               r.TaxRate3,
+		"tax_amount1":             r.TaxAmount1,
+		"tax_amount2":             r.TaxAmount2,
+		"tax_amount3":             r.TaxAmount3,
+		"uses_inclusive_taxes":    r.UsesInclusiveTaxes,
+		"calculate_tax_by_amount": r.CalculateTaxByAmount,
+		"should_be_invoiced":      r.ShouldBeInvoiced,
+		"invoice_documents":       r.InvoiceDocuments,
+		"custom_value1":           r.CustomValue1,
+		"custom_value2":           r.CustomValue2,
+		"custom_value3":           r.CustomValue3,
+		"custom_value4":           r.CustomValue4,
+	}
+	for field := range r.explicitFields {
+		value, ok := values[field]
+		if !ok {
+			return nil, fmt.Errorf("unknown explicit Expense update field %q", field)
+		}
+		payload[field], err = json.Marshal(value)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return json.Marshal(payload)
 }
 
 // ExpensePaymentStatusRequest deliberately includes empty values so callers can

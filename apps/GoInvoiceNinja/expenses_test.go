@@ -170,13 +170,14 @@ func TestExpenseUpdateCanPersistExplicitZeroAccountingValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.Expenses.Update(context.Background(), "expense1", UpdateExpenseRequest{
+	request := UpdateExpenseRequest{
 		VendorID:   "vendor1",
 		CategoryID: "category1",
 		Amount:     0,
 		Date:       "2026-10-02",
 		TaxAmount1: 0,
-	}); err != nil {
+	}.WithExplicitFields("amount", "tax_amount1", "payment_date", "payment_type_id")
+	if _, err := c.Expenses.Update(context.Background(), "expense1", request); err != nil {
 		t.Fatal(err)
 	}
 	for _, field := range []string{"amount", "tax_amount1", "payment_date", "payment_type_id"} {
@@ -188,6 +189,27 @@ func TestExpenseUpdateCanPersistExplicitZeroAccountingValues(t *testing.T) {
 			if string(value) != "0" {
 				t.Fatalf("%s = %s; want 0", field, value)
 			}
+		} else if string(value) != `""` {
+			t.Fatalf("%s = %s; want empty string", field, value)
+		}
+	}
+}
+
+func TestExpenseUpdateRequestRemainsSparse(t *testing.T) {
+	encoded, err := json.Marshal(UpdateExpenseRequest{PrivateNotes: "corrected note"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &raw); err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) != 1 || string(raw["private_notes"]) != `"corrected note"` {
+		t.Fatalf("sparse update JSON = %s", encoded)
+	}
+	for _, field := range []string{"amount", "tax_amount1", "payment_date", "payment_type_id", "uses_inclusive_taxes"} {
+		if _, ok := raw[field]; ok {
+			t.Fatalf("unrelated zero field %q was serialized: %s", field, encoded)
 		}
 	}
 }

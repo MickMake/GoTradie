@@ -411,15 +411,16 @@ func hasExpectedReceiptDocument(expense invoiceninja.Expense) bool {
 func validateAndAssignReceiptOwnership(state *expenseImportState, rows []*preparedExpenseImportRow) error {
 	groups := make(map[string][]*preparedExpenseImportRow)
 	for _, row := range rows {
-		if row.existingExpense != nil && strings.Contains(row.existingExpense.PrivateNotes, receiptOwnerMarker) {
+		if row.existingExpense != nil {
 			existingKey := receiptKeyFromText(row.existingExpense.PrivateNotes)
 			existingName := privateNoteValues(row.existingExpense.PrivateNotes)["Source file"]
-			if row.receiptKey == "" && row.receiptName != "" && row.receiptName == existingName {
+			if existingKey != "" && row.receiptKey == "" && row.receiptName != "" && row.receiptName == existingName {
 				// A rerun may omit --receipts-root. Retain the already-validated
-				// durable key when the source filename is unchanged.
+				// durable key for owners and siblings when the source filename is
+				// unchanged.
 				row.receiptKey = existingKey
 			}
-			if existingKey != row.receiptKey {
+			if strings.Contains(row.existingExpense.PrivateNotes, receiptOwnerMarker) && existingKey != row.receiptKey {
 				return fmt.Errorf("durable receipt state inconsistent: owner Expense %q changed from receipt key %q to %q; resolve the existing document explicitly", row.existingExpense.ID, existingKey, row.receiptKey)
 			}
 		}
@@ -633,7 +634,7 @@ func expenseCreateRequest(row *preparedExpenseImportRow, idx map[string]int, ref
 }
 
 func expenseUpdateRequest(create invoiceninja.CreateExpenseRequest) invoiceninja.UpdateExpenseRequest {
-	return invoiceninja.UpdateExpenseRequest{
+	request := invoiceninja.UpdateExpenseRequest{
 		VendorID:             create.VendorID,
 		ProjectID:            create.ProjectID,
 		CategoryID:           create.CategoryID,
@@ -654,6 +655,26 @@ func expenseUpdateRequest(create invoiceninja.CreateExpenseRequest) invoiceninja
 		CustomValue3:         create.CustomValue3,
 		CustomValue4:         create.CustomValue4,
 	}
+	return request.WithExplicitFields(
+		"vendor_id",
+		"project_id",
+		"category_id",
+		"amount",
+		"date",
+		"payment_date",
+		"payment_type_id",
+		"private_notes",
+		"transaction_reference",
+		"tax_name1",
+		"tax_rate1",
+		"tax_amount1",
+		"uses_inclusive_taxes",
+		"calculate_tax_by_amount",
+		"custom_value1",
+		"custom_value2",
+		"custom_value3",
+		"custom_value4",
+	)
 }
 
 func expenseCorrectionChanges(existing invoiceninja.Expense, desired invoiceninja.UpdateExpenseRequest) []string {

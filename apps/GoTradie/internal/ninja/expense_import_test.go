@@ -410,8 +410,8 @@ func TestReceiptContentIsUploadedOnceWithDurableOwner(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	var expenseCreates, uploads, ownerUpdates int
-	createdNotes := make(map[string]string)
+	var expenseCreates, expenseUpdates, uploads, ownerUpdates int
+	expenses := make(map[string]*invoiceninja.Expense)
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
@@ -419,8 +419,17 @@ func TestReceiptContentIsUploadedOnceWithDurableOwner(t *testing.T) {
 			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings"}],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expense_categories":
 			_, _ = w.Write([]byte(`{"data":[{"id":"category1","name":"Materials"}],"meta":{"pagination":{"total_pages":1}}}`))
-		case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/projects" || r.URL.Path == "/api/v1/expenses" || r.URL.Path == "/api/v1/quotes"):
+		case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/projects" || r.URL.Path == "/api/v1/quotes"):
 			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expenses":
+			current := make([]invoiceninja.Expense, 0, len(expenses))
+			for _, expense := range expenses {
+				current = append(current, *expense)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": current,
+				"meta": map[string]any{"pagination": map[string]any{"total_pages": 1}},
+			})
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/statics":
 			_, _ = w.Write([]byte(`{"payment_types":[{"id":"5","name":"Visa Card"}]}`))
 		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/companies/current":
@@ -432,33 +441,75 @@ func TestReceiptContentIsUploadedOnceWithDurableOwner(t *testing.T) {
 			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 				t.Error(err)
 			}
-			createdNotes[id] = request.PrivateNotes
-			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": id, "private_notes": request.PrivateNotes}})
+			expense := &invoiceninja.Expense{
+				Entity:               invoiceninja.Entity{ID: id},
+				VendorID:             request.VendorID,
+				ProjectID:            request.ProjectID,
+				CategoryID:           request.CategoryID,
+				Amount:               request.Amount,
+				Date:                 request.Date,
+				PaymentDate:          request.PaymentDate,
+				PaymentTypeID:        request.PaymentTypeID,
+				PrivateNotes:         request.PrivateNotes,
+				TransactionReference: request.TransactionReference,
+				TaxName1:             request.TaxName1,
+				TaxRate1:             request.TaxRate1,
+				TaxAmount1:           request.TaxAmount1,
+				UsesInclusiveTaxes:   request.UsesInclusiveTaxes,
+				CalculateTaxByAmount: request.CalculateTaxByAmount,
+				CustomValue1:         request.CustomValue1,
+				CustomValue2:         request.CustomValue2,
+				CustomValue3:         request.CustomValue3,
+				CustomValue4:         request.CustomValue4,
+			}
+			expenses[id] = expense
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": expense})
 		case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/upload"):
 			uploads++
 			parts := strings.Split(r.URL.Path, "/")
 			id := parts[len(parts)-2]
-			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{
-				"id":            id,
-				"private_notes": createdNotes[id],
-				"documents":     []map[string]any{{"name": "receipt.pdf"}},
-			}})
-		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/v1/expenses/"):
-			var request invoiceninja.ExpensePaymentStatusRequest
-			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			if err := r.ParseMultipartForm(1 << 20); err != nil {
 				t.Error(err)
 			}
-			if request.PrivateNotes == nil || !strings.Contains(*request.PrivateNotes, receiptOwnerMarker) {
-				t.Errorf("receipt owner update missing marker: %#v", request)
+			files := r.MultipartForm.File["documents[]"]
+			if len(files) != 1 {
+				t.Errorf("upload files = %#v", files)
+			} else {
+				expenses[id].Documents = []invoiceninja.Document{{Name: files[0].Filename}}
 			}
-			ownerUpdates++
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": expenses[id]})
+		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/v1/expenses/"):
+			var raw map[string]json.RawMessage
+			if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+				t.Error(err)
+			}
+			encoded, err := json.Marshal(raw)
+			if err != nil {
+				t.Error(err)
+			}
 			id := strings.TrimPrefix(r.URL.Path, "/api/v1/expenses/")
-			createdNotes[id] = *request.PrivateNotes
-			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{
-				"id":            id,
-				"private_notes": *request.PrivateNotes,
-				"documents":     []map[string]any{{"name": "receipt.pdf"}},
-			}})
+			if _, fullUpdate := raw["vendor_id"]; fullUpdate {
+				expenseUpdates++
+				var request invoiceninja.UpdateExpenseRequest
+				if err := json.Unmarshal(encoded, &request); err != nil {
+					t.Error(err)
+				}
+				applyExpenseUpdateState(expenses[id], request, expenses[id].Documents)
+			} else {
+				var request invoiceninja.ExpensePaymentStatusRequest
+				if err := json.Unmarshal(encoded, &request); err != nil {
+					t.Error(err)
+				}
+				if request.PrivateNotes == nil || !strings.Contains(*request.PrivateNotes, receiptOwnerMarker) {
+					t.Errorf("receipt owner update missing marker: %#v", request)
+				} else {
+					expenses[id].PrivateNotes = *request.PrivateNotes
+				}
+				expenses[id].PaymentDate = request.PaymentDate
+				expenses[id].PaymentTypeID = request.PaymentTypeID
+				ownerUpdates++
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": expenses[id]})
 		default:
 			http.Error(w, r.Method+" "+r.URL.String(), http.StatusNotFound)
 		}
@@ -470,7 +521,8 @@ func TestReceiptContentIsUploadedOnceWithDurableOwner(t *testing.T) {
 		"EXP-A,2/10/2026,Bunnings,Invoice,Visa Card,Expense,Materials,Consumables,55,100,55,5,receipt.pdf",
 		"EXP-B,2/10/2026,Bunnings,Invoice,Visa Card,Expense,Materials,Consumables,55,100,55,5,receipt.pdf",
 	}, "\n")
-	results, err := newExpenseImportTestService(t, ts).ImportExpensesCSVWithOptions(context.Background(), strings.NewReader(csv), ExpenseImportOptions{
+	service := newExpenseImportTestService(t, ts)
+	results, err := service.ImportExpensesCSVWithOptions(context.Background(), strings.NewReader(csv), ExpenseImportOptions{
 		ReceiptsRoot: receiptsRoot,
 	})
 	if err != nil {
@@ -479,19 +531,36 @@ func TestReceiptContentIsUploadedOnceWithDurableOwner(t *testing.T) {
 	if len(results) != 2 || expenseCreates != 2 || uploads != 1 || ownerUpdates != 1 {
 		t.Fatalf("results=%#v creates=%d uploads=%d owner updates=%d", results, expenseCreates, uploads, ownerUpdates)
 	}
-	for id, notes := range createdNotes {
-		if receiptKeyFromText(notes) == "" {
-			t.Fatalf("%s missing receipt key: %q", id, notes)
-		}
+
+	results, err = service.ImportExpensesCSVWithOptions(context.Background(), strings.NewReader(csv), ExpenseImportOptions{})
+	if err != nil {
+		t.Fatal(err)
 	}
+	if len(results) != 2 || results[0].Action != "unchanged" || results[1].Action != "unchanged" {
+		t.Fatalf("rerun results=%#v", results)
+	}
+	if expenseCreates != 2 || expenseUpdates != 0 || uploads != 1 || ownerUpdates != 1 {
+		t.Fatalf("creates=%d updates=%d uploads=%d owner updates=%d", expenseCreates, expenseUpdates, uploads, ownerUpdates)
+	}
+
+	var receiptKey string
 	owners := 0
-	for _, notes := range createdNotes {
-		if strings.Contains(notes, receiptOwnerMarker) {
+	for id, expense := range expenses {
+		key := receiptKeyFromText(expense.PrivateNotes)
+		if key == "" {
+			t.Fatalf("%s missing receipt key: %q", id, expense.PrivateNotes)
+		}
+		if receiptKey == "" {
+			receiptKey = key
+		} else if key != receiptKey {
+			t.Fatalf("%s receipt key = %q; want %q", id, key, receiptKey)
+		}
+		if strings.Contains(expense.PrivateNotes, receiptOwnerMarker) {
 			owners++
 		}
 	}
 	if owners != 1 {
-		t.Fatalf("durable owners = %d; notes=%#v", owners, createdNotes)
+		t.Fatalf("durable owners = %d; expenses=%#v", owners, expenses)
 	}
 }
 
@@ -769,6 +838,7 @@ func TestImportExpenseCreatesProjectFromNumericMasterQuote(t *testing.T) {
 func TestImportIDCorrectionUpdatesSameExpenseIncludingExplicitZero(t *testing.T) {
 	marker := importIDMarker("EXP-1")
 	var update invoiceninja.UpdateExpenseRequest
+	var updateRaw map[string]json.RawMessage
 	var creates int
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -785,7 +855,14 @@ func TestImportIDCorrectionUpdatesSameExpenseIncludingExplicitZero(t *testing.T)
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/statics":
 			_, _ = w.Write([]byte(`{"payment_types":[]}`))
 		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/expenses/expense1":
-			if err := json.NewDecoder(r.Body).Decode(&update); err != nil {
+			if err := json.NewDecoder(r.Body).Decode(&updateRaw); err != nil {
+				t.Error(err)
+			}
+			encoded, err := json.Marshal(updateRaw)
+			if err != nil {
+				t.Error(err)
+			}
+			if err := json.Unmarshal(encoded, &update); err != nil {
 				t.Error(err)
 			}
 			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": "expense1"}})
@@ -811,6 +888,11 @@ func TestImportIDCorrectionUpdatesSameExpenseIncludingExplicitZero(t *testing.T)
 	}
 	if update.VendorID != "vendor2" || update.CategoryID != "category2" || update.Amount != 0 || update.Date != "2026-10-02" || update.TaxAmount1 != 0 || update.TaxName1 != "" || update.TaxRate1 != 0 {
 		t.Fatalf("correction update = %#v", update)
+	}
+	for _, field := range []string{"amount", "tax_name1", "tax_rate1", "tax_amount1", "payment_date", "payment_type_id"} {
+		if _, ok := updateRaw[field]; !ok {
+			t.Fatalf("explicit correction field %q was omitted: %#v", field, updateRaw)
+		}
 	}
 	if !strings.Contains(update.PrivateNotes, marker) {
 		t.Fatalf("Import ID marker was not retained: %q", update.PrivateNotes)
