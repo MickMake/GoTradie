@@ -58,6 +58,8 @@ type CreateBankTransactionRequest struct {
 	ParticipantName   string  `json:"participant_name,omitempty"`
 }
 
+type UpdateBankTransactionRequest CreateBankTransactionRequest
+
 type BankIntegrationService struct{ *Service[BankIntegration] }
 type BankTransactionService struct{ *Service[BankTransaction] }
 type BankTransactionRuleService struct{ *Service[BankTransactionRule] }
@@ -100,6 +102,10 @@ func (s *BankTransactionService) ListAll(ctx context.Context, q BankTransactionQ
 
 func (s *BankTransactionService) Create(ctx context.Context, req CreateBankTransactionRequest) (*BankTransaction, error) {
 	return s.Service.Create(ctx, req)
+}
+
+func (s *BankTransactionService) Update(ctx context.Context, id string, req UpdateBankTransactionRequest) (*BankTransaction, error) {
+	return s.Service.Update(ctx, id, req)
 }
 
 type BankTransactionRuleQuery struct {

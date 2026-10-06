@@ -151,6 +151,69 @@ func TestExpenseUpdatePaymentStatusCanClearFields(t *testing.T) {
 	}
 }
 
+func TestExpenseUpdateCanPersistExplicitZeroAccountingValues(t *testing.T) {
+	var raw map[string]json.RawMessage
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut || r.URL.Path != "/api/v1/expenses/expense1" {
+			http.Error(w, "unexpected request", http.StatusNotFound)
+			return
+		}
+		if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+			t.Fatal(err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":{"id":"expense1","amount":0,"tax_amount1":0}}`))
+	}))
+	defer ts.Close()
+
+	c, err := New("token", WithBaseURL(ts.URL), WithHTTPClient(ts.Client()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := UpdateExpenseRequest{
+		VendorID:   "vendor1",
+		CategoryID: "category1",
+		Amount:     0,
+		Date:       "2026-10-02",
+		TaxAmount1: 0,
+	}.WithExplicitFields("amount", "tax_amount1", "payment_date", "payment_type_id")
+	if _, err := c.Expenses.Update(context.Background(), "expense1", request); err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"amount", "tax_amount1", "payment_date", "payment_type_id"} {
+		value, ok := raw[field]
+		if !ok {
+			t.Fatalf("explicit field %q was omitted: %#v", field, raw)
+		}
+		if field == "amount" || field == "tax_amount1" {
+			if string(value) != "0" {
+				t.Fatalf("%s = %s; want 0", field, value)
+			}
+		} else if string(value) != `""` {
+			t.Fatalf("%s = %s; want empty string", field, value)
+		}
+	}
+}
+
+func TestExpenseUpdateRequestRemainsSparse(t *testing.T) {
+	encoded, err := json.Marshal(UpdateExpenseRequest{PrivateNotes: "corrected note"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &raw); err != nil {
+		t.Fatal(err)
+	}
+	if len(raw) != 1 || string(raw["private_notes"]) != `"corrected note"` {
+		t.Fatalf("sparse update JSON = %s", encoded)
+	}
+	for _, field := range []string{"amount", "tax_amount1", "payment_date", "payment_type_id", "uses_inclusive_taxes"} {
+		if _, ok := raw[field]; ok {
+			t.Fatalf("unrelated zero field %q was serialized: %s", field, encoded)
+		}
+	}
+}
+
 func TestExpenseUploadDocument(t *testing.T) {
 	var gotMethod, gotPath, gotField, gotFilename, gotContent, gotIsPublic string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

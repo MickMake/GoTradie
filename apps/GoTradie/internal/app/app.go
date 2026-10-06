@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"flag"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/MickMake/GoTradie/internal/bunnings"
@@ -16,9 +18,12 @@ import (
 	"github.com/MickMake/GoTradie/internal/syncer"
 )
 
-const version = "v0.5.1"
+const version = "v0.5.2"
+
+var errExpenseImportStopped = errors.New("expense import stopped by operator")
 
 type App struct {
+	In  io.Reader
 	Out io.Writer
 	Err io.Writer
 }
@@ -30,6 +35,9 @@ type globalOptions struct {
 func (a App) Run(ctx context.Context, args []string) int {
 	if a.Out == nil {
 		a.Out = os.Stdout
+	}
+	if a.In == nil {
+		a.In = os.Stdin
 	}
 	if a.Err == nil {
 		a.Err = os.Stderr
@@ -409,17 +417,19 @@ func (a App) runNinjaImport(ctx context.Context, svc *ninja.Service, args []stri
 		inPath       string
 		dryRun       bool
 		receiptsRoot string
+		batchSize    int
+		pause        bool
 		err          error
 	)
 	if kind == "expenses" {
-		inPath, receiptsRoot, dryRun, err = parseExpenseImportArgs(args[1:])
+		inPath, receiptsRoot, batchSize, pause, dryRun, err = parseExpenseImportArgs(args[1:])
 	} else {
 		inPath, dryRun, err = parseImportArgs(args[1:])
 	}
 	if err != nil {
 		fmt.Fprintln(a.Err, err)
 		if kind == "expenses" {
-			fmt.Fprintln(a.Err, "usage: GoTradie ninja import expenses <file|-> [--receipts-root <dir>] [--commit]")
+			fmt.Fprintln(a.Err, "usage: GoTradie ninja import expenses <file> [--receipts-root <dir>] [--batch-size <n>] [--pause] [--commit]")
 		} else {
 			fmt.Fprintf(a.Err, "usage: GoTradie ninja import %s <file|-> [--commit]\n", kind)
 		}
@@ -438,7 +448,37 @@ func (a App) runNinjaImport(ctx context.Context, svc *ninja.Service, args []stri
 	case "clients":
 		results, err = svc.ImportClientsCSV(ctx, r, dryRun)
 	case "expenses":
-		results, err = svc.ImportExpensesCSV(ctx, r, dryRun, receiptsRoot)
+		pauseReader := bufio.NewReader(a.In)
+		results, err = svc.ImportExpensesCSVWithOptions(ctx, r, ninja.ExpenseImportOptions{
+			DryRun:       dryRun,
+			ReceiptsRoot: receiptsRoot,
+			BatchSize:    batchSize,
+			OnPreflight: func(report ninja.ExpenseImportPreflight) {
+				printExpensePreflight(a.Out, a.Err, report)
+			},
+			OnProgress: func(progress ninja.ExpenseImportProgress) {
+				printExpenseProgress(a.Out, a.Err, progress)
+			},
+			OnBatchComplete: func(summary ninja.ExpenseImportBatchSummary) error {
+				if dryRun {
+					fmt.Fprintf(a.Out, "Batch %d previewed: %d would create, %d existing, %d would update, %d deferred, %d errors\n", summary.Number, summary.New, summary.Existing, summary.Updated, summary.Deferred, summary.Errors)
+				} else {
+					fmt.Fprintf(a.Out, "Batch %d complete: %d new, %d existing, %d updated, %d deferred, %d errors\n", summary.Number, summary.New, summary.Existing, summary.Updated, summary.Deferred, summary.Errors)
+				}
+				if !pause || summary.Last {
+					return nil
+				}
+				fmt.Fprint(a.Out, "Continue? [Y/n] ")
+				keepGoing, readErr := readExpenseBatchDecision(pauseReader)
+				if readErr != nil {
+					return readErr
+				}
+				if keepGoing {
+					return nil
+				}
+				return errExpenseImportStopped
+			},
+		})
 	case "quotes", "invoices", "payments":
 		fmt.Fprintf(a.Err, "ninja import %s is not supported; exports only for this target\n", kind)
 		return 2
@@ -447,8 +487,17 @@ func (a App) runNinjaImport(ctx context.Context, svc *ninja.Service, args []stri
 		return 2
 	}
 	if err != nil {
+		if kind == "expenses" && errors.Is(err, errExpenseImportStopped) {
+			fmt.Fprintln(a.Out, "Import stopped by operator")
+			printExpenseImportSummary(a.Out, results, dryRun, false)
+			return csvImportExitCode(results)
+		}
 		fmt.Fprintln(a.Err, "import error:", err)
 		return 1
+	}
+	if kind == "expenses" {
+		printExpenseImportSummary(a.Out, results, dryRun, true)
+		return csvImportExitCode(results)
 	}
 	printCSVImportResults(a.Out, results)
 	return csvImportExitCode(results)
@@ -494,38 +543,61 @@ func parseImportArgs(args []string) (string, bool, error) {
 	return paths[0], dryRun, nil
 }
 
-func parseExpenseImportArgs(args []string) (string, string, bool, error) {
+func parseExpenseImportArgs(args []string) (string, string, int, bool, bool, error) {
 	dryRun := true
 	receiptsRoot := ""
+	batchSize := 0
+	pause := false
 	var paths []string
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		switch {
 		case arg == "--commit":
 			dryRun = false
+		case arg == "--pause":
+			pause = true
+		case arg == "--batch-size":
+			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
+				return "", "", 0, false, true, fmt.Errorf("--batch-size requires a positive integer")
+			}
+			i++
+			var parseErr error
+			batchSize, parseErr = strconv.Atoi(args[i])
+			if parseErr != nil || batchSize <= 0 {
+				return "", "", 0, false, true, fmt.Errorf("--batch-size requires a positive integer")
+			}
+		case strings.HasPrefix(arg, "--batch-size="):
+			var parseErr error
+			batchSize, parseErr = strconv.Atoi(strings.TrimPrefix(arg, "--batch-size="))
+			if parseErr != nil || batchSize <= 0 {
+				return "", "", 0, false, true, fmt.Errorf("--batch-size requires a positive integer")
+			}
 		case arg == "--receipts-root":
 			if i+1 >= len(args) || strings.HasPrefix(args[i+1], "-") {
-				return "", "", true, fmt.Errorf("--receipts-root requires a directory")
+				return "", "", 0, false, true, fmt.Errorf("--receipts-root requires a directory")
 			}
 			i++
 			receiptsRoot = args[i]
 		case strings.HasPrefix(arg, "--receipts-root="):
 			receiptsRoot = strings.TrimPrefix(arg, "--receipts-root=")
 		case arg == "-":
-			paths = append(paths, arg)
+			return "", "", 0, false, true, fmt.Errorf("Expense import requires a named file so the complete source can be preflighted before processing; stdin is not supported")
 		case strings.HasPrefix(arg, "-"):
-			return "", "", true, fmt.Errorf("unknown import flag %q", arg)
+			return "", "", 0, false, true, fmt.Errorf("unknown import flag %q", arg)
 		default:
 			paths = append(paths, arg)
 		}
 	}
 	if len(paths) != 1 {
-		return "", "", true, fmt.Errorf("expected exactly one import path, got %d", len(paths))
+		return "", "", 0, false, true, fmt.Errorf("expected exactly one import path, got %d", len(paths))
 	}
 	if strings.TrimSpace(receiptsRoot) == "" && containsExpenseReceiptFlag(args) {
-		return "", "", true, fmt.Errorf("receipts root must not be blank")
+		return "", "", 0, false, true, fmt.Errorf("receipts root must not be blank")
 	}
-	return paths[0], receiptsRoot, dryRun, nil
+	if pause && batchSize == 0 {
+		return "", "", 0, false, true, fmt.Errorf("--pause requires --batch-size")
+	}
+	return paths[0], receiptsRoot, batchSize, pause, dryRun, nil
 }
 
 func containsExpenseReceiptFlag(args []string) bool {
@@ -535,6 +607,20 @@ func containsExpenseReceiptFlag(args []string) bool {
 		}
 	}
 	return false
+}
+
+func readExpenseBatchDecision(reader *bufio.Reader) (bool, error) {
+	answer, err := reader.ReadString('\n')
+	if err != nil {
+		if !errors.Is(err, io.EOF) {
+			return false, err
+		}
+		if answer == "" {
+			return false, nil
+		}
+	}
+	answer = strings.ToLower(strings.TrimSpace(answer))
+	return answer == "" || answer == "y" || answer == "yes", nil
 }
 
 func readerFor(path string, stdin io.Reader) (io.Reader, func(), error) {
@@ -586,6 +672,80 @@ func printCSVImportResults(w io.Writer, results []ninja.CSVImportResult) {
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", r.ID, r.Name, r.Action, detail)
 	}
+}
+
+func printExpensePreflight(out, errOut io.Writer, report ninja.ExpenseImportPreflight) {
+	for _, warning := range report.Warnings {
+		fmt.Fprintln(out, "WARNING:", warning.String())
+	}
+	for _, issue := range report.Errors {
+		fmt.Fprintln(errOut, "ERROR:", issue.String())
+	}
+	fmt.Fprintln(out, "Preflight complete")
+	fmt.Fprintf(out, "Rows: %d\nErrors: %d\nWarnings: %d\nMode: %s\n", report.Rows, len(report.Errors), len(report.Warnings), report.Mode)
+	if report.Mode == ninja.ExpenseImportModeSettlementSafe {
+		fmt.Fprintln(out, "Account Payment rows detected. Using settlement-safe whole-file mode.")
+	}
+}
+
+func printExpenseProgress(out, errOut io.Writer, progress ninja.ExpenseImportProgress) {
+	result := progress.Result
+	state := expenseResultState(result)
+	line := fmt.Sprintf("%-12s %d/%d  %-10s  %-28s  $%9.2f  %s", state, progress.Index, progress.Total, result.Date, result.Supplier, result.BusinessAmount, result.ImportID)
+	if result.Error == nil {
+		fmt.Fprintln(out, strings.TrimRight(line, " "))
+		return
+	}
+	fmt.Fprintln(errOut, strings.TrimRight(line, " "))
+	if result.ReceiptName != "" {
+		fmt.Fprintln(errOut, "             File:", result.ReceiptName)
+	}
+	if result.RowNo > 0 {
+		fmt.Fprintln(errOut, "             CSV row:", result.RowNo)
+	}
+	fmt.Fprintln(errOut, "             Error:", result.Error)
+}
+
+func expenseResultState(result ninja.CSVImportResult) string {
+	if result.Error != nil || result.Action == "error" {
+		return "ERROR"
+	}
+	switch result.Action {
+	case "created", "created-transaction":
+		return "NEW"
+	case "would-create", "would-create-transaction":
+		return "WOULD-CREATE"
+	case "updated":
+		return "UPDATED"
+	case "would-update", "would-update-transaction":
+		return "WOULD-UPDATE"
+	case "deferred":
+		return "DEFERRED"
+	default:
+		return "EXISTING"
+	}
+}
+
+func printExpenseImportSummary(w io.Writer, results []ninja.CSVImportResult, dryRun, complete bool) {
+	counts := map[string]int{}
+	processed := 0
+	for _, result := range results {
+		if result.RowNo == 0 {
+			continue
+		}
+		processed++
+		counts[expenseResultState(result)]++
+	}
+	if complete {
+		fmt.Fprintln(w, "Import complete")
+	} else {
+		fmt.Fprintln(w, "Import summary")
+	}
+	if dryRun {
+		fmt.Fprintf(w, "Processed: %d\nWould create: %d\nExisting: %d\nWould update: %d\nDeferred: %d\nErrors: %d\n", processed, counts["NEW"]+counts["WOULD-CREATE"], counts["EXISTING"], counts["UPDATED"]+counts["WOULD-UPDATE"], counts["DEFERRED"], counts["ERROR"])
+		return
+	}
+	fmt.Fprintf(w, "Processed: %d\nNew: %d\nExisting: %d\nUpdated: %d\nDeferred: %d\nErrors: %d\n", processed, counts["NEW"]+counts["WOULD-CREATE"], counts["EXISTING"], counts["UPDATED"]+counts["WOULD-UPDATE"], counts["DEFERRED"], counts["ERROR"])
 }
 
 func csvImportExitCode(results []ninja.CSVImportResult) int {
@@ -667,7 +827,7 @@ func exitCode(results []syncer.Result) int {
 func (a App) usage() {
 	fmt.Fprintln(a.Out, `GoTradie syncs Bunnings products into Invoice Ninja.
 
-Version: v0.5.1
+Version: v0.5.2
 
 Global options:
   --config <path>       Optional key=value config file. File values override environment variables.
@@ -684,8 +844,8 @@ Commands:
   ninja import products <file|->        Preview product CSV changes; use --commit to update.
   ninja export clients <file|->         Export Invoice Ninja clients as CSV; use --commit to overwrite.
   ninja import clients <file|->         Preview client CSV changes; use --commit to update.
-  ninja import expenses <file|-> [--receipts-root <dir>]
-                                         Preview expenses and exact receipt matches; use --commit to create/upload.
+  ninja import expenses <file> [--receipts-root <dir>] [--batch-size <n>] [--pause]
+                                         Preflight and preview expenses; use --commit to write/upload.
   ninja export quotes <file|->          Export Invoice Ninja quotes as CSV; use --commit to overwrite.
   ninja export invoices <file|->        Export Invoice Ninja invoices as CSV; use --commit to overwrite.
   ninja export payments <file|->        Export Invoice Ninja payments as CSV; use --commit to overwrite.
@@ -711,6 +871,7 @@ Examples:
   GoTradie ninja import clients --commit clients.csv
   GoTradie ninja import expenses purchases.csv --receipts-root receipts
   GoTradie ninja import expenses --commit purchases.csv --receipts-root receipts
+  GoTradie ninja import expenses purchases.csv --batch-size 100 --pause --commit
   GoTradie ninja export quotes quotes.csv
   GoTradie ninja export invoices invoices.csv
   GoTradie ninja export payments payments.csv

@@ -2,7 +2,9 @@ package ninja
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -220,6 +222,134 @@ func TestShouldDeriveBusinessAmount(t *testing.T) {
 	}
 }
 
+func TestImportIDMarkerRoundTripsAndIgnoresRowPosition(t *testing.T) {
+	marker := importIDMarker("EXP-2020-00471")
+	if got, ok := importIDFromMarker(marker); !ok || got != "EXP-2020-00471" {
+		t.Fatalf("marker round trip = %q, %v", got, ok)
+	}
+	if got := sourceMarkerFromNotes("historical\n" + marker); got != marker {
+		t.Fatalf("marker extraction = %q", got)
+	}
+
+	idx := headerIndex(strings.Split(v052ExpenseCSVHeader(), ","))
+	state := &expenseImportState{paymentTypes: map[string]invoiceninja.PaymentType{}}
+	first := prepareExpenseImportRow(state, nil, idx, strings.Split("EXP-1,2/10/2026,Bunnings,Invoice,,Expense,Materials,Consumables,110,100,110,10", ","), 2)
+	corrected := prepareExpenseImportRow(state, nil, idx, strings.Split("EXP-1,3/10/2026,Other Supplier,Invoice,,Expense,Materials,Consumables,220,50,110,10", ","), 947)
+	assignExpenseRowIdentities([]*preparedExpenseImportRow{first})
+	assignExpenseRowIdentities([]*preparedExpenseImportRow{corrected})
+	if first.sourceMarker != corrected.sourceMarker || first.sourceMarker != importIDMarker("EXP-1") {
+		t.Fatalf("Import ID identity changed with row data: %q %q", first.sourceMarker, corrected.sourceMarker)
+	}
+}
+
+func TestImportIDExpenseMatchTakesPrecedenceOverLegacyFallback(t *testing.T) {
+	row := &preparedExpenseImportRow{
+		importID:     "EXP-1",
+		sourceMarker: importIDMarker("EXP-1"),
+		legacyMarker: "[GoTradie source:legacy]",
+	}
+	state := &expenseImportState{expenseByMarker: map[string]invoiceninja.Expense{
+		row.sourceMarker: {Entity: invoiceninja.Entity{ID: "import-id-expense"}},
+		row.legacyMarker: {Entity: invoiceninja.Entity{ID: "legacy-expense"}},
+	}}
+
+	got, exists, ambiguous := existingExpenseForRow(state, row)
+	if !exists || ambiguous || got.ID != "import-id-expense" {
+		t.Fatalf("existing expense = %#v, exists=%v ambiguous=%v", got, exists, ambiguous)
+	}
+}
+
+func TestExpensePreflightRejectsIdentityErrorsBeforeRemoteWork(t *testing.T) {
+	csv := strings.Join([]string{
+		v052ExpenseCSVHeader(),
+		",2/10/2026,Bunnings,Invoice,,Expense,Materials,Consumables,110,100,110,10",
+		"EXP-1,3/10/2026,Bunnings,Invoice,,Expense,Materials,Consumables,110,100,110,10",
+		"EXP-1,4/10/2026,Bunnings,Invoice,,Expense,Materials,Consumables,110,100,110,10",
+	}, "\n")
+	var report ExpenseImportPreflight
+	_, err := (&Service{}).ImportExpensesCSVWithOptions(context.Background(), strings.NewReader(csv), ExpenseImportOptions{
+		DryRun:      true,
+		OnPreflight: func(got ExpenseImportPreflight) { report = got },
+	})
+	var preflightErr *ExpenseImportPreflightError
+	if !errors.As(err, &preflightErr) {
+		t.Fatalf("preflight error = %T %v", err, err)
+	}
+	if report.Rows != 3 || len(report.Errors) != 2 {
+		t.Fatalf("preflight report = %#v", report)
+	}
+	if !strings.Contains(report.Errors[0].String(), "Import ID is required") || !strings.Contains(report.Errors[1].String(), "duplicate Import ID") {
+		t.Fatalf("preflight errors = %#v", report.Errors)
+	}
+}
+
+func TestExpensePreflightReportsArithmeticWarnings(t *testing.T) {
+	header := v052ExpenseCSVHeader() + ",Total Ex GST,GST,Qty,Unit Price"
+	csv := strings.Join([]string{
+		header,
+		"EXP-1,2/10/2026,Bunnings,Invoice,,Expense,Materials,Consumables,110,50,90,8,90,9,2,60",
+	}, "\n")
+	preflight := preflightExpenseSource(readCSVForTest(t, csv), "", 0)
+	if len(preflight.report.Errors) != 0 {
+		t.Fatalf("preflight errors = %#v", preflight.report.Errors)
+	}
+	if len(preflight.report.Warnings) < 4 {
+		t.Fatalf("expected arithmetic warnings, got %#v", preflight.report.Warnings)
+	}
+}
+
+func TestExpenseImportEmitsProgressAndTrueBatchSummaries(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if serveExpenseImportReferenceData(w, r) {
+			return
+		}
+		http.Error(w, r.Method+" "+r.URL.String(), http.StatusNotFound)
+	}))
+	defer ts.Close()
+	csv := strings.Join([]string{
+		v052ExpenseCSVHeader(),
+		"EXP-1,2/10/2026,Bunnings,Invoice,Visa Card,Expense,Materials,Consumables,110,100,110,10",
+		"EXP-2,3/10/2026,Bunnings,Invoice,Visa Card,Expense,Materials,Consumables,20,100,20,1.82",
+		"EXP-3,4/10/2026,Bunnings,Invoice,Visa Card,Expense,Materials,Consumables,30,100,30,2.73",
+	}, "\n")
+	var report ExpenseImportPreflight
+	var progress []ExpenseImportProgress
+	var batches []ExpenseImportBatchSummary
+	results, err := newExpenseImportTestService(t, ts).ImportExpensesCSVWithOptions(context.Background(), strings.NewReader(csv), ExpenseImportOptions{
+		DryRun:      true,
+		BatchSize:   2,
+		OnPreflight: func(got ExpenseImportPreflight) { report = got },
+		OnProgress:  func(got ExpenseImportProgress) { progress = append(progress, got) },
+		OnBatchComplete: func(got ExpenseImportBatchSummary) error {
+			batches = append(batches, got)
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 3 || len(progress) != 3 || len(batches) != 2 || report.Mode != ExpenseImportModeBatched {
+		t.Fatalf("results=%d progress=%d batches=%#v report=%#v", len(results), len(progress), batches, report)
+	}
+	if batches[0].Processed != 2 || batches[0].Last || batches[1].Processed != 1 || !batches[1].Last {
+		t.Fatalf("batch summaries = %#v", batches)
+	}
+}
+
+func v052ExpenseCSVHeader() string {
+	return "Import ID,Date,Supplier,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST"
+}
+
+func readCSVForTest(t *testing.T, value string) [][]string {
+	t.Helper()
+	records, err := csv.NewReader(strings.NewReader(value)).ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return records
+}
+
 func TestExpenseVendorName(t *testing.T) {
 	tests := []struct {
 		supplier string
@@ -273,6 +403,374 @@ func TestReceiptIndexUsesExactFilenameAndReportsAmbiguity(t *testing.T) {
 	}
 }
 
+func TestReceiptContentIsUploadedOnceWithDurableOwner(t *testing.T) {
+	receiptsRoot := t.TempDir()
+	receiptPath := filepath.Join(receiptsRoot, "receipt.pdf")
+	if err := os.WriteFile(receiptPath, []byte("one physical receipt"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var expenseCreates, expenseUpdates, uploads, ownerUpdates int
+	expenses := make(map[string]*invoiceninja.Expense)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/vendors":
+			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings"}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expense_categories":
+			_, _ = w.Write([]byte(`{"data":[{"id":"category1","name":"Materials"}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/projects" || r.URL.Path == "/api/v1/quotes"):
+			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expenses":
+			current := make([]invoiceninja.Expense, 0, len(expenses))
+			for _, expense := range expenses {
+				current = append(current, *expense)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": current,
+				"meta": map[string]any{"pagination": map[string]any{"total_pages": 1}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/statics":
+			_, _ = w.Write([]byte(`{"payment_types":[{"id":"5","name":"Visa Card"}]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/companies/current":
+			_, _ = w.Write([]byte(`{"data":{"id":"company1","notify_vendor_when_paid":false}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/expenses":
+			expenseCreates++
+			id := fmt.Sprintf("expense%d", expenseCreates)
+			var request invoiceninja.CreateExpenseRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Error(err)
+			}
+			expense := &invoiceninja.Expense{
+				Entity:               invoiceninja.Entity{ID: id},
+				VendorID:             request.VendorID,
+				ProjectID:            request.ProjectID,
+				CategoryID:           request.CategoryID,
+				Amount:               request.Amount,
+				Date:                 request.Date,
+				PaymentDate:          request.PaymentDate,
+				PaymentTypeID:        request.PaymentTypeID,
+				PrivateNotes:         request.PrivateNotes,
+				TransactionReference: request.TransactionReference,
+				TaxName1:             request.TaxName1,
+				TaxRate1:             request.TaxRate1,
+				TaxAmount1:           request.TaxAmount1,
+				UsesInclusiveTaxes:   request.UsesInclusiveTaxes,
+				CalculateTaxByAmount: request.CalculateTaxByAmount,
+				CustomValue1:         request.CustomValue1,
+				CustomValue2:         request.CustomValue2,
+				CustomValue3:         request.CustomValue3,
+				CustomValue4:         request.CustomValue4,
+			}
+			expenses[id] = expense
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": expense})
+		case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/upload"):
+			uploads++
+			parts := strings.Split(r.URL.Path, "/")
+			id := parts[len(parts)-2]
+			if err := r.ParseMultipartForm(1 << 20); err != nil {
+				t.Error(err)
+			}
+			files := r.MultipartForm.File["documents[]"]
+			if len(files) != 1 {
+				t.Errorf("upload files = %#v", files)
+			} else {
+				expenses[id].Documents = []invoiceninja.Document{{Name: files[0].Filename}}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": expenses[id]})
+		case r.Method == http.MethodPut && strings.HasPrefix(r.URL.Path, "/api/v1/expenses/"):
+			var raw map[string]json.RawMessage
+			if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+				t.Error(err)
+			}
+			encoded, err := json.Marshal(raw)
+			if err != nil {
+				t.Error(err)
+			}
+			id := strings.TrimPrefix(r.URL.Path, "/api/v1/expenses/")
+			if _, fullUpdate := raw["vendor_id"]; fullUpdate {
+				expenseUpdates++
+				var request invoiceninja.UpdateExpenseRequest
+				if err := json.Unmarshal(encoded, &request); err != nil {
+					t.Error(err)
+				}
+				applyExpenseUpdateState(expenses[id], request, expenses[id].Documents)
+			} else {
+				var request invoiceninja.ExpensePaymentStatusRequest
+				if err := json.Unmarshal(encoded, &request); err != nil {
+					t.Error(err)
+				}
+				if request.PrivateNotes == nil || !strings.Contains(*request.PrivateNotes, receiptOwnerMarker) {
+					t.Errorf("receipt owner update missing marker: %#v", request)
+				} else {
+					expenses[id].PrivateNotes = *request.PrivateNotes
+				}
+				expenses[id].PaymentDate = request.PaymentDate
+				expenses[id].PaymentTypeID = request.PaymentTypeID
+				ownerUpdates++
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": expenses[id]})
+		default:
+			http.Error(w, r.Method+" "+r.URL.String(), http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	csv := strings.Join([]string{
+		v052ExpenseCSVHeader() + ",File Name",
+		"EXP-A,2/10/2026,Bunnings,Invoice,Visa Card,Expense,Materials,Consumables,55,100,55,5,receipt.pdf",
+		"EXP-B,2/10/2026,Bunnings,Invoice,Visa Card,Expense,Materials,Consumables,55,100,55,5,receipt.pdf",
+	}, "\n")
+	service := newExpenseImportTestService(t, ts)
+	results, err := service.ImportExpensesCSVWithOptions(context.Background(), strings.NewReader(csv), ExpenseImportOptions{
+		ReceiptsRoot: receiptsRoot,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 || expenseCreates != 2 || uploads != 1 || ownerUpdates != 1 {
+		t.Fatalf("results=%#v creates=%d uploads=%d owner updates=%d", results, expenseCreates, uploads, ownerUpdates)
+	}
+
+	results, err = service.ImportExpensesCSVWithOptions(context.Background(), strings.NewReader(csv), ExpenseImportOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 || results[0].Action != "unchanged" || results[1].Action != "unchanged" {
+		t.Fatalf("rerun results=%#v", results)
+	}
+	if expenseCreates != 2 || expenseUpdates != 0 || uploads != 1 || ownerUpdates != 1 {
+		t.Fatalf("creates=%d updates=%d uploads=%d owner updates=%d", expenseCreates, expenseUpdates, uploads, ownerUpdates)
+	}
+
+	var receiptKey string
+	owners := 0
+	for id, expense := range expenses {
+		key := receiptKeyFromText(expense.PrivateNotes)
+		if key == "" {
+			t.Fatalf("%s missing receipt key: %q", id, expense.PrivateNotes)
+		}
+		if receiptKey == "" {
+			receiptKey = key
+		} else if key != receiptKey {
+			t.Fatalf("%s receipt key = %q; want %q", id, key, receiptKey)
+		}
+		if strings.Contains(expense.PrivateNotes, receiptOwnerMarker) {
+			owners++
+		}
+	}
+	if owners != 1 {
+		t.Fatalf("durable owners = %d; expenses=%#v", owners, expenses)
+	}
+}
+
+func TestReceiptRenameRemainsReentrantWithoutDuplicateUpload(t *testing.T) {
+	receiptsRoot := t.TempDir()
+	originalPath := filepath.Join(receiptsRoot, "original.pdf")
+	renamedPath := filepath.Join(receiptsRoot, "renamed.pdf")
+	if err := os.WriteFile(originalPath, []byte("same physical receipt"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var current *invoiceninja.Expense
+	var expenseCreates, uploads int
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/vendors":
+			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings"}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expense_categories":
+			_, _ = w.Write([]byte(`{"data":[{"id":"category1","name":"Materials"}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/projects" || r.URL.Path == "/api/v1/quotes"):
+			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expenses":
+			expenses := []invoiceninja.Expense(nil)
+			if current != nil {
+				expenses = append(expenses, *current)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data": expenses,
+				"meta": map[string]any{"pagination": map[string]any{"total_pages": 1}},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/statics":
+			_, _ = w.Write([]byte(`{"payment_types":[{"id":"5","name":"Visa Card"}]}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/companies/current":
+			_, _ = w.Write([]byte(`{"data":{"id":"company1","notify_vendor_when_paid":false}}`))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/expenses":
+			expenseCreates++
+			var request invoiceninja.CreateExpenseRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				t.Error(err)
+			}
+			current = &invoiceninja.Expense{
+				Entity:               invoiceninja.Entity{ID: "expense1"},
+				VendorID:             request.VendorID,
+				ProjectID:            request.ProjectID,
+				CategoryID:           request.CategoryID,
+				Amount:               request.Amount,
+				Date:                 request.Date,
+				PaymentDate:          request.PaymentDate,
+				PaymentTypeID:        request.PaymentTypeID,
+				PrivateNotes:         request.PrivateNotes,
+				TransactionReference: request.TransactionReference,
+				TaxName1:             request.TaxName1,
+				TaxRate1:             request.TaxRate1,
+				TaxAmount1:           request.TaxAmount1,
+				UsesInclusiveTaxes:   request.UsesInclusiveTaxes,
+				CalculateTaxByAmount: request.CalculateTaxByAmount,
+				CustomValue1:         request.CustomValue1,
+				CustomValue2:         request.CustomValue2,
+				CustomValue3:         request.CustomValue3,
+				CustomValue4:         request.CustomValue4,
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": current})
+		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/expenses/expense1/upload":
+			uploads++
+			if err := r.ParseMultipartForm(1 << 20); err != nil {
+				t.Error(err)
+			}
+			files := r.MultipartForm.File["documents[]"]
+			if len(files) != 1 {
+				t.Errorf("upload files = %#v", files)
+			} else {
+				current.Documents = []invoiceninja.Document{{Name: files[0].Filename}}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": current})
+		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/expenses/expense1":
+			var raw map[string]json.RawMessage
+			if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+				t.Error(err)
+			}
+			encoded, err := json.Marshal(raw)
+			if err != nil {
+				t.Error(err)
+			}
+			if _, fullUpdate := raw["vendor_id"]; fullUpdate {
+				var request invoiceninja.UpdateExpenseRequest
+				if err := json.Unmarshal(encoded, &request); err != nil {
+					t.Error(err)
+				}
+				applyExpenseUpdateState(current, request, current.Documents)
+			} else {
+				var request invoiceninja.ExpensePaymentStatusRequest
+				if err := json.Unmarshal(encoded, &request); err != nil {
+					t.Error(err)
+				}
+				current.PaymentDate = request.PaymentDate
+				current.PaymentTypeID = request.PaymentTypeID
+				if request.PrivateNotes != nil {
+					current.PrivateNotes = *request.PrivateNotes
+				}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": current})
+		default:
+			http.Error(w, r.Method+" "+r.URL.String(), http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	service := newExpenseImportTestService(t, ts)
+	run := func(filename string) CSVImportResult {
+		t.Helper()
+		csv := strings.Join([]string{
+			v052ExpenseCSVHeader() + ",File Name",
+			"EXP-RECEIPT,2/10/2026,Bunnings,Invoice,Visa Card,Expense,Materials,Consumables,55,100,55,5," + filename,
+		}, "\n")
+		results, err := service.ImportExpensesCSVWithOptions(context.Background(), strings.NewReader(csv), ExpenseImportOptions{
+			ReceiptsRoot: receiptsRoot,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(results) != 1 {
+			t.Fatalf("results = %#v", results)
+		}
+		return results[0]
+	}
+
+	if result := run("original.pdf"); result.Action != "created" {
+		t.Fatalf("original import = %#v", result)
+	}
+	if err := os.Rename(originalPath, renamedPath); err != nil {
+		t.Fatal(err)
+	}
+	if result := run("renamed.pdf"); result.Action != "updated" {
+		t.Fatalf("renamed import = %#v", result)
+	}
+	if result := run("renamed.pdf"); result.Action != "unchanged" {
+		t.Fatalf("renamed rerun = %#v", result)
+	}
+	if expenseCreates != 1 || uploads != 1 {
+		t.Fatalf("creates=%d uploads=%d; want one of each", expenseCreates, uploads)
+	}
+	if current == nil || len(current.Documents) != 1 || current.Documents[0].Name != "original.pdf" {
+		t.Fatalf("durable receipt document = %#v", current)
+	}
+	if got := privateNoteValues(current.PrivateNotes)["Source file"]; got != "renamed.pdf" {
+		t.Fatalf("source filename = %q; want renamed.pdf", got)
+	}
+}
+
+func TestExistingReceiptOwnerWithoutDocumentFailsSafely(t *testing.T) {
+	state := &expenseImportState{
+		receiptOwnerByKey:     map[string]invoiceninja.Expense{},
+		receiptOwnerAmbiguous: map[string]bool{},
+	}
+	expense := invoiceninja.Expense{
+		Entity:       invoiceninja.Entity{ID: "expense1"},
+		PrivateNotes: receiptMarker("abc") + "\n" + receiptOwnerMarker,
+	}
+	if err := registerExistingReceiptState(state, expense); err == nil || !strings.Contains(err.Error(), "no expected receipt document") {
+		t.Fatalf("receipt state error = %v", err)
+	}
+}
+
+func TestExistingReceiptOwnerRejectsContentChangeAndAcceptsRename(t *testing.T) {
+	expense := invoiceninja.Expense{
+		Entity:       invoiceninja.Entity{ID: "expense1"},
+		PrivateNotes: "Source file: old.pdf\n" + receiptMarker("abc") + "\n" + receiptOwnerMarker,
+		Documents:    []invoiceninja.Document{{Name: "old.pdf"}},
+	}
+	newContent := &preparedExpenseImportRow{
+		documentType:    documentTypeInvoice,
+		receiptName:     "old.pdf",
+		receiptKey:      "different",
+		existingExpense: &expense,
+	}
+	state := &expenseImportState{
+		receiptOwnerByKey:     map[string]invoiceninja.Expense{"abc": expense},
+		receiptOwnerAmbiguous: map[string]bool{},
+	}
+	if err := validateAndAssignReceiptOwnership(state, []*preparedExpenseImportRow{newContent}); err == nil || !strings.Contains(err.Error(), "changed from receipt key") {
+		t.Fatalf("content-change error = %v", err)
+	}
+
+	renamed := &preparedExpenseImportRow{
+		documentType:    documentTypeInvoice,
+		receiptName:     "renamed.pdf",
+		receiptKey:      "abc",
+		existingExpense: &expense,
+	}
+	if err := validateAndAssignReceiptOwnership(state, []*preparedExpenseImportRow{renamed}); err != nil {
+		t.Fatal(err)
+	}
+	if !renamed.receiptOwner || !renamed.receiptHasDocument {
+		t.Fatalf("renamed receipt owner = %#v", renamed)
+	}
+
+	withoutRoot := &preparedExpenseImportRow{
+		documentType:    documentTypeInvoice,
+		receiptName:     "old.pdf",
+		existingExpense: &expense,
+	}
+	if err := validateAndAssignReceiptOwnership(state, []*preparedExpenseImportRow{withoutRoot}); err != nil {
+		t.Fatal(err)
+	}
+	if withoutRoot.receiptKey != "abc" || !withoutRoot.receiptOwner || !withoutRoot.receiptHasDocument {
+		t.Fatalf("receipt without root = %#v", withoutRoot)
+	}
+}
+
 func TestImportExpenseCreatesProjectFromNumericMasterQuote(t *testing.T) {
 	var projectRequest invoiceninja.CreateProjectRequest
 	var expenseRequest map[string]json.RawMessage
@@ -315,8 +813,8 @@ func TestImportExpenseCreatesProjectFromNumericMasterQuote(t *testing.T) {
 	}
 	service := &Service{client: client}
 	csv := strings.Join([]string{
-		"Date,Supplier,Store,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST,Job Number,File Name",
-		"2/10/2026,Bunnings,Dural,Invoice,Visa Card,Expense - Materials,Materials,Consumables,110,100,110,10,1234,",
+		"Import ID,Date,Supplier,Store,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST,Job Number,File Name",
+		"expense-1,2/10/2026,Bunnings,Dural,Invoice,Visa Card,Expense - Materials,Materials,Consumables,110,100,110,10,1234,",
 	}, "\n")
 	results, err := service.ImportExpensesCSV(context.Background(), strings.NewReader(csv), false, "")
 	if err != nil {
@@ -337,12 +835,76 @@ func TestImportExpenseCreatesProjectFromNumericMasterQuote(t *testing.T) {
 	}
 }
 
+func TestImportIDCorrectionUpdatesSameExpenseIncludingExplicitZero(t *testing.T) {
+	marker := importIDMarker("EXP-1")
+	var update invoiceninja.UpdateExpenseRequest
+	var updateRaw map[string]json.RawMessage
+	var creates int
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/vendors":
+			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Old Supplier"},{"id":"vendor2","name":"New Supplier"}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expense_categories":
+			_, _ = w.Write([]byte(`{"data":[{"id":"category1","name":"Old"},{"id":"category2","name":"Hardware"}],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/projects" || r.URL.Path == "/api/v1/quotes"):
+			_, _ = w.Write([]byte(`{"data":[],"meta":{"pagination":{"total_pages":1}}}`))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expenses":
+			body := fmt.Sprintf(`{"data":[{"id":"expense1","vendor_id":"vendor1","category_id":"category1","amount":10,"date":"2026-10-01","tax_name1":"GST","tax_rate1":10,"tax_amount1":0.91,"private_notes":%q}],"meta":{"pagination":{"total_pages":1}}}`, marker)
+			_, _ = w.Write([]byte(body))
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/statics":
+			_, _ = w.Write([]byte(`{"payment_types":[]}`))
+		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/expenses/expense1":
+			if err := json.NewDecoder(r.Body).Decode(&updateRaw); err != nil {
+				t.Error(err)
+			}
+			encoded, err := json.Marshal(updateRaw)
+			if err != nil {
+				t.Error(err)
+			}
+			if err := json.Unmarshal(encoded, &update); err != nil {
+				t.Error(err)
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": "expense1"}})
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/expenses":
+			creates++
+			http.Error(w, "unexpected create", http.StatusInternalServerError)
+		default:
+			http.Error(w, r.Method+" "+r.URL.String(), http.StatusNotFound)
+		}
+	}))
+	defer ts.Close()
+
+	csv := strings.Join([]string{
+		v052ExpenseCSVHeader(),
+		"EXP-1,2/10/2026,New Supplier,Invoice,,Expense,Hardware,Corrected,20,0,0,0",
+	}, "\n")
+	results, err := newExpenseImportTestService(t, ts).ImportExpensesCSV(context.Background(), strings.NewReader(csv), false, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Action != "updated" || results[0].ID != "expense1" || creates != 0 {
+		t.Fatalf("results=%#v creates=%d", results, creates)
+	}
+	if update.VendorID != "vendor2" || update.CategoryID != "category2" || update.Amount != 0 || update.Date != "2026-10-02" || update.TaxAmount1 != 0 || update.TaxName1 != "" || update.TaxRate1 != 0 {
+		t.Fatalf("correction update = %#v", update)
+	}
+	for _, field := range []string{"amount", "tax_name1", "tax_rate1", "tax_amount1", "payment_date", "payment_type_id"} {
+		if _, ok := updateRaw[field]; !ok {
+			t.Fatalf("explicit correction field %q was omitted: %#v", field, updateRaw)
+		}
+	}
+	if !strings.Contains(update.PrivateNotes, marker) {
+		t.Fatalf("Import ID marker was not retained: %q", update.PrivateNotes)
+	}
+}
+
 func TestImportExistingUnpaidPurchaseClearsLegacyPaidState(t *testing.T) {
 	header := []string{
-		"Date", "Supplier", "Store", "Document Type", "Payment Type", "Tax Treatment", "Category", "Option",
+		"Import ID", "Date", "Supplier", "Store", "Document Type", "Payment Type", "Tax Treatment", "Category", "Option",
 		"Total Inc GST", "Business %", "Business Amount", "Business GST", "Invoice Number",
 	}
-	rec := []string{"2/10/2026", "Bunnings", "Dural", "Invoice", "", "Expense - Materials", "Materials", "Consumables", "110", "100", "110", "10", "INV-1"}
+	rec := []string{"expense-1", "2/10/2026", "Bunnings", "Dural", "Invoice", "", "Expense - Materials", "Materials", "Consumables", "110", "100", "110", "10", "INV-1"}
 	marker := purchaseSourceMarker(rec, headerIndex(header), "2026-10-02")
 	var paymentStatus invoiceninja.ExpensePaymentStatusRequest
 	var writeCount int
@@ -397,11 +959,14 @@ func TestImportExistingUnpaidPurchaseClearsLegacyPaidState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 1 || results[0].Action != "updated" || writeCount != 2 {
+	if len(results) != 1 || results[0].Action != "updated" || writeCount != 1 {
 		t.Fatalf("unexpected result=%#v writes=%d", results, writeCount)
 	}
 	if paymentStatus.PaymentDate != "" || paymentStatus.PaymentTypeID != "" {
 		t.Fatalf("paid state was not cleared: %#v", paymentStatus)
+	}
+	if paymentStatus.PrivateNotes == nil || !strings.Contains(*paymentStatus.PrivateNotes, importIDMarker("expense-1")) {
+		t.Fatalf("legacy Expense did not gain durable Import ID: %#v", paymentStatus)
 	}
 }
 
@@ -452,8 +1017,8 @@ func TestAccountPaymentCommitCreatesWithdrawalWithoutFakeExpenseOrCustomerPaymen
 	}
 	service := &Service{client: client}
 	csv := strings.Join([]string{
-		"Date,Supplier,Store,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST,Invoice Number,File Name",
-		"1/11/2026,Bunnings,Dural,Account Payment,Visa Card,formula,formula,formula,71.84,formula,formula,formula,PAY-1,payment.pdf",
+		"Import ID,Date,Supplier,Store,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST,Invoice Number,File Name",
+		"payment-1,1/11/2026,Bunnings,Dural,Account Payment,Visa Card,formula,formula,formula,71.84,formula,formula,formula,PAY-1,payment.pdf",
 	}, "\n")
 	results, err := service.ImportExpensesCSV(context.Background(), strings.NewReader(csv), false, "")
 	if err != nil {
@@ -468,7 +1033,7 @@ func TestAccountPaymentCommitCreatesWithdrawalWithoutFakeExpenseOrCustomerPaymen
 	if transactionRequest.BankIntegrationID != "bank1" || transactionRequest.CurrencyID != "company-currency" || transactionRequest.BaseType != "DEBIT" || transactionRequest.Amount != 71.84 || transactionRequest.Date != "2026-11-01" || transactionRequest.ParticipantName != "Bunnings" {
 		t.Fatalf("unexpected transaction request: %#v", transactionRequest)
 	}
-	if !strings.Contains(transactionRequest.Description, "[GoTradie account-payment:") || !strings.Contains(transactionRequest.Description, supplierAccountMarker("Bunnings")) {
+	if !strings.Contains(transactionRequest.Description, importIDMarkerPrefix) || !strings.Contains(transactionRequest.Description, supplierAccountMarker("Bunnings")) {
 		t.Fatalf("transaction markers missing: %q", transactionRequest.Description)
 	}
 	if !containsChange(results[0].Changes, "supporting-document:unattached:payment.pdf") {
@@ -510,8 +1075,8 @@ func TestNegativeSupplierReturnCreatesExpenseWithoutBankTransaction(t *testing.T
 		t.Fatal(err)
 	}
 	csv := strings.Join([]string{
-		"Date,Supplier,Store,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST,Invoice Number",
-		"2/1/2026,Bunnings,Dural,Invoice,,Expense - Materials,Materials,Consumables,-20,100,-20,-1.82,RETURN-1",
+		"Import ID,Date,Supplier,Store,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST,Invoice Number",
+		"return-1,2/1/2026,Bunnings,Dural,Invoice,,Expense - Materials,Materials,Consumables,-20,100,-20,-1.82,RETURN-1",
 	}, "\n")
 	results, err := (&Service{client: client}).ImportExpensesCSV(context.Background(), strings.NewReader(csv), false, "")
 	if err != nil {
@@ -822,8 +1387,8 @@ func TestExpensePaymentNotificationPreflightFailsBeforeWrites(t *testing.T) {
 			}
 			service := &Service{client: client}
 			csv := strings.Join([]string{
-				"Date,Supplier,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST",
-				"2/10/2026,Bunnings,Invoice,Visa Card,Expense,Materials,Consumables,110,100,110,10",
+				"Import ID,Date,Supplier,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST",
+				"expense-1,2/10/2026,Bunnings,Invoice,Visa Card,Expense,Materials,Consumables,110,100,110,10",
 			}, "\n")
 			if _, err := service.ImportExpensesCSV(context.Background(), strings.NewReader(csv), false, ""); err == nil || !strings.Contains(err.Error(), "notify_vendor_when_paid") {
 				t.Fatalf("preflight error = %v", err)
@@ -869,9 +1434,9 @@ func TestAdjustmentIsDeferredAfterUnrelatedCommit(t *testing.T) {
 	}
 	service := &Service{client: client}
 	csv := strings.Join([]string{
-		"Date,Supplier,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST",
-		"2/10/2026,Bunnings,Invoice,,Expense,Materials,Consumables,110,100,110,10",
-		"3/10/2026,Bunnings,Adjustment,,Expense,Materials,Consumables,-10,100,-10,-0.91",
+		"Import ID,Date,Supplier,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST",
+		"expense-1,2/10/2026,Bunnings,Invoice,,Expense,Materials,Consumables,110,100,110,10",
+		"adjustment-1,3/10/2026,Bunnings,Adjustment,,Expense,Materials,Consumables,-10,100,-10,-0.91",
 	}, "\n")
 	results, err := service.ImportExpensesCSV(context.Background(), strings.NewReader(csv), false, "")
 	if err != nil {

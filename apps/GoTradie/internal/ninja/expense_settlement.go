@@ -167,11 +167,29 @@ func validateExistingTransactionIdentities(state *expenseImportState, rows []*pr
 		if row.documentType != documentTypeAccountPayment || row.err != nil || row.duplicateRow != 0 {
 			continue
 		}
-		if state.ambiguousTransactionMarkers[row.sourceMarker] {
+		lookupMarker := row.sourceMarker
+		if row.importID != "" && state.ambiguousTransactionMarkers[row.sourceMarker] {
 			row.err = fmt.Errorf("row %d: stable Account Payment identity matches multiple Invoice Ninja Transactions", row.rowNo)
 			continue
 		}
-		if transaction, ok := state.transactionByMarker[row.sourceMarker]; ok {
+		if row.importID != "" {
+			if _, ok := state.transactionByMarker[row.sourceMarker]; ok {
+				lookupMarker = row.sourceMarker
+			} else if row.legacyMarker != "" {
+				if _, ok := state.transactionByMarker[row.legacyMarker]; ok {
+					lookupMarker = row.legacyMarker
+				}
+			}
+		} else if row.legacyMarker != "" {
+			if _, ok := state.transactionByMarker[row.legacyMarker]; ok {
+				lookupMarker = row.legacyMarker
+			}
+		}
+		if state.ambiguousTransactionMarkers[lookupMarker] {
+			row.err = fmt.Errorf("row %d: stable Account Payment identity matches multiple Invoice Ninja Transactions", row.rowNo)
+			continue
+		}
+		if transaction, ok := state.transactionByMarker[lookupMarker]; ok {
 			date, amountCents, err := durableSupplierSettlementValues(transaction)
 			if err != nil {
 				row.err = fmt.Errorf("row %d: marked Invoice Ninja Transaction %q is invalid: %w", row.rowNo, transaction.ID, err)
@@ -183,6 +201,26 @@ func validateExistingTransactionIdentities(state *expenseImportState, rows []*pr
 			}
 			if date != row.date {
 				row.err = fmt.Errorf("row %d: marked Invoice Ninja Transaction %q date drift: durable date %q does not match source date %q", row.rowNo, transaction.ID, date, row.date)
+				continue
+			}
+			durableSupplierMarker := supplierAccountMarkerFromText(transaction.Description)
+			if durableSupplierMarker == "" {
+				row.err = fmt.Errorf("row %d: marked Invoice Ninja Transaction %q has no durable supplier-account marker", row.rowNo, transaction.ID)
+				continue
+			}
+			if durableSupplierMarker != row.supplierAccountMarker {
+				row.err = fmt.Errorf("row %d: marked Invoice Ninja Transaction %q supplier drift: durable supplier account does not match source Supplier %q", row.rowNo, transaction.ID, row.supplier)
+				continue
+			}
+			durableValues := privateNoteValues(transaction.Description)
+			durablePaymentType := strings.TrimSpace(durableValues["Payment type"])
+			if durablePaymentType != row.paymentType {
+				row.err = fmt.Errorf("row %d: marked Invoice Ninja Transaction %q Payment Type drift: durable value %q does not match source value %q", row.rowNo, transaction.ID, durablePaymentType, row.paymentType)
+				continue
+			}
+			durableReference := strings.TrimSpace(durableValues["Payment reference"])
+			if durableReference != strings.TrimSpace(row.reference) {
+				row.err = fmt.Errorf("row %d: marked Invoice Ninja Transaction %q Payment Reference drift: durable value %q does not match source value %q", row.rowNo, transaction.ID, durableReference, row.reference)
 				continue
 			}
 			transactionCopy := transaction
@@ -216,10 +254,8 @@ func allocateAccountPayments(state *expenseImportState, rows []*preparedExpenseI
 	var payments []*settlementPayment
 
 	for _, row := range rows {
-		if row.documentType == documentTypeAccountPayment {
-			if transaction, ok := state.transactionByMarker[row.sourceMarker]; ok {
-				representedTransactions[transaction.ID] = true
-			}
+		if row.documentType == documentTypeAccountPayment && row.existingTransaction != nil {
+			representedTransactions[row.existingTransaction.ID] = true
 		}
 		if row.err != nil || row.duplicateRow != 0 {
 			continue
@@ -566,7 +602,7 @@ func settlementPurchaseMarkerFromText(text string) string {
 }
 
 func accountPaymentMarkerFromText(text string) string {
-	for _, prefix := range []string{"[GoTradie account-payment:v3:", "[GoTradie account-payment:v2:"} {
+	for _, prefix := range []string{importIDMarkerPrefix, "[GoTradie account-payment:v3:", "[GoTradie account-payment:v2:"} {
 		if marker := markerFromText(text, prefix); marker != "" {
 			return marker
 		}
@@ -611,21 +647,34 @@ func accountPaymentDescription(row *preparedExpenseImportRow) string {
 	add("Payment reference", row.reference)
 	add("Payment type", row.paymentType)
 	add("Source file", row.receiptName)
+	add("GoTradie Import ID", row.importID)
 	lines = append(lines, row.supplierAccountMarker, row.sourceMarker)
 	return strings.Join(lines, "\n")
+}
+
+func appendAccountPaymentIdentity(description string, row *preparedExpenseImportRow) string {
+	if strings.Contains(description, row.sourceMarker) {
+		return description
+	}
+	lines := []string{strings.TrimSpace(description)}
+	if row.importID != "" && !strings.Contains(description, "GoTradie Import ID: ") {
+		lines = append(lines, "GoTradie Import ID: "+row.importID)
+	}
+	lines = append(lines, row.sourceMarker)
+	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
 
 func expenseNotesForRow(notes string, row *preparedExpenseImportRow) string {
 	if !isPurchaseRow(row) {
 		return notes
 	}
+	updated := identityNotesForRow(notes, row)
 	if row.paymentType != "" {
-		return withoutSupplierAccountNotes(notes)
+		updated = withoutSupplierAccountNotes(updated)
+	} else if row.supplierAccountMarker != "" && row.settlementPurchaseMarker != "" {
+		updated = supplierAccountNotes(updated, row.supplier, row.supplierAccountMarker, row.settlementPurchaseMarker)
 	}
-	if row.supplierAccountMarker == "" || row.settlementPurchaseMarker == "" {
-		return notes
-	}
-	return supplierAccountNotes(notes, row.supplier, row.supplierAccountMarker, row.settlementPurchaseMarker)
+	return receiptNotesForRow(updated, row, row.receiptOwner && row.receiptHasDocument)
 }
 
 func withoutSupplierAccountNotes(notes string) string {
@@ -644,14 +693,16 @@ func withoutSupplierAccountNotes(notes string) string {
 
 func (s *Service) previewExpenseImportRow(ctx context.Context, state *expenseImportState, idx map[string]int, row *preparedExpenseImportRow) CSVImportResult {
 	if row.err != nil {
-		return CSVImportResult{Name: row.name, Action: "error", Error: row.err}
+		result := expenseResultForRow(row)
+		result.Action = "error"
+		result.Error = row.err
+		return result
 	}
 	if row.duplicateRow != 0 {
-		return CSVImportResult{
-			Name:    row.name,
-			Action:  "unchanged",
-			Changes: []string{fmt.Sprintf("duplicate-source-row:%d", row.duplicateRow)},
-		}
+		result := expenseResultForRow(row)
+		result.Action = "unchanged"
+		result.Changes = []string{fmt.Sprintf("duplicate-source-row:%d", row.duplicateRow)}
+		return result
 	}
 	switch row.documentType {
 	case documentTypeInvoice, documentTypeReceipt:
@@ -666,11 +717,10 @@ func (s *Service) previewExpenseImportRow(ctx context.Context, state *expenseImp
 }
 
 func unsupportedExpenseImportRow(row *preparedExpenseImportRow) CSVImportResult {
-	return CSVImportResult{
-		Name:   row.name,
-		Action: "error",
-		Error:  fmt.Errorf("row %d: unsupported Document Type %q", row.rowNo, row.documentType),
-	}
+	result := expenseResultForRow(row)
+	result.Action = "error"
+	result.Error = fmt.Errorf("row %d: unsupported Document Type %q", row.rowNo, row.documentType)
+	return result
 }
 
 func previewRemoteSettlementActions(actions []expenseSettlementAction) []CSVImportResult {

@@ -9,6 +9,10 @@
 - Added focused expense payment-status updates that can explicitly mark an expense paid or clear an incorrect paid state.
 - Added read-only access to the current company's vendor-paid notification setting for safe expense imports.
 - Added focused Bank Integration, Bank Transaction, and Bank Transaction Rule services for resolving manual accounts, creating withdrawals, and preflighting auto-convert rules.
+- Added typed Bank Transaction updates so existing historical withdrawals can
+  gain durable import identity without replacement.
+- Expense updates now preserve explicit zero accounting and payment values
+  instead of omitting them from JSON corrections.
 
 ## v0.3
 
