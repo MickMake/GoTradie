@@ -1,5 +1,9 @@
 # GoTradie v0.5.3 — Hierarchical Configuration
 
+## Status
+
+**Planned — implementation-ready design**
+
 ## Purpose
 
 Replace the current flat `key=value` configuration with a structured hierarchical configuration suitable for GoTradie's growing feature set.
@@ -101,11 +105,22 @@ The rule is:
 
 > Config describes the source. Code implements behaviour.
 
-## Compatibility
+## Compatibility and migration
 
-Where practical, the existing configuration should remain readable during migration so users can transition without a hard cut-over.
+`v0.5.3` is a transition release.
 
-The new YAML configuration becomes the preferred format.
+The existing flat config format must remain readable for this release so current installations can migrate without a hard cut-over.
+
+Rules:
+
+1. YAML is the preferred configuration format from `v0.5.3` onward.
+2. Existing flat config remains accepted during `v0.5.3`.
+3. Environment variables continue to override file-based values where already supported.
+4. Behaviour must not silently change merely because configuration moved to YAML.
+5. If both legacy and YAML configuration are supplied, precedence must be deterministic and documented.
+6. Removal of legacy flat-config support is a later explicit decision, not part of this slice.
+
+The implementation should not build a generic migration framework. Supporting the old reader alongside the new YAML reader for the transition is sufficient.
 
 ## Scope guardrail
 

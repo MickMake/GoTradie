@@ -1,10 +1,14 @@
 # GoTradie v0.5.4 — BAS Export
 
+## Status
+
+**Planned — implementation-ready design**
+
 ## Purpose
 
 Produce a BAS-oriented XLSX workbook from Invoice Ninja data.
 
-This slice also introduces the shared accounting calculation layer that later EOFY and Financial exports must reuse.
+This slice also introduces the shared **Accounting Dataset** that later EOFY and Financial exports must reuse.
 
 The immediate accounting basis is expected to be cash GST accounting.
 
@@ -163,9 +167,9 @@ other unresolved accounting state
 
 Material exceptions should cause the command to report failure rather than silently produce authoritative-looking figures.
 
-## Shared accounting calculation layer
+## Accounting Dataset
 
-This slice must introduce a shared accounting dataset/calculation layer.
+This slice introduces the shared **Accounting Dataset** used by BAS, EOFY and Financial reporting.
 
 Conceptually:
 
@@ -173,7 +177,7 @@ Conceptually:
 Invoice Ninja
       |
       v
-Shared accounting dataset/calculation layer
+Accounting Dataset
       |
       +--> BAS workbook
       |
@@ -182,7 +186,11 @@ Shared accounting dataset/calculation layer
       +--> Financial workbook (v0.5.6)
 ```
 
-Rules that must exist only once include:
+The Accounting Dataset owns reusable accounting facts and calculations.
+
+The BAS exporter owns BAS-specific period selection, BAS labels, workbook layout and presentation.
+
+Rules that should exist once in the Accounting Dataset include:
 
 ```text
 income recognition
@@ -196,6 +204,10 @@ rounding
 business-use percentages
 GST treatment
 ```
+
+The dataset must remain intentionally narrow.
+
+Do not pre-build a general accounting framework for hypothetical future reports. Add only the shared accounting behaviour required by BAS and already-known EOFY/Financial needs.
 
 ## Source of truth
 
@@ -225,7 +237,8 @@ Implement:
 11. XLSX output;
 12. Summary, Sales, Purchases and Exceptions sheets;
 13. traceable audit detail;
-14. explicit exceptions.
+14. explicit exceptions;
+15. the minimum shared Accounting Dataset needed to support the above and known later reporting slices.
 
 Do not initially implement:
 
@@ -238,6 +251,7 @@ payroll
 general ledger
 complete tax-return generation
 another accounting database
+speculative accounting abstractions
 ```
 
 ## Design rule

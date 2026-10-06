@@ -10,6 +10,11 @@ The purpose is simple: each implementation slice gets a clear home, a clear stat
 |---|---|---|
 | [v0.5.1](./0.5.1/) | Closed | Historical Expense import and supplier-account settlement |
 | [v0.5.2](./0.5.2/) | Design drafted | Expense Import ID/preflight, operational UX, batching and receipt deduplication |
+| [v0.5.3](./0.5.3/) | Planned | Hierarchical YAML configuration and migration from flat config |
+| [v0.5.4](./0.5.4/) | Planned | Shared Accounting Dataset and BAS XLSX export |
+| [v0.5.5](./0.5.5/) | Planned — design incomplete | EOFY preparation XLSX export |
+| [v0.5.6](./0.5.6/) | Planned — design incomplete | Financial analysis XLSX export |
+| [v0.5.7](./0.5.7/) | Planned | Product synchronisation, provider routing and catalogue sources |
 
 ## Working rule
 
@@ -44,14 +49,44 @@ Current draft design:
 
 - [Expense Importing — Identity, Preflight, Operational UX and Batching](./0.5.2/Expense-Importing-UX.md)
 
-The draft now locks in:
+## v0.5.3
 
-- mandatory user-supplied `Import ID`;
-- complete-file preflight before execution;
-- no stdin for Expense import;
-- arithmetic/source sanity checks;
-- true batching only for ordinary Expense-only files;
-- settlement-safe whole-file mode when Account Payment rows exist;
-- durable receipt deduplication/ownership.
+`v0.5.3` replaces the current flat `key=value` configuration with hierarchical YAML.
 
-Implementation has not started.
+It is infrastructure only. It must not quietly absorb BAS, EOFY, Financial or Product Sync implementation.
+
+The old flat config remains readable for this transition release so existing installations can move deliberately to YAML.
+
+## v0.5.4
+
+`v0.5.4` introduces the shared **Accounting Dataset** and uses BAS export as its first concrete consumer.
+
+The Accounting Dataset owns reusable accounting calculations. The BAS workbook owns BAS-specific presentation.
+
+This slice should implement only the shared accounting machinery required by BAS and already-known later reporting needs. It must not become a speculative general accounting framework.
+
+## v0.5.5
+
+`v0.5.5` will produce the EOFY preparation XLSX workbook using the Accounting Dataset from `v0.5.4`.
+
+Its current document is a roadmap-level design, not yet an implementation-complete specification.
+
+Before implementation begins, its workbook structure and required outputs must be completed and accepted.
+
+## v0.5.6
+
+`v0.5.6` will produce the Financial Analysis XLSX workbook using the Accounting Dataset from `v0.5.4`.
+
+Its current document is a roadmap-level design, not yet an implementation-complete specification.
+
+Before implementation begins, its workbook structure and required outputs must be completed and accepted.
+
+## v0.5.7
+
+`v0.5.7` redesigns Product Sync around a simple two-phase rule:
+
+> Sync known Invoice Ninja Products first. Then look for products that are missing.
+
+It depends on the hierarchical provider configuration introduced in `v0.5.3`, but does not depend on the accounting-reporting slices.
+
+If implementation scope grows materially, keep the release boundary but implement internally in small phases rather than creating one large reconciliation engine.
