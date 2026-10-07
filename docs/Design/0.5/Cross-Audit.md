@@ -117,7 +117,7 @@ providers
 
 ## Provider identity
 
-A configured provider has:
+A configured Provider has:
 
 ```text
 canonical name
@@ -126,9 +126,11 @@ aliases
 provider-specific configuration
 ```
 
-Aliases are recognition inputs. The canonical name is the stable supplier identity.
+The canonical name is the official supplier name used as Vendor identity.
 
-## Vendor versus provider
+Aliases are recognition inputs only. They may resolve incoming supplier names to a Provider, but they must not become alternate Vendor identities.
+
+## Vendor versus Provider
 
 A Vendor is an accounting supplier identity stored in Invoice Ninja.
 
@@ -138,18 +140,27 @@ A Vendor does not need to have a Provider.
 
 Unknown suppliers remain valid Vendors, but Product Sync only runs where a Vendor resolves to a configured Provider.
 
-## Canonical Vendor identity and store metadata
+## Canonical Vendor identity and Store metadata
 
-Store/location information must not be discarded.
+Vendor identity must use the canonical official supplier name only.
 
-Preferred representation:
+Required representation:
 
 ```text
 Vendor: Bunnings
 Store: Castle Hill
 ```
 
-Store remains separate Expense metadata so analytics can group by Vendor, Store, or Vendor + Store.
+Store/location must be preserved as separate Expense metadata.
+
+Store/location must not:
+
+- be appended to or encoded into Vendor identity;
+- create a separate Vendor identity;
+- create a separate Provider identity;
+- affect Provider alias resolution after the supplier has resolved.
+
+Reporting and analytics may group by Vendor, Store, or Vendor + Store.
 
 ## Product Sync freshness override
 

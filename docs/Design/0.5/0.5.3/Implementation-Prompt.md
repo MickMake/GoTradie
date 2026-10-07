@@ -84,11 +84,15 @@ Do not add environment overrides for ordinary structural configuration such as U
 
 ## Provider configuration contract
 
-Provider configuration must support one canonical name and multiple accepted aliases.
+Provider configuration must support one canonical official supplier name and multiple accepted aliases.
+
+When an incoming supplier matches a configured Provider alias, the Provider canonical name is the Vendor identity.
+
+Aliases are recognition inputs only and must not become alternate Vendor identities.
+
+Store/location must remain separate Expense metadata and must not be encoded into Provider or Vendor identity.
 
 Do not implement fuzzy supplier matching or automatic alias learning in this slice.
-
-Store/location must not be encoded into the canonical Provider name.
 
 ## Scope exclusions
 
@@ -111,6 +115,8 @@ Add or update tests covering at least:
 - unknown-field rejection;
 - malformed YAML;
 - Provider canonical name and aliases;
+- canonical Vendor identity after alias resolution;
+- Store/location remaining separate from Vendor identity;
 - `eofy` configuration parsing;
 - validation failures;
 - preservation of existing defaults where defaults are appropriate.

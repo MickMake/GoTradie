@@ -24,11 +24,29 @@ Provider = configured external catalogue/API source.
 
 A Vendor may exist without a Provider.
 
-Configured Providers have one canonical name plus accepted aliases.
+Configured Providers have one canonical official supplier name plus accepted aliases.
 
-When a supplier resolves to a Provider, canonical Vendor identity is used and Store remains separate Expense metadata.
+Aliases are recognition inputs only.
+
+When an incoming supplier matches a configured Provider alias:
+
+```text
+Vendor = Provider canonical name
+Store  = separate Expense metadata
+```
+
+The canonical Provider name is the Vendor identity.
+
+Store/location must never be appended to or encoded into Vendor identity.
 
 Unknown/non-provider Vendors remain valid accounting entities but are skipped by Product Sync.
+
+Provider alias resolution is deterministic:
+
+- trim surrounding whitespace;
+- compare case-insensitively;
+- no fuzzy matching;
+- no automatic alias learning.
 
 ## Freshness
 
@@ -56,6 +74,8 @@ Never interpret a failed request as discontinued.
 ## Store analytics
 
 Store/location metadata must remain available independently from canonical Vendor identity.
+
+Reporting and analytics may use Vendor, Store, or Vendor + Store without changing Vendor identity.
 
 ## Persistence
 

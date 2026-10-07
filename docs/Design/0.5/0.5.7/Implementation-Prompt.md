@@ -57,11 +57,15 @@ Implement the two-phase sync:
 When an incoming supplier matches a configured Provider alias:
 
 ```text
-use Provider canonical name as Vendor identity
+use Provider canonical official supplier name as Vendor identity
 preserve Store separately as Expense metadata
 ```
 
-Do not create store-specific Vendor variants for provider-mapped suppliers.
+Aliases are recognition inputs only and must not become alternate Vendor identities.
+
+Store/location must not be appended to or encoded into Vendor identity.
+
+Do not create store-specific Vendor variants.
 
 Do not discard store/location metadata.
 
@@ -72,18 +76,6 @@ Use configured aliases only.
 Resolution is trim + case-insensitive exact matching after normalization.
 
 Do not implement fuzzy matching or automatic alias learning.
-
-## Existing historical `Supplier - Store` Vendors
-
-The repository may already contain historical Vendors such as:
-
-```text
-Bunnings - Castle Hill
-```
-
-Do not silently mass-rename historical Vendors as part of Product Sync.
-
-If migration/canonicalisation of historical Vendor records is required, STOP and report the impact first.
 
 ## Provider states
 

@@ -149,7 +149,9 @@ Silent fallback is not acceptable for accounting-significant configuration.
 
 Each Provider has one canonical `name`.
 
-`aliases` are accepted source/vendor names used only to resolve input data to that Provider.
+That canonical name is the official supplier name and is the Vendor identity used when an incoming supplier resolves to the Provider.
+
+`aliases` are recognition inputs only. They may resolve incoming supplier names to the Provider, but they do not create alternate Vendor identities.
 
 Example:
 
@@ -168,7 +170,7 @@ Provider alias matching should initially be deterministic:
 
 Unknown supplier names do not prevent the supplier from existing as an Invoice Ninja Vendor. They simply do not resolve to a product-sync Provider until deliberately configured.
 
-Store/location does not belong in the Provider name.
+Store/location does not belong in the Provider or Vendor name.
 
 Store/location is separate Expense metadata used for business analytics.
 
