@@ -10,10 +10,10 @@ GoTradie uses two distinct persistence/safety flags:
 
 ```text
 --commit
-    Persist changes to Invoice Ninja / remote application state.
+    Permit persistent changes to Invoice Ninja / remote application state.
 
 --force
-    Overwrite an existing local output file.
+    Permit overwriting existing local output files.
 ```
 
 These meanings must not overlap.
@@ -64,12 +64,43 @@ From v0.5.3 onward:
 ```text
 defaults
   ↓
-config file
+~/.GoTradie/config.yaml
   ↓
-environment variables
+explicitly supported secret environment variables
 ```
 
-Environment variables override file values.
+`~/.GoTradie/config.yaml` is mandatory.
+
+Environment variables may override explicitly supported secret values only. There is no generic environment-variable mapping for arbitrary configuration fields.
+
+Legacy flat configuration is not supported by v0.5.3.
+
+## Required BAS/GST configuration
+
+The configuration must explicitly provide:
+
+```yaml
+bas:
+  frequency: quarterly
+  gst_basis: cash
+```
+
+Supported `frequency` values:
+
+```text
+monthly
+quarterly
+yearly
+```
+
+Supported `gst_basis` values:
+
+```text
+cash
+accrual
+```
+
+Missing or unsupported BAS/GST configuration is a configuration error.
 
 ## Required configuration homes
 

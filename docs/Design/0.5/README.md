@@ -7,18 +7,47 @@ This directory groups design and closeout material for the GoTradie `v0.5.x` rel
 | Version | Status | Scope |
 |---|---|---|
 | v0.5.1 | Closed | Historical Expense import and supplier-account settlement |
-| v0.5.2 | Design drafted | Expense import identity, preflight, UX, batching and receipt deduplication |
+| v0.5.2 | Implemented on `feature/ninja-expense-import-3` — pending review/merge | Expense import identity, preflight, UX, batching and receipt deduplication |
 | v0.5.3 | Planned — implementation-ready | Hierarchical YAML configuration |
 | v0.5.4 | Planned — implementation-ready | Accounting Dataset and BAS XLSX export |
 | v0.5.5 | Planned — implementation-ready | EOFY preparation XLSX export |
 | v0.5.6 | Planned — implementation-ready | Financial data XLSX export |
 | v0.5.7 | Planned — implementation-ready | Product synchronisation and provider/catalogue sources |
 
-See `Cross-Audit.md` for accepted cross-slice reconciliations and explicitly unresolved items.
+See `Cross-Audit.md` for accepted cross-slice reconciliations.
 
 ## v0.5.3
 
-Environment variables override file values.
+Configuration precedence is:
+
+```text
+defaults
+  ↓
+~/.GoTradie/config.yaml
+  ↓
+explicitly supported secret environment variables
+```
+
+The YAML configuration file is mandatory.
+
+Environment variables may override explicitly supported secrets only. They are not a second general-purpose configuration mechanism.
+
+The configuration must include BAS frequency and GST basis.
+
+Supported BAS frequencies:
+
+```text
+monthly
+quarterly
+yearly
+```
+
+Supported GST bases:
+
+```text
+cash
+accrual
+```
 
 Provide structural homes for `invoice_ninja`, `tax`, `bas`, `eofy`, `product_sync`, and `providers`.
 
@@ -28,7 +57,7 @@ Provider config includes one canonical name and accepted aliases.
 
 Introduce the shared Accounting Dataset and BAS XLSX output.
 
-With no period flags, BAS exports the most recently completed BAS cycle.
+With no period flags, BAS exports the most recently completed BAS cycle according to configured BAS frequency.
 
 ## v0.5.5
 
@@ -58,8 +87,14 @@ A Vendor may exist without a configured Provider.
 
 Unknown/non-provider Vendors remain valid accounting entities but are skipped by Product Sync.
 
-## Explicitly unresolved cross-slice item
+## Local export overwrite rule
 
-Report-export overwrite/file-write semantics remain under review.
+BAS, EOFY and Financial exports follow the global CLI contract:
 
-Do not infer a new BAS/EOFY/Financial overwrite rule until that CLI discussion is complete.
+```text
+new local output              -> create normally
+existing local output         -> refuse
+existing local output + force -> overwrite
+```
+
+`--commit` is unrelated to local file overwrite behaviour.

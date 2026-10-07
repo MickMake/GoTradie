@@ -13,11 +13,13 @@ The implementation should remain deliberately small.
 ## Goals
 
 - Move configuration to YAML.
-- Preserve environment-variable overrides for secrets and deployment-specific values.
+- Use a single mandatory configuration file at `~/.GoTradie/config.yaml`.
+- Allow environment-variable overrides only for explicitly supported secrets.
 - Represent related settings hierarchically.
 - Provide clean homes for BAS, EOFY, Product Sync and provider configuration.
 - Keep configuration declarative.
 - Avoid creating a programmable configuration language.
+- Do not preserve legacy flat configuration compatibility.
 
 ## Configuration precedence
 
@@ -26,14 +28,47 @@ From v0.5.3 onward:
 ```text
 defaults
   ↓
-config file
+~/.GoTradie/config.yaml
   ↓
-environment variables
+explicitly supported secret environment variables
 ```
 
-Environment variables override file values.
+The configuration file is mandatory.
 
-This is an intentional change from the older config/CLI documentation and must be reflected consistently in CLI help and user documentation when v0.5.3 is implemented.
+If `~/.GoTradie/config.yaml` is missing, configuration loading fails.
+
+Environment-variable support is opt-in per secret field. There is no generic hierarchical environment-variable mapping.
+
+Environment variables must not override structural configuration such as BAS frequency, GST basis, provider mappings, URLs, filenames, or field mappings.
+
+## Required BAS/GST configuration
+
+BAS frequency and GST basis materially affect accounting output and must always be explicit in the configuration file.
+
+Required shape:
+
+```yaml
+bas:
+  frequency: quarterly
+  gst_basis: cash
+```
+
+Supported BAS frequency values:
+
+```text
+monthly
+quarterly
+yearly
+```
+
+Supported GST basis values:
+
+```text
+cash
+accrual
+```
+
+Missing or unsupported values are configuration errors. GoTradie must not silently fall back to another BAS frequency or GST basis.
 
 ## Proposed structure
 
@@ -82,14 +117,33 @@ The exact North Shore Timber CSV column names must be verified against the actua
 
 ## Secrets
 
-Structural configuration belongs in YAML.
+Secrets may exist in YAML, but explicitly supported environment variables may override them.
 
-Secrets should remain overrideable through environment variables, for example:
+Examples:
 
 ```text
 INVOICE_NINJA_TOKEN
 BUNNINGS_CLIENT_SECRET
 ```
+
+Environment overrides are for secret/security-sensitive values only.
+
+Do not add general environment overrides for ordinary configuration values such as URLs, BAS frequency, GST basis, provider mappings, filenames, or field mappings.
+
+## Validation
+
+Configuration should fail clearly for:
+
+- missing `~/.GoTradie/config.yaml`;
+- malformed YAML;
+- unknown configuration fields;
+- missing required BAS frequency;
+- missing required GST basis;
+- unsupported BAS frequency;
+- unsupported GST basis;
+- invalid values that cannot be interpreted safely.
+
+Silent fallback is not acceptable for accounting-significant configuration.
 
 ## Provider configuration
 
@@ -147,16 +201,13 @@ Rule:
 
 ## Compatibility and migration
 
-v0.5.3 is a transition release.
+v0.5.3 is an intentional configuration break.
 
-1. YAML is the preferred configuration format from v0.5.3 onward.
-2. Existing flat config remains accepted during v0.5.3.
-3. Environment variables override file-based values.
-4. Existing behaviour must not silently change except for the explicitly accepted precedence change.
-5. If both legacy and YAML configuration are supplied, precedence must be deterministic and documented.
-6. Removal of legacy flat-config support is a later explicit decision.
-
-Do not build a generic migration framework.
+1. YAML is the supported configuration format from v0.5.3 onward.
+2. The configuration file lives at `~/.GoTradie/config.yaml`.
+3. Legacy flat configuration is not supported.
+4. Environment variables override only explicitly supported secret fields.
+5. No generic migration or compatibility framework is required.
 
 ## Required structural homes
 

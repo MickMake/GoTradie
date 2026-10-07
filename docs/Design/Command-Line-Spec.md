@@ -6,26 +6,26 @@ GoTradie uses distinct flags for distinct kinds of persistent effects:
 
 ```text
 --commit
-    Persist changes to Invoice Ninja / remote application state.
+    Permit persistent changes to Invoice Ninja / remote application state.
 
 --force
-    Overwrite existing local output files.
+    Permit overwriting existing local files.
 ```
 
-Do not use one as a synonym for the other.
+These meanings must never overlap.
 
 ## Write safety
 
 | Operation | Default | Override |
 |---|---|---|
 | Invoice Ninja create/update/archive/write | Preview/refuse | `--commit` |
-| Create new local export file | Allowed | none |
-| Overwrite existing local export file | Refuse | `--force` |
+| Create new local output file | Allowed | none |
+| Overwrite existing local output file | Refuse | `--force` |
 | Read-only discovery/API lookup | Allowed | none |
 
 ### `--commit`
 
-`--commit` is the only flag that permits persistent Invoice Ninja changes.
+`--commit` is the only flag that permits persistent changes to Invoice Ninja or other supported remote application state.
 
 Without it, write-capable commands must preview or otherwise remain non-mutating.
 
@@ -42,7 +42,7 @@ GoTradie ninja import expenses purchases.csv --commit
 
 ### `--force`
 
-`--force` permits replacement of existing local export output.
+`--force` permits replacement of an existing local output file or directory where the command's output contract supports replacement.
 
 Examples:
 
@@ -58,7 +58,7 @@ GoTradie ninja export tax ./tax-export --force
 
 `--force` does not permit Invoice Ninja writes.
 
-`--force` must not be used for Product Sync freshness, bypassing validation, or as another spelling of `--commit`.
+`--force` must not be used for Product Sync freshness, bypassing validation, bypassing accounting safety, or as another spelling of `--commit`.
 
 ## Export overwrite rule
 
@@ -96,5 +96,5 @@ bypass validation
 Look around freely.
 Preview remote changes safely.
 Use --commit to change Invoice Ninja.
-Use --force to replace an existing local file.
+Use --force to overwrite an existing local file.
 ```

@@ -10,7 +10,7 @@ Produce a BAS-oriented XLSX workbook from Invoice Ninja data.
 
 This slice also introduces the shared **Accounting Dataset** that later EOFY and Financial exports must reuse.
 
-The immediate accounting basis is expected to be cash GST accounting.
+GST accounting basis is configured explicitly as either cash or accrual.
 
 ## Commands
 
@@ -20,7 +20,7 @@ Default:
 GoTradie ninja export bas
 ```
 
-With no period flags, export the **most recently completed BAS reporting cycle**.
+With no period flags, export the **most recently completed BAS reporting cycle** according to configured BAS frequency.
 
 Support explicit dates:
 
@@ -53,7 +53,9 @@ Quarter boundaries are:
 
 ## Configuration
 
-Expected structured configuration:
+BAS configuration is mandatory in `~/.GoTradie/config.yaml`.
+
+Example:
 
 ```yaml
 bas:
@@ -61,11 +63,28 @@ bas:
   gst_basis: cash
 ```
 
+Supported reporting frequencies:
+
+```text
+monthly
+quarterly
+yearly
+```
+
+Supported GST bases:
+
+```text
+cash
+accrual
+```
+
+Missing or unsupported BAS frequency or GST basis is a configuration error. GoTradie must not guess or silently fall back.
+
 The generated workbook must clearly state the configured GST basis and reporting period.
 
 ## Output
 
-Suggested filename:
+Suggested filename for a quarterly report:
 
 ```text
 FY2027-Q1-BAS.xlsx
@@ -88,7 +107,8 @@ Include:
 
 ```text
 Financial year
-Quarter
+Reporting frequency
+Reporting period
 Period start
 Period end
 GST basis
@@ -124,19 +144,24 @@ For cash GST accounting:
 - partial customer payments contribute only the appropriate proportion for the BAS period;
 - GST is allocated proportionally and deterministically.
 
+For accrual GST accounting:
+
+- invoice/sale recognition timing determines inclusion rather than customer payment timing;
+- later customer payments must not create a second GST event.
+
 The sheet must contain enough detail to trace every reported amount back to Invoice Ninja records.
 
 ## Purchases
 
 The Purchases sheet must show each contribution to 1B.
 
-For ordinary immediately-paid Expenses:
+For cash GST accounting, ordinary immediately-paid Expenses use:
 
 ```text
 Expense payment date + Expense GST attributes = BAS contribution
 ```
 
-For supplier-account purchases:
+For cash GST accounting on supplier-account purchases:
 
 ```text
 Expense = purchase and GST attributes
@@ -146,6 +171,8 @@ Marked supplier Transaction = payment timing
 The supplier Transaction must not be counted as another purchase.
 
 For cash GST accounting, partial supplier-account payments contribute proportional GST based on the underlying Expense.
+
+For accrual GST accounting, the purchase/Expense recognition date and GST attributes determine the GST event. Later supplier-account settlement Transactions do not create another GST event.
 
 ## Supplier settlement
 
@@ -206,7 +233,7 @@ Rules that should exist once in the Accounting Dataset include:
 income recognition
 expense recognition
 GST attribution
-cash versus non-cash timing
+cash versus accrual timing
 partial customer payments
 supplier-account allocation
 partial supplier payments
@@ -235,20 +262,22 @@ Do not introduce:
 Implement:
 
 1. explicit date-range selection;
-2. `--fy` plus `--quarter`;
-3. cash GST basis;
-4. G1;
-5. 1A;
-6. 1B;
-7. partial customer payment treatment;
-8. ordinary Expense treatment;
-9. supplier-account settlement treatment;
-10. partial supplier payment treatment;
-11. XLSX output;
-12. Summary, Sales, Purchases and Exceptions sheets;
-13. traceable audit detail;
-14. explicit exceptions;
-15. the minimum shared Accounting Dataset needed to support the above and known later reporting slices.
+2. configured monthly, quarterly or yearly BAS-cycle selection;
+3. `--fy` plus `--quarter` for quarterly selection;
+4. cash GST basis;
+5. accrual GST basis;
+6. G1;
+7. 1A;
+8. 1B;
+9. partial customer payment treatment where relevant to cash basis;
+10. ordinary Expense treatment;
+11. supplier-account settlement treatment;
+12. partial supplier payment treatment where relevant to cash basis;
+13. XLSX output;
+14. Summary, Sales, Purchases and Exceptions sheets;
+15. traceable audit detail;
+16. explicit exceptions;
+17. the minimum shared Accounting Dataset needed to support the above and known later reporting slices.
 
 Do not initially implement:
 
