@@ -1,0 +1,70 @@
+diff --git a/docs/Design/0.5/README.md b/docs/Design/0.5/README.md
+--- a/docs/Design/0.5/README.md
++++ b/docs/Design/0.5/README.md
+@@ -6,7 +6,7 @@ This directory groups design and closeout material for the GoTradie `v0.5.x` release series.
+ | Version | Status | Scope |
+ |---|---|---|
+ | v0.5.1 | Closed | Historical Expense import and supplier-account settlement |
+-| v0.5.2 | Implemented on `feature/ninja-expense-import-3` — pending review/merge | Expense import identity, preflight, UX, batching and receipt deduplication |
++| v0.5.2 | Closed | Expense import identity, preflight, UX, batching and receipt deduplication |
+ | v0.5.3 | Planned — implementation-ready | Hierarchical YAML configuration |
+ | v0.5.4 | Planned — implementation-ready | Accounting Dataset and BAS XLSX export |
+ | v0.5.5 | Planned — implementation-ready | EOFY preparation XLSX export |
+diff --git a/docs/Design/0.5/0.5.1/Expense-Importing.md b/docs/Design/0.5/0.5.1/Expense-Importing.md
+--- a/docs/Design/0.5/0.5.1/Expense-Importing.md
++++ b/docs/Design/0.5/0.5.1/Expense-Importing.md
+@@ -13,6 +13,16 @@ The central rules are:
+
+ > After a successful import, Invoice Ninja is the durable source of truth. The spreadsheet is an import source, not an operational ledger.
+
++### Forward supersession: Vendor and Store identity
++
++This document records the accepted `v0.5.1` historical-import architecture, including the Vendor display-name behaviour used by that slice.
++
++For `v0.5.3` and later work, Vendor naming is superseded by the canonical Vendor contract in:
++
++```text
++docs/Design/0.5/Cross-Audit.md
++```
++
++Later work must use the canonical official supplier name as Vendor identity and preserve Store/location separately as metadata. Store/location must not be appended to or encoded into Vendor identity.
++
+ ## System of record
+
+ The source spreadsheet is migration input. It may be corrected and re-imported while migration is being validated, but it must not remain a runtime dependency.
+diff --git a/docs/Design/0.5/0.5.2/README.md b/docs/Design/0.5/0.5.2/README.md
+--- a/docs/Design/0.5/0.5.2/README.md
++++ b/docs/Design/0.5/0.5.2/README.md
+@@ -1,6 +1,6 @@
+ # GoTradie v0.5.2
+
+-Status: **Implemented on `feature/ninja-expense-import-3` — pending review and merge**
++Status: **Closed**
+
+ ## Purpose
+
+@@ -31,9 +31,10 @@ New work must not weaken the accounting and supplier-settlement invariants estab
+
+ ## Implementation status
+
+-Implementation is complete on `feature/ninja-expense-import-3`, based on the
+-current `main` at the start of the slice. It remains unmerged until the pull
+-request is reviewed.
++Implementation from `feature/ninja-expense-import-3` is merged into `main`.
++
++The slice is closed. Later work may build on its importer behaviour but must not
++reopen the slice merely because a later requirement touches the same code.
+
+ ## In scope
+
+diff --git a/docs/Design/0.5/0.5.2/Expense-Importing-UX.md b/docs/Design/0.5/0.5.2/Expense-Importing-UX.md
+--- a/docs/Design/0.5/0.5.2/Expense-Importing-UX.md
++++ b/docs/Design/0.5/0.5.2/Expense-Importing-UX.md
+@@ -1,6 +1,6 @@
+ # Expense Importing — Identity, Preflight, Operational UX and Batching
+
+-Status: **Draft design for v0.5.2**  
++Status: **Closed — accepted v0.5.2 design**  
+ Software version: `v0.5.2`
+
+ ## Purpose
