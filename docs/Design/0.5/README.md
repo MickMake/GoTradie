@@ -81,7 +81,27 @@ First version is raw data/diagnostics, not dashboards.
 
 ## v0.5.7
 
-Product Sync uses canonical Vendor/Provider identity while preserving Store as separate Expense metadata.
+Product Sync is invoked with:
+
+```text
+GoTradie sync refresh [--commit]
+```
+
+With no `--commit`, the command previews proposed Invoice Ninja changes.
+
+Bunnings/API-backed freshness is product-oriented.
+
+File-backed provider freshness is source-oriented and may use source metadata plus a durable content fingerprint to avoid reparsing unchanged source files.
+
+Invoice Ninja Product identity is:
+
+```text
+Supplier + Product
+```
+
+where `Product` is the supplier SKU and `Supplier` is the canonical supplier name.
+
+`Store`, `Last Sync Date`, and `Not Available` are Product metadata and do not participate in product matching or deduplication.
 
 A Vendor may exist without a configured Provider.
 

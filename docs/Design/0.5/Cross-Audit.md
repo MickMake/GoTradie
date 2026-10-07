@@ -162,6 +162,85 @@ Store/location must not:
 
 Reporting and analytics may group by Vendor, Store, or Vendor + Store.
 
+## Product identity and Product custom fields
+
+Invoice Ninja Product identity is:
+
+```text
+Supplier + Product
+```
+
+where:
+
+```text
+Product        = supplier SKU
+Supplier       = canonical supplier name
+Store          = optional metadata only
+Last Sync Date = date of last successful provider sync
+Not Available  = availability toggle
+```
+
+Only `Supplier` and `Product` participate in product matching and deduplication.
+
+`Store`, `Last Sync Date`, and `Not Available` must not participate in matching or deduplication.
+
+`Last Sync Date` changes only after a successful provider sync for that product.
+
+`Not Available` changes only from positive provider evidence:
+
+```text
+confirmed unavailable/discontinued -> true
+confirmed available                 -> false
+provider/source error               -> leave unchanged
+```
+
+A product that disappears and later reappears remains the same Product identity.
+
+## Product Sync CLI
+
+The v0.5.7 Product Sync command is:
+
+```text
+GoTradie sync refresh [--commit]
+```
+
+The command processes all configured Providers.
+
+Without `--commit`, it previews proposed Invoice Ninja changes.
+
+With `--commit`, it may persist the proposed Invoice Ninja Product changes.
+
+No provider-selection flag is required in the first implementation.
+
+## Provider freshness
+
+Freshness depends on provider type.
+
+### API/product-oriented providers
+
+For providers such as Bunnings, freshness is evaluated per Product.
+
+### File-backed providers
+
+For providers whose catalogue is downloaded as a file, freshness is evaluated primarily at the source-file level.
+
+The implementation may persist a small source-fetch cache containing metadata such as:
+
+```text
+provider identity
+source URL
+ETag
+Last-Modified
+content hash
+last successful source check
+```
+
+A content hash is the authoritative change detector when available.
+
+HTTP metadata such as ETag or Last-Modified may be used as optimisation hints.
+
+This cache exists only to determine whether the source file changed. It must not become a second persistent product catalogue or accounting database.
+
 ## Product Sync freshness override
 
 Do not use `--force` as a Product Sync freshness override.
