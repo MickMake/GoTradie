@@ -1,103 +1,100 @@
 # GoTradie v0.5.7 — Product Synchronisation
 
+## Status
+
+**Planned — implementation-ready design**
+
 ## Purpose
 
 Redesign product synchronisation so GoTradie refreshes known Invoice Ninja Products first, then discovers only products that are missing.
-
-The design should support multiple supplier/provider sources without turning GoTradie into a second product database.
 
 ## Core rule
 
 > First sync the products we already have. Then look for the products we do not.
 
-## Phase 1 — Existing Invoice Ninja Products
+## Vendor and Provider are different concepts
 
-Invoice Ninja Products are the primary source.
+### Vendor
+
+An Invoice Ninja Vendor is an accounting supplier identity.
+
+A legitimate supplier may exist as a Vendor even when GoTradie has no configured catalogue/API integration for it.
+
+### Provider
+
+A Provider is an external product/catalogue source GoTradie knows how to query.
+
+A Provider is configured with canonical name, type, aliases, and provider-specific settings.
+
+## Canonical supplier identity
+
+When a supplier name resolves to a configured Provider alias, GoTradie uses the Provider's canonical `name` as the stable Vendor identity.
+
+Example:
+
+```text
+Incoming supplier: Bunnings Warehouse
+Canonical Vendor:  Bunnings
+Store:             Castle Hill
+```
+
+Store/location must remain separate Expense metadata.
+
+Do not create separate Vendor identities merely because purchases came from different stores.
+
+This intentionally replaces the older `Supplier - Store` Vendor naming approach for provider-mapped suppliers.
+
+## Unknown suppliers
+
+Unknown suppliers remain valid accounting Vendors.
+
+If an Expense/import requires a Vendor and it does not yet exist, GoTradie may create it as required by the accounting workflow.
+
+If that Vendor does not resolve to a configured Provider:
+
+```text
+retain/create Vendor
+retain Expense/accounting data
+skip product sync
+```
+
+Do not guess a Provider.
+
+## Provider alias matching
+
+Initial Provider matching should be deterministic:
+
+- trim whitespace;
+- compare case-insensitively;
+- match against configured aliases;
+- no fuzzy matching;
+- no automatic alias learning.
+
+## Phase 1 — Existing Invoice Ninja Products
 
 For each existing Product:
 
-1. identify its supplier/provider;
-2. determine its supplier item number;
+1. identify its Provider;
+2. determine provider item number;
 3. inspect sync metadata;
-4. fetch current supplier data only when required;
+4. fetch current provider data only when required;
 5. update the Invoice Ninja Product if necessary;
-6. record successful sync metadata.
+6. record successful sync metadata;
+7. add `(provider,item)` to the in-memory known set.
 
-While processing, build an in-memory known set keyed conceptually by:
+## Phase 2 — Discover missing Products
 
-```text
-provider + item number
-```
+After existing Products are processed, inspect Expenses, Quotes and Invoices, but only where sufficient supplier/provider and item evidence exists.
 
-Examples:
+If Provider + item is known: skip.
 
-```text
-bunnings + 0123456
-nst + TPS025050
-```
+If the supplier does not resolve to a configured Provider: skip product sync.
 
-This phase should cover most known products.
-
-## Phase 2 — Discover missing products
-
-After existing Products have been processed, inspect:
-
-```text
-Expenses
-Quotes
-Invoices
-```
-
-For each supplier product reference:
-
-```text
-Is provider + item number already known?
-```
-
-If yes:
-
-```text
-skip
-```
-
-If no:
-
-```text
-resolve provider
-fetch supplier data
-create the missing Invoice Ninja Product
-add it to the known set
-```
-
-Repeated historical references must not cause repeated provider requests.
-
-## Provider routing
-
-A discovered candidate should contain enough information to route it:
-
-```text
-Vendor: North Shore Timber
-Item:   TPS025050
-```
-
-The sync layer then matches the vendor to a configured provider.
-
-Examples:
-
-```text
-Bunnings           -> Bunnings API provider
-North Shore Timber -> NST CSV catalogue provider
-```
-
-Provider aliases should be supported.
-
-If no provider exists for a vendor, report/skip it. Do not guess.
-
-The sync engine should not become a chain of supplier-specific `if` statements.
+If the Provider resolves and item is missing: fetch provider data, create the missing Invoice Ninja Product, and add it to the known set.
 
 ## Provider states
 
-Supplier lookup results should conceptually distinguish:
+Distinguish:
 
 ```text
 available
@@ -106,33 +103,17 @@ unknown
 error
 ```
 
-Suggested behaviour:
+A failed request must never be interpreted as discontinued.
 
-| Provider result | Invoice Ninja action |
-| --- | --- |
-| Available | Create/update product |
-| Discontinued | Archive existing product; do not delete |
-| Unknown / ambiguous | Report; no lifecycle change |
-| Temporary/provider error | Report; no lifecycle change |
-| Provider unavailable | Skip/report |
+## Archived Products
 
-A failed request must never be interpreted as "discontinued".
+Do not blindly reactivate an archived Product.
 
-## Archived products
-
-Do not blindly reactivate an archived product merely because a supplier later returns it.
-
-A Product may have been manually archived.
-
-Automatic restoration is only safe if GoTradie can establish that it previously archived the Product specifically because the supplier reported it discontinued.
-
-That requires provenance metadata.
+Automatic restoration is only safe when GoTradie can establish that it previously archived the Product specifically because the Provider reported it discontinued.
 
 ## Sync metadata
 
-GoTradie should store enough metadata on the Invoice Ninja Product to know whether a provider request is needed.
-
-At minimum:
+Store enough metadata on the Invoice Ninja Product to determine whether a Provider request is required:
 
 ```text
 provider
@@ -141,140 +122,55 @@ last successful sync
 provider state
 ```
 
-The important distinction is between:
-
-```text
-discovered
-```
-
-and:
-
-```text
-successfully synced
-```
-
-Finding the same product repeatedly in Expenses, Quotes or Invoices must not cause repeated supplier requests.
-
-The metadata should live in Invoice Ninja rather than a GoTradie database.
-
-The exact Invoice Ninja storage mechanism should be decided during implementation.
+The metadata lives in Invoice Ninja, not a new GoTradie database.
 
 ## Sync freshness
-
-Conceptual policy:
 
 ```text
 never synced       -> fetch
 sync data stale    -> fetch
 recently synced    -> skip
-forced refresh     -> fetch
 ```
 
-Prefer a simple refresh policy and a force option over elaborate scheduling/configuration.
+Do not add a `--force` freshness override in the first implementation.
 
 ## North Shore Timber
 
-North Shore Timber is the first generic catalogue provider.
+Use `https://www.nst.net.au/nst/DownloadCSV`.
 
-Catalogue sources:
+Fetch once per sync run, parse once, and build an in-memory item map.
 
-```text
-https://www.nst.net.au/nst/DownloadCSV
-https://www.nst.net.au/#products
-```
+No persistent catalogue cache.
 
-Prefer the CSV for machine use.
+## Generic CSV provider
 
-For a sync run:
-
-1. download the catalogue once;
-2. parse it;
-3. build an in-memory map keyed by supplier item code;
-4. satisfy all NST lookups from memory.
-
-Conceptually:
-
-```text
-1 catalogue download
-60 product lookups in memory
-```
-
-No persistent catalogue cache is required.
-
-## Configuration
-
-This slice relies on the hierarchical YAML configuration introduced in v0.5.3.
-
-Example:
-
-```yaml
-providers:
-  bunnings:
-    type: api
-    aliases:
-      - Bunnings
-      - Bunnings Warehouse
-
-  nst:
-    type: csv
-    aliases:
-      - North Shore Timber
-      - NST
-    url: https://www.nst.net.au/nst/DownloadCSV
-    fields:
-      item: PartNo
-      description: Description
-      price: Price
-```
-
-The exact NST field names must be verified before implementation.
-
-## Generic CSV providers
-
-Configuration should remain declarative.
-
-A generic CSV provider initially needs only:
+Initial scope:
 
 ```text
 source URL
+canonical provider name
 vendor aliases
 item field
 description field
 price field
 ```
 
-Do not initially add:
+## Bunnings hardening
 
-```text
-generic regex engines
-arbitrary HTML selectors
-embedded scripting
-transformation languages
-workflow expressions
-```
+Product Sync must distinguish missing location, missing price, API/provider error, not found, and confirmed discontinued.
 
-The rule remains:
+Unknown/missing price must not silently become zero.
 
-> Config describes the source. Code implements behaviour.
+## Business analytics
 
-## Architecture guardrail
+Store/location metadata must be preserved so later analysis can group spending by Vendor, Store, or Vendor + Store.
 
-This feature must not grow into a second product database.
+Canonicalising Vendor identity must not discard store information.
 
-Avoid:
+## Scope guardrail
 
-```text
-persistent GoTradie catalogue storage
-SQLite product ledgers
-duplicate supplier/product databases
-elaborate reconciliation queues
-automatic supplier requests for every occurrence
-```
-
-Invoice Ninja remains the durable product store.
-
-Provider data is fetched only to refresh or create Invoice Ninja Products.
+Do not add persistent Product Sync DB/cache, fuzzy supplier matching, automatic alias learning, generic scraping, transformation DSLs, or `--force`.
 
 ## Design rule
 
-> Sync known Invoice Ninja Products first. Then scan Expenses, Quotes and Invoices only for missing supplier products.
+> Canonical Vendor identity for accounting; configured Provider identity for sync; Store remains separate analytics metadata.

@@ -6,9 +6,7 @@
 
 ## Purpose
 
-Replace the current flat `key=value` configuration with a structured hierarchical configuration suitable for GoTradie's growing feature set.
-
-The immediate driver is provider/catalogue configuration, but the new structure should also provide a clean home for BAS and other future settings.
+Replace the current flat `key=value` configuration with structured hierarchical YAML.
 
 The implementation should remain deliberately small.
 
@@ -17,10 +15,25 @@ The implementation should remain deliberately small.
 - Move configuration to YAML.
 - Preserve environment-variable overrides for secrets and deployment-specific values.
 - Represent related settings hierarchically.
-- Provide a clean `providers:` structure for future product-sync sources.
-- Provide a clean `bas:` structure for accounting settings.
+- Provide clean homes for BAS, EOFY, Product Sync and provider configuration.
 - Keep configuration declarative.
 - Avoid creating a programmable configuration language.
+
+## Configuration precedence
+
+From v0.5.3 onward:
+
+```text
+defaults
+  ↓
+config file
+  ↓
+environment variables
+```
+
+Environment variables override file values.
+
+This is an intentional change from the older config/CLI documentation and must be reflected consistently in CLI help and user documentation when v0.5.3 is implemented.
 
 ## Proposed structure
 
@@ -45,12 +58,15 @@ product_sync:
 
 providers:
   bunnings:
+    name: Bunnings
     type: api
     aliases:
       - Bunnings
       - Bunnings Warehouse
+      - Bunnings Trade
 
   nst:
+    name: North Shore Timber
     type: csv
     aliases:
       - North Shore Timber
@@ -75,23 +91,44 @@ INVOICE_NINJA_TOKEN
 BUNNINGS_CLIENT_SECRET
 ```
 
-This allows the YAML file to be stored without embedding credentials.
+## Provider configuration
 
-## Provider/catalogue configuration
+Each Provider has one canonical `name`.
 
-Configuration should describe:
+`aliases` are accepted source/vendor names used only to resolve input data to that Provider.
 
-- provider type;
-- vendor aliases;
-- source URL where applicable;
-- field mapping for generic catalogue providers.
-
-For a generic CSV catalogue, the initial field mapping should remain small:
+Example:
 
 ```text
-item
-description
-price
+Incoming supplier: Bunnings Warehouse
+Configured alias:  Bunnings Warehouse
+Canonical Provider/Vendor identity: Bunnings
+```
+
+Provider alias matching should initially be deterministic:
+
+- trim surrounding whitespace;
+- compare case-insensitively;
+- no fuzzy matching;
+- no automatic alias learning.
+
+Unknown supplier names do not prevent the supplier from existing as an Invoice Ninja Vendor. They simply do not resolve to a product-sync Provider until deliberately configured.
+
+Store/location does not belong in the Provider name.
+
+Store/location is separate Expense metadata used for business analytics.
+
+## Generic CSV provider
+
+Initial configuration should remain small:
+
+```text
+source URL
+canonical provider name
+vendor aliases
+item field
+description field
+price field
 ```
 
 Do not initially add:
@@ -104,40 +141,39 @@ row-expression languages
 generic workflow logic
 ```
 
-The rule is:
+Rule:
 
 > Config describes the source. Code implements behaviour.
 
 ## Compatibility and migration
 
-`v0.5.3` is a transition release.
+v0.5.3 is a transition release.
 
-The existing flat config format must remain readable for this release so current installations can migrate without a hard cut-over.
-
-Rules:
-
-1. YAML is the preferred configuration format from `v0.5.3` onward.
-2. Existing flat config remains accepted during `v0.5.3`.
-3. Environment variables continue to override file-based values where already supported.
-4. Behaviour must not silently change merely because configuration moved to YAML.
+1. YAML is the preferred configuration format from v0.5.3 onward.
+2. Existing flat config remains accepted during v0.5.3.
+3. Environment variables override file-based values.
+4. Existing behaviour must not silently change except for the explicitly accepted precedence change.
 5. If both legacy and YAML configuration are supplied, precedence must be deterministic and documented.
-6. Removal of legacy flat-config support is a later explicit decision, not part of this slice.
+6. Removal of legacy flat-config support is a later explicit decision.
 
-The implementation should not build a generic migration framework. Supporting the old reader alongside the new YAML reader for the transition is sufficient.
+Do not build a generic migration framework.
+
+## Required structural homes
+
+The v0.5.3 implementation must provide configuration homes for at least:
+
+```text
+invoice_ninja
+tax
+bas
+eofy
+product_sync
+providers
+```
 
 ## Scope guardrail
 
-This slice is configuration infrastructure only.
-
-Do not implement:
-
-- BAS export;
-- EOFY export;
-- Financial export;
-- redesigned product sync;
-- provider fetch engines beyond what is required to prove the configuration model.
-
-The intended outcome is a stable configuration foundation for later slices.
+Do not implement BAS, EOFY, Financial, Product Sync, provider fetching, or catalogue logic in this slice.
 
 ## Design rule
 

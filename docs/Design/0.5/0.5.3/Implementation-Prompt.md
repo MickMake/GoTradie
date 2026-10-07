@@ -10,6 +10,12 @@ Primary design contract:
 docs/Design/0.5/0.5.3/Hierarchical-Configuration.md
 ```
 
+Cross-audit contract:
+
+```text
+docs/Design/0.5/Cross-Audit.md
+```
+
 Series context:
 
 ```text
@@ -22,7 +28,7 @@ Cross-release CLI contract:
 docs/Design/Command-Line-Spec.md
 ```
 
-Do not reinterpret or extend those contracts without explicit approval.
+Where the older CLI/config documentation conflicts with the accepted v0.5.3 configuration-precedence decision, v0.5.3 intentionally changes that behaviour and the affected documentation must be updated consistently.
 
 ## Mandatory preflight
 
@@ -35,60 +41,55 @@ Before making any code changes:
 5. State the intended change, proposed branch name, files/packages likely affected, and any design ambiguity discovered.
 6. STOP and wait for approval before creating the branch or modifying code.
 
-Suggested branch name:
+Suggested branch:
 
 ```text
 v0.5.3-hierarchical-config
 ```
 
-After approval, branch from the latest `origin/main` only.
+After approval, branch from latest `origin/main` only.
 
 ## Required implementation
 
-Implement hierarchical YAML configuration while preserving current behaviour.
+Implement hierarchical YAML configuration while preserving current behaviour except where the accepted design explicitly changes it.
 
 The implementation must:
 
 - add YAML configuration support;
 - represent configuration hierarchically;
-- preserve current environment-variable overrides;
+- make environment variables override file values;
 - preserve existing flat config support for this transition release;
 - keep precedence deterministic and documented;
-- preserve current Invoice Ninja, Bunnings, tax and ERPNext configuration behaviour unless the design explicitly changes it;
-- provide the structural homes required for `bas`, `product_sync`, and `providers`;
-- keep provider configuration declarative;
-- avoid adding provider-fetch logic except where minimally required to validate configuration parsing.
+- preserve current Invoice Ninja, Bunnings, tax and ERPNext behaviour except where explicitly changed;
+- provide structural homes for `invoice_ninja`, `tax`, `bas`, `eofy`, `product_sync`, and `providers`;
+- support Provider canonical `name` plus `aliases`;
+- keep Provider configuration declarative;
+- avoid adding provider-fetch logic except where minimally required to validate parsing.
 
-The new configuration must support the structure defined in the design contract.
+## Provider configuration contract
+
+Provider configuration must support one canonical name and multiple accepted aliases.
+
+Do not implement fuzzy supplier matching or automatic alias learning in this slice.
+
+Store/location must not be encoded into the canonical Provider name.
 
 ## Compatibility rules
 
 For v0.5.3:
 
-- YAML is the preferred format.
+- YAML is preferred.
 - Legacy flat config remains readable.
-- Environment variables continue to override file-based values where already supported.
-- Existing valid flat configuration must not silently change meaning.
-- If both legacy and YAML inputs can be provided together, precedence must be deterministic, tested and documented.
+- Environment variables override file-based values.
+- Existing valid flat configuration must not silently change meaning except for the accepted precedence rule.
+- Multiple config-source precedence must be deterministic, tested and documented.
 - Legacy support removal is explicitly out of scope.
 
 Do not build a generic migration framework.
 
 ## Scope exclusions
 
-Do not implement:
-
-- BAS export;
-- Accounting Dataset;
-- EOFY export;
-- Financial export;
-- redesigned product sync;
-- North Shore Timber fetching;
-- generic CSV catalogue fetching;
-- provider lifecycle logic;
-- speculative configuration features not required by the design.
-
-If implementation pressure suggests adding any of the above, STOP and report why.
+Do not implement BAS, Accounting Dataset, EOFY, Financial, redesigned Product Sync, NST fetching, generic CSV fetching, provider lifecycle logic, or speculative config features.
 
 ## Tests
 
@@ -96,14 +97,13 @@ Add or update tests covering at least:
 
 - valid YAML parsing;
 - hierarchical field mapping;
-- environment override precedence;
+- environment-over-file precedence;
 - legacy flat config compatibility;
 - deterministic precedence where multiple sources are present;
+- Provider canonical name and aliases;
+- `eofy` configuration parsing;
 - validation failures;
-- unknown/unsupported configuration where applicable;
-- preservation of existing default behaviour.
-
-Prefer focused tests over broad fixtures.
+- preservation of existing defaults.
 
 ## Documentation
 
@@ -113,12 +113,16 @@ At minimum inspect:
 
 ```text
 docs/Design/0.5/0.5.3/Hierarchical-Configuration.md
+docs/Design/0.5/Cross-Audit.md
 docs/Design/0.5/README.md
+docs/Design/Command-Line-Spec.md
 apps/GoTradie/README.md
+apps/GoTradie/internal/app/extended_help.go
+apps/GoTradie/internal/app/app.go
 CHANGES.md
 ```
 
-Only change the accepted design if implementation reveals a real contradiction or missing decision. If so, STOP and request approval before changing the design contract.
+Do not finalise BAS/EOFY/Financial local-file overwrite semantics in this slice. That remains explicitly unresolved.
 
 ## Verification
 
@@ -131,27 +135,8 @@ go test
 go build
 ```
 
-Run them across the relevant module(s).
-
-Then perform an evidence-backed review of the change.
-
 Maximum review/fix loops: **3**.
-
-If significant issues remain after three loops, STOP and report them rather than continuing indefinitely.
 
 ## Completion report
 
-Report:
-
-- branch used;
-- files changed;
-- config precedence implemented;
-- legacy compatibility behaviour;
-- tests added/changed;
-- verification commands and results;
-- any deferred issues;
-- whether the slice is ready for PR/review.
-
-Keep the implementation deliberately small.
-
-> Hierarchical where the data is hierarchical; boring everywhere else.
+Report branch, files changed, config precedence, legacy compatibility, Provider config behaviour, tests, verification results, deferred issues, and PR readiness.
