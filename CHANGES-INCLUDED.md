@@ -1,56 +1,75 @@
-# GoTradie v0.5.7 Product Sync Documentation Changes
+# GoTradie BAS Period Documentation Changes
 
-This bundle contains the Product Sync decisions locked during review.
+This bundle contains only the BAS period/configuration decisions locked during review.
 
-## CLI
+## Configuration
 
-```text
-GoTradie sync refresh [--commit]
+```yaml
+bas:
+  reporting_period: quarterly
+  gst_basis: cash
 ```
 
-- Processes all configured Providers.
-- Preview by default.
-- `--commit` persists Invoice Ninja Product changes.
-- No Provider-selection flag initially.
-- No Product Sync `--force`.
+`reporting_period` replaces `frequency`.
 
-## Product identity
+Supported values:
 
 ```text
-Product        = supplier SKU
-Supplier       = canonical supplier name
-Store          = metadata only
-Last Sync Date = last successful provider sync date
-Not Available  = availability toggle
+monthly
+quarterly
+yearly
 ```
 
-Only `(Supplier, Product)` participates in matching/deduplication.
+GST basis remains:
 
-## Availability
+```text
+cash
+accrual
+```
 
-- Confirmed unavailable/discontinued -> `Not Available = true`
-- Confirmed available/reappeared -> `Not Available = false`
-- Error/unknown -> leave existing availability unchanged
-- Reappearance does not create a new Product
+## BAS CLI
 
-## Freshness
+Supported:
 
-- Bunnings/API-backed Providers: per-Product freshness.
-- File-backed Providers: source-file freshness.
-- Content hash is the preferred authoritative source-change detector.
-- ETag/Last-Modified may be used as optimisation hints.
+```text
+GoTradie ninja export bas
+GoTradie ninja export bas --fy 2027
+GoTradie ninja export bas --period 2
+GoTradie ninja export bas --fy 2027 --period 2
+```
 
-## Cache boundary
+Defaults:
 
-A small persistent source-fingerprint cache is allowed for file-backed Providers.
+```text
+no --fy     -> current Australian financial year
+no --period -> current reporting period
+```
 
-It may store source metadata/fingerprints only.
+`--period` meaning:
 
-It must not become a second Product catalogue, Product-state database, or accounting database.
+```text
+monthly   -> 1-12, July through June
+quarterly -> 1-4, Q1 through Q4
+yearly    -> invalid / not applicable
+```
+
+BAS explicitly does not support:
+
+```text
+--from
+--to
+--all
+--month
+--quarter
+```
+
+Arbitrary date ranges remain a Financial/dump export feature.
 
 ## Files changed
 
 - `docs/Design/0.5/README.md`
 - `docs/Design/0.5/Cross-Audit.md`
-- `docs/Design/0.5/0.5.7/Product-Sync.md`
-- `docs/Design/0.5/0.5.7/Implementation-Prompt.md`
+- `docs/Design/0.5/0.5.3/Hierarchical-Configuration.md`
+- `docs/Design/0.5/0.5.3/Implementation-Prompt.md`
+- `docs/Design/0.5/0.5.4/BAS-Export.md`
+- `docs/Design/0.5/0.5.4/Implementation-Prompt.md`

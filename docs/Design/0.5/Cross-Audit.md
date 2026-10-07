@@ -81,11 +81,11 @@ The configuration must explicitly provide:
 
 ```yaml
 bas:
-  frequency: quarterly
+  reporting_period: quarterly
   gst_basis: cash
 ```
 
-Supported `frequency` values:
+Supported `reporting_period` values:
 
 ```text
 monthly
@@ -100,7 +100,41 @@ cash
 accrual
 ```
 
-Missing or unsupported BAS/GST configuration is a configuration error.
+Missing or unsupported BAS reporting period or GST basis is a configuration error.
+
+## BAS period-selection contract
+
+BAS period selection is governed by `bas.reporting_period`.
+
+The command accepts:
+
+```text
+GoTradie ninja export bas
+GoTradie ninja export bas --fy 2027
+GoTradie ninja export bas --period 2
+GoTradie ninja export bas --fy 2027 --period 2
+```
+
+Defaults:
+
+```text
+no --fy     -> current Australian financial year
+no --period -> current reporting period
+```
+
+`--period` interpretation:
+
+```text
+monthly   -> 1-12
+quarterly -> 1-4
+yearly    -> invalid / not applicable
+```
+
+The configured reporting period determines the valid period-number range.
+
+BAS does not accept arbitrary `--from/--to` date ranges.
+
+Arbitrary date-range output belongs to the Financial/dump export.
 
 ## Required configuration homes
 

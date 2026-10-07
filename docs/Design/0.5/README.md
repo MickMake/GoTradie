@@ -32,9 +32,9 @@ The YAML configuration file is mandatory.
 
 Environment variables may override explicitly supported secrets only. They are not a second general-purpose configuration mechanism.
 
-The configuration must include BAS frequency and GST basis.
+The configuration must include BAS reporting period and GST basis.
 
-Supported BAS frequencies:
+Supported BAS reporting periods:
 
 ```text
 monthly
@@ -57,7 +57,21 @@ Provider config includes one canonical name and accepted aliases.
 
 Introduce the shared Accounting Dataset and BAS XLSX output.
 
-With no period flags, BAS exports the most recently completed BAS cycle according to configured BAS frequency.
+BAS period selection is driven by configured `bas.reporting_period`.
+
+With no `--fy`, BAS uses the current Australian financial year.
+
+With no `--period`, BAS uses the current reporting period within that financial year.
+
+`--period` means:
+
+```text
+monthly   -> 1-12
+quarterly -> 1-4
+yearly    -> not applicable
+```
+
+BAS does not support arbitrary `--from/--to` date ranges. Arbitrary date-range export belongs to the Financial/dump export.
 
 ## v0.5.5
 

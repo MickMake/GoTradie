@@ -60,8 +60,8 @@ The implementation must:
 - support environment overrides only for explicitly defined secret/security-sensitive fields;
 - not implement generic environment-variable mapping;
 - not preserve legacy flat config support;
-- require BAS frequency and GST basis in YAML;
-- accept BAS frequency only as `monthly`, `quarterly`, or `yearly`;
+- require BAS reporting period and GST basis in YAML;
+- accept BAS reporting period only as `monthly`, `quarterly`, or `yearly`;
 - accept GST basis only as `cash` or `accrual`;
 - fail on missing or unsupported accounting-significant configuration;
 - fail on unknown YAML fields rather than silently ignoring misspellings;
@@ -80,7 +80,7 @@ INVOICE_NINJA_TOKEN
 BUNNINGS_CLIENT_SECRET
 ```
 
-Do not add environment overrides for ordinary structural configuration such as URLs, BAS frequency, GST basis, provider mappings, filenames or field mappings.
+Do not add environment overrides for ordinary structural configuration such as URLs, BAS reporting period, GST basis, provider mappings, filenames or field mappings.
 
 ## Provider configuration contract
 
@@ -108,9 +108,9 @@ Add or update tests covering at least:
 - default -> YAML -> secret-environment precedence;
 - explicitly supported secret overrides;
 - absence of generic environment overrides;
-- required BAS frequency;
+- required BAS reporting period;
 - required GST basis;
-- valid BAS frequency values;
+- valid BAS reporting-period values;
 - valid GST basis values;
 - unknown-field rejection;
 - malformed YAML;

@@ -39,21 +39,21 @@ If `~/.GoTradie/config.yaml` is missing, configuration loading fails.
 
 Environment-variable support is opt-in per secret field. There is no generic hierarchical environment-variable mapping.
 
-Environment variables must not override structural configuration such as BAS frequency, GST basis, provider mappings, URLs, filenames, or field mappings.
+Environment variables must not override structural configuration such as BAS reporting period, GST basis, provider mappings, URLs, filenames, or field mappings.
 
 ## Required BAS/GST configuration
 
-BAS frequency and GST basis materially affect accounting output and must always be explicit in the configuration file.
+BAS reporting period and GST basis materially affect accounting output and must always be explicit in the configuration file.
 
 Required shape:
 
 ```yaml
 bas:
-  frequency: quarterly
+  reporting_period: quarterly
   gst_basis: cash
 ```
 
-Supported BAS frequency values:
+Supported BAS reporting period values:
 
 ```text
 monthly
@@ -68,7 +68,7 @@ cash
 accrual
 ```
 
-Missing or unsupported values are configuration errors. GoTradie must not silently fall back to another BAS frequency or GST basis.
+Missing or unsupported values are configuration errors. GoTradie must not silently fall back to another BAS reporting period or GST basis.
 
 ## Proposed structure
 
@@ -82,7 +82,7 @@ tax:
   rate: 10
 
 bas:
-  frequency: quarterly
+  reporting_period: quarterly
   gst_basis: cash
 
 eofy:
@@ -128,7 +128,7 @@ BUNNINGS_CLIENT_SECRET
 
 Environment overrides are for secret/security-sensitive values only.
 
-Do not add general environment overrides for ordinary configuration values such as URLs, BAS frequency, GST basis, provider mappings, filenames, or field mappings.
+Do not add general environment overrides for ordinary configuration values such as URLs, BAS reporting period, GST basis, provider mappings, filenames, or field mappings.
 
 ## Validation
 
@@ -137,9 +137,9 @@ Configuration should fail clearly for:
 - missing `~/.GoTradie/config.yaml`;
 - malformed YAML;
 - unknown configuration fields;
-- missing required BAS frequency;
+- missing required BAS reporting period;
 - missing required GST basis;
-- unsupported BAS frequency;
+- unsupported BAS reporting period;
 - unsupported GST basis;
 - invalid values that cannot be interpreted safely.
 

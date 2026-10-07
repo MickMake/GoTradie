@@ -12,45 +12,6 @@ This slice also introduces the shared **Accounting Dataset** that later EOFY and
 
 GST accounting basis is configured explicitly as either cash or accrual.
 
-## Commands
-
-Default:
-
-```text
-GoTradie ninja export bas
-```
-
-With no period flags, export the **most recently completed BAS reporting cycle** according to configured BAS frequency.
-
-Support explicit dates:
-
-```text
-GoTradie ninja export bas --from 2026-07-01 --to 2026-09-30
-```
-
-Support Australian financial-year quarter selection:
-
-```text
-GoTradie ninja export bas --fy 2027 --quarter 1
-```
-
-`--all` is invalid for BAS export.
-
-`FY2027` means:
-
-```text
-1 July 2026 to 30 June 2027
-```
-
-Quarter boundaries are:
-
-| Quarter | Period |
-| --- | --- |
-| Q1 | 1 Jul – 30 Sep |
-| Q2 | 1 Oct – 31 Dec |
-| Q3 | 1 Jan – 31 Mar |
-| Q4 | 1 Apr – 30 Jun |
-
 ## Configuration
 
 BAS configuration is mandatory in `~/.GoTradie/config.yaml`.
@@ -59,11 +20,11 @@ Example:
 
 ```yaml
 bas:
-  frequency: quarterly
+  reporting_period: quarterly
   gst_basis: cash
 ```
 
-Supported reporting frequencies:
+Supported `reporting_period` values:
 
 ```text
 monthly
@@ -71,26 +32,116 @@ quarterly
 yearly
 ```
 
-Supported GST bases:
+Supported `gst_basis` values:
 
 ```text
 cash
 accrual
 ```
 
-Missing or unsupported BAS frequency or GST basis is a configuration error. GoTradie must not guess or silently fall back.
+Missing or unsupported BAS reporting period or GST basis is a configuration error. GoTradie must not guess or silently fall back.
+
+`reporting_period` describes the type of BAS reporting cycle. It does not describe command execution frequency.
 
 The generated workbook must clearly state the configured GST basis and reporting period.
 
-## Output
+## Commands
 
-Suggested filename for a quarterly report:
+Supported forms:
 
 ```text
-FY2027-Q1-BAS.xlsx
+GoTradie ninja export bas
+GoTradie ninja export bas --fy 2027
+GoTradie ninja export bas --period 2
+GoTradie ninja export bas --fy 2027 --period 2
 ```
 
-The financial year comes first so related files sort together naturally.
+BAS does not support:
+
+```text
+--from
+--to
+--all
+--month
+--quarter
+```
+
+Arbitrary date-range export belongs to the Financial/dump export.
+
+### Financial year selection
+
+If `--fy` is omitted, use the current Australian financial year.
+
+`FY2027` means:
+
+```text
+1 July 2026 to 30 June 2027
+```
+
+### Reporting-period selection
+
+If `--period` is omitted, use the current reporting period number according to configured `bas.reporting_period`.
+
+`--period` meaning depends on `bas.reporting_period`:
+
+```text
+monthly   -> period 1-12
+quarterly -> period 1-4
+yearly    -> --period is invalid
+```
+
+The configured reporting period therefore determines the valid period-number range.
+
+### Monthly periods
+
+Monthly periods are numbered from the start of the Australian financial year:
+
+| Period | Month |
+| --- | --- |
+| 1 | July |
+| 2 | August |
+| 3 | September |
+| 4 | October |
+| 5 | November |
+| 6 | December |
+| 7 | January |
+| 8 | February |
+| 9 | March |
+| 10 | April |
+| 11 | May |
+| 12 | June |
+
+### Quarterly periods
+
+Quarterly periods are:
+
+| Period | Quarter | Dates |
+| --- | --- | --- |
+| 1 | Q1 | 1 Jul – 30 Sep |
+| 2 | Q2 | 1 Oct – 31 Dec |
+| 3 | Q3 | 1 Jan – 31 Mar |
+| 4 | Q4 | 1 Apr – 30 Jun |
+
+### Yearly reporting
+
+When `bas.reporting_period` is `yearly`, `--fy` selects the financial year and `--period` is invalid.
+
+With no flags, use the current Australian financial year.
+
+## Output
+
+The workbook must identify:
+
+```text
+Financial year
+Reporting period type
+Reporting period number where applicable
+Period start
+Period end
+GST basis
+Generated timestamp
+Source
+```
 
 Workbook sheets:
 
@@ -107,7 +158,7 @@ Include:
 
 ```text
 Financial year
-Reporting frequency
+Reporting period type
 Reporting period
 Period start
 Period end
@@ -261,23 +312,27 @@ Do not introduce:
 
 Implement:
 
-1. explicit date-range selection;
-2. configured monthly, quarterly or yearly BAS-cycle selection;
-3. `--fy` plus `--quarter` for quarterly selection;
-4. cash GST basis;
-5. accrual GST basis;
-6. G1;
-7. 1A;
-8. 1B;
-9. partial customer payment treatment where relevant to cash basis;
-10. ordinary Expense treatment;
-11. supplier-account settlement treatment;
-12. partial supplier payment treatment where relevant to cash basis;
-13. XLSX output;
-14. Summary, Sales, Purchases and Exceptions sheets;
-15. traceable audit detail;
-16. explicit exceptions;
-17. the minimum shared Accounting Dataset needed to support the above and known later reporting slices.
+1. configured monthly, quarterly or yearly BAS reporting-period selection;
+2. `--fy` financial-year selection;
+3. `--period` numbered reporting-period selection for monthly/quarterly configurations;
+4. current financial year when `--fy` is omitted;
+5. current reporting period when `--period` is omitted;
+6. rejection of `--period` for yearly reporting;
+7. rejection of BAS `--from/--to`, `--month`, `--quarter`, and `--all`;
+8. cash GST basis;
+9. accrual GST basis;
+10. G1;
+11. 1A;
+12. 1B;
+13. partial customer payment treatment where relevant to cash basis;
+14. ordinary Expense treatment;
+15. supplier-account settlement treatment;
+16. partial supplier payment treatment where relevant to cash basis;
+17. XLSX output;
+18. Summary, Sales, Purchases and Exceptions sheets;
+19. traceable audit detail;
+20. explicit exceptions;
+21. the minimum shared Accounting Dataset needed to support the above and known later reporting slices.
 
 Do not initially implement:
 
