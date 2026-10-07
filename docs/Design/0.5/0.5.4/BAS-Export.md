@@ -14,6 +14,14 @@ The immediate accounting basis is expected to be cash GST accounting.
 
 ## Commands
 
+Default:
+
+```text
+GoTradie ninja export bas
+```
+
+With no period flags, export the **most recently completed BAS reporting cycle**.
+
 Support explicit dates:
 
 ```text
@@ -25,6 +33,8 @@ Support Australian financial-year quarter selection:
 ```text
 GoTradie ninja export bas --fy 2027 --quarter 1
 ```
+
+`--all` is invalid for BAS export.
 
 `FY2027` means:
 

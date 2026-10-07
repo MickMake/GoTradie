@@ -37,6 +37,9 @@ bas:
   frequency: quarterly
   gst_basis: cash
 
+eofy:
+  instant_asset_writeoff_threshold: 20000
+
 product_sync:
   prefix: BUNNINGS-
 

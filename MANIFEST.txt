@@ -1,0 +1,10 @@
+GoTradie v0.5 documentation pack - rebuilt
+
+Key prompt files:
+- docs/Design/0.5/0.5.3/Implementation-Prompt.md
+- docs/Design/0.5/0.5.4/Implementation-Prompt.md
+- docs/Design/0.5/0.5.5/Implementation-Prompt.md
+- docs/Design/0.5/0.5.6/Implementation-Prompt.md
+- docs/Design/0.5/0.5.7/Implementation-Prompt.md
+
+0.5.5 and 0.5.6 are implementation prompts, not design prompts.
