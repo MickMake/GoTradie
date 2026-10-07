@@ -4,22 +4,62 @@
 
 Active design reconciliation before v0.5.3 implementation.
 
-## Purpose
+## Locked CLI vocabulary
 
-Cross-audit the v0.5.3-v0.5.7 designs against:
+GoTradie uses two distinct persistence/safety flags:
 
-- the existing v0.5.1/v0.5.2 accounting contracts;
-- the current CLI contract;
-- current GoTradie behaviour;
-- later-slice dependencies.
+```text
+--commit
+    Persist changes to Invoice Ninja / remote application state.
 
-The goal is to remove contradictory instructions before implementation begins.
+--force
+    Overwrite an existing local output file.
+```
 
-## Locked decisions
+These meanings must not overlap.
 
-### Configuration precedence
+### `--commit`
 
-From v0.5.3 onward, configuration precedence is:
+Use `--commit` only for commands that would otherwise preview or refuse a persistent Invoice Ninja change.
+
+Examples:
+
+```text
+GoTradie sync refresh --commit
+GoTradie sync import 0123456 --commit
+GoTradie ninja import products products.csv --commit
+GoTradie ninja import clients clients.csv --commit
+GoTradie ninja import expenses purchases.csv --commit
+```
+
+Without `--commit`, write-capable Invoice Ninja operations preview only.
+
+### `--force`
+
+Use `--force` only for local output replacement.
+
+Examples:
+
+```text
+GoTradie ninja export products products.csv --force
+GoTradie ninja export erpnext ./erpnext-export --force
+```
+
+If the requested output does not already exist, export commands may create it normally without `--force`.
+
+If the requested output already exists, the exporter refuses unless `--force` is supplied.
+
+`--force` must not:
+
+- imply Invoice Ninja writes;
+- bypass accounting validation;
+- bypass Product Sync freshness;
+- mean "apply";
+- act as an alternative to `--commit`.
+
+## Configuration precedence
+
+From v0.5.3 onward:
 
 ```text
 defaults
@@ -31,9 +71,7 @@ environment variables
 
 Environment variables override file values.
 
-This is an intentional change from the current CLI/config documentation and must be reflected consistently when v0.5.3 is implemented.
-
-### Required configuration homes
+## Required configuration homes
 
 v0.5.3 must provide hierarchical homes for at least:
 
@@ -46,7 +84,7 @@ product_sync
 providers
 ```
 
-### Provider identity
+## Provider identity
 
 A configured provider has:
 
@@ -57,48 +95,21 @@ aliases
 provider-specific configuration
 ```
 
-Example:
+Aliases are recognition inputs. The canonical name is the stable supplier identity.
 
-```yaml
-providers:
-  bunnings:
-    name: Bunnings
-    type: api
-    aliases:
-      - Bunnings
-      - Bunnings Warehouse
-      - Bunnings Trade
-```
+## Vendor versus provider
 
-Aliases are recognition inputs.
+A Vendor is an accounting supplier identity stored in Invoice Ninja.
 
-The configured canonical name is the stable supplier identity used by GoTradie when a provider mapping is known.
+A Provider is an external product/catalogue source GoTradie knows how to query.
 
-### Vendor versus provider
+A Vendor does not need to have a Provider.
 
-These are different concepts.
+Unknown suppliers remain valid Vendors, but Product Sync only runs where a Vendor resolves to a configured Provider.
 
-```text
-Vendor
-    Accounting supplier identity stored in Invoice Ninja.
+## Canonical Vendor identity and store metadata
 
-Provider
-    Configured external product/catalogue source that GoTradie knows how to query.
-```
-
-A Vendor does not need to have a configured Provider.
-
-Unknown suppliers must still be valid accounting Vendors.
-
-If an Expense references a legitimate supplier that does not exist in Invoice Ninja, GoTradie may create that Vendor as required by the import/accounting workflow.
-
-If that Vendor does not resolve to a configured Provider, product sync simply does not run for that supplier.
-
-### Canonical Vendor identity and store metadata
-
-Store/location information is important business-analytics data and must not be discarded.
-
-However, store/location must not create uncontrolled Vendor-name variants.
+Store/location information must not be discarded.
 
 Preferred representation:
 
@@ -107,96 +118,22 @@ Vendor: Bunnings
 Store: Castle Hill
 ```
 
-not:
+Store remains separate Expense metadata so analytics can group by Vendor, Store, or Vendor + Store.
 
-```text
-Vendor: Bunnings - Castle Hill
-Vendor: Bunnings Warehouse Castle Hill
-Vendor: Bunnings Castle Hill NSW
-```
+## Product Sync freshness override
 
-When a supplier resolves to a configured Provider:
+Do not use `--force` as a Product Sync freshness override.
 
-- the canonical provider name is the Invoice Ninja Vendor identity;
-- store/location remains separate Expense metadata;
-- analytics may group by Vendor, Store, or Vendor + Store.
+The first v0.5.7 implementation does not require an "ignore freshness" flag.
 
-This intentionally supersedes the older import behaviour that constructed Vendor names from `Supplier - Store`.
+## EOFY instant asset write-off threshold
 
-The historical source evidence is still retained through Expense metadata.
+For GST-registered businesses entitled to claim the relevant GST credit, threshold comparison uses asset cost excluding claimable GST.
 
-### Provider alias matching
+The workbook should expose gross amount, GST, GST-exclusive cost, business-use information and source identity.
 
-Provider aliases are configuration-driven recognition rules.
-
-Initial matching should be simple and deterministic:
-
-- trim surrounding whitespace;
-- compare case-insensitively;
-- do not use fuzzy matching;
-- do not automatically learn aliases from source data.
-
-A supplier that does not match a configured provider alias remains a valid Vendor but is not product-sync capable.
-
-### Product sync freshness override
-
-Do not add a `--force` option to v0.5.7.
-
-The existing CLI contract reserves `--commit` for persistent changes and explicitly rejects resurrecting `--force` as a general write/safety flag.
-
-The first v0.5.7 implementation does not require an "ignore freshness" override.
-
-### Product discovery
-
-Product discovery may inspect:
-
-```text
-Expenses
-Quotes
-Invoices
-```
-
-but only when sufficient supplier/provider and item evidence exists.
-
-If a supplier does not resolve to a configured Provider:
-
-```text
-retain/create Vendor as required for accounting
-skip product sync
-report if useful
-```
-
-Do not guess a provider.
-
-### EOFY instant asset write-off threshold
-
-The configured threshold is a reporting/classification aid for accountant review.
-
-For a GST-registered business entitled to claim the relevant GST credit, threshold comparison should use asset cost excluding claimable GST.
-
-The workbook should still expose gross amount, GST, GST-exclusive cost, business-use information and source identity so the accountant can verify treatment.
-
-GoTradie must not become a depreciation engine.
-
-## Explicitly unresolved
-
-### Export overwrite and CLI/file-write semantics
-
-Do not change or finalise report-export overwrite behaviour as part of this cross-audit patch.
-
-The interaction between:
-
-- generated BAS/EOFY/Financial filenames;
-- existing CLI `--commit` rules;
-- local file overwrite behaviour;
-- read-only remote exports;
-
-will be reviewed separately.
-
-Until that discussion is complete, design and implementation prompts should not introduce a new overwrite rule for BAS, EOFY or Financial exports.
+GoTradie does not calculate depreciation.
 
 ## Cross-audit rule
 
-If a later slice depends on an earlier design decision, that dependency must be explicit rather than inferred.
-
-The implementation agent should never need to choose between two contradictory authoritative documents.
+The implementation agent should never need to choose between contradictory authoritative documents.

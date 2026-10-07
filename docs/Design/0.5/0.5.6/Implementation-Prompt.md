@@ -1,4 +1,4 @@
-# GoTradie v0.5.6 - Implementation Prompt
+# GoTradie v0.5.6 — Implementation Prompt
 
 Implement the accepted Financial Data Export design.
 
@@ -8,29 +8,23 @@ Primary contract:
 docs/Design/0.5/0.5.6/Financial-Export.md
 ```
 
-Relevant contracts:
+Cross-audit and CLI contracts:
 
 ```text
-docs/Design/0.5/0.5.4/BAS-Export.md
-docs/Design/0.5/0.5.5/EOFY-Export.md
-docs/Design/0.5/README.md
+docs/Design/0.5/Cross-Audit.md
+docs/Design/Command-Line-Spec.md
 ```
 
 ## Mandatory preflight
 
-Before making any code changes:
+Before changing code:
 
 1. Fetch latest `origin/main`.
-2. Verify every earlier slice branch/PR through v0.5.5 has been merged or otherwise explicitly handled.
-3. If any earlier slice branch/PR is not merged, STOP and report it.
-4. Inspect current Invoice Ninja entity access, Accounting Dataset, CLI export structure, XLSX support and tests.
-5. Identify which Invoice Ninja entities and relationships can be exported faithfully with the current SDK/model.
-6. State:
-   - intended implementation;
-   - proposed branch;
-   - likely files/packages to change;
-   - any genuine source-data gaps.
-7. STOP and wait for approval before creating the branch or changing code.
+2. Verify all earlier slice branches/PRs through v0.5.5 are merged.
+3. If not, STOP and report it.
+4. Inspect Invoice Ninja entity access, Accounting Dataset, CLI export handling and XLSX support.
+5. State intended implementation, branch, likely files/packages and source-data gaps.
+6. STOP and wait for approval.
 
 Suggested branch:
 
@@ -38,9 +32,7 @@ Suggested branch:
 v0.5.6-financial-export
 ```
 
-After approval, branch from latest `origin/main` only.
-
-## Required CLI behaviour
+## CLI
 
 Implement:
 
@@ -50,94 +42,28 @@ GoTradie ninja export financial --fy 2027
 GoTradie ninja export financial --from 2026-01-01 --to 2026-12-31
 ```
 
-Rules:
+No period flags means all available financial data.
 
-- no period flags = all available financial data;
-- `--fy` = one financial year;
-- `--from` and `--to` together = explicit date range;
-- selection modes are mutually exclusive;
-- there is no `--all` flag;
-- partial `--from`/`--to` input is invalid.
+Financial export does not modify Invoice Ninja and therefore does not use `--commit`.
 
-## Workbook behaviour
+Local output follows the global export rule:
 
-Create a raw-data/diagnostic XLSX workbook.
+- create new output normally;
+- refuse to replace existing output unless `--force` is supplied.
 
-Include the financial entities and relationships described by `Financial-Export.md` and actually available from the current Invoice Ninja model, including the equivalent of:
+There is no `--all` flag.
 
-```text
-Income
-Expenses
-Payments
-Supplier Transactions
-Customers
-Vendors
-Products
-Projects-Jobs
-Exceptions
-```
+## Workbook
 
-Preserve useful raw identifiers and relationships so the workbook can be used to diagnose Invoice Ninja state.
+Keep v1 raw-data/diagnostic focused.
 
-Use the Accounting Dataset where useful for derived accounting values, but do not hide or replace raw source evidence needed for troubleshooting.
+Do not add dashboards, charts, KPI frameworks, margin engines or BI layers.
 
-## Filtering
-
-Implement deterministic period filtering for date-bearing financial entities.
-
-- `--fy` resolves to Australian financial-year boundaries.
-- `--from/--to` uses inclusive explicit boundaries unless existing export conventions dictate otherwise.
-- all-data mode applies no period restriction.
-- ambiguous/undated records that cannot be safely classified must remain visible rather than silently disappearing.
-
-Document entity-specific date semantics in tests/code comments where necessary.
-
-## XLSX scope
-
-Keep formatting functional and cheap:
-
-- stable headers;
-- useful date/number formats;
-- deterministic row ordering where practical;
-- filters/frozen headers if already easy with the selected XLSX library.
-
-Do not add dashboards, charts or presentation-heavy formatting.
-
-## Tests
-
-Add focused tests covering at least:
-
-- no flags exports all available data;
-- `--fy` restriction;
-- `--from/--to` restriction;
-- mutually exclusive selection modes;
-- absence/rejection of `--all`;
-- partial explicit ranges rejected;
-- Australian FY boundary handling;
-- preservation of record IDs/relationships;
-- visibility of ambiguous/undated records;
-- required XLSX sheets/headers;
-- deterministic output ordering where practical.
-
-## Scope exclusions
-
-Do not implement:
-
-```text
-dashboards
-charts
-KPIs
-margin engine
-trend engine
-BI layer
-general ledger
-persistent financial database
-Product Sync
-```
+Preserve source IDs and useful relationships.
 
 ## Verification
 
-Before completion run:
+Run:
 
 ```text
 gofmt
@@ -146,8 +72,4 @@ go test
 go build
 ```
 
-Perform evidence-backed review/fix loops, maximum 3.
-
-Update relevant documentation/changelog if required by repository convention.
-
-Finish with a concise completion report covering implemented behaviour, tests, verification results, and deliberately deferred analysis features.
+Maximum review/fix loops: 3.

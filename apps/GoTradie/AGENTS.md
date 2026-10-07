@@ -1,83 +1,38 @@
-# GoTradie module
+# GoTradie Agent Rules
 
-This is the primary application module.
+## Persistent changes
 
-This module MAY depend on:
-- apps/GoBunnings
-- apps/GoInvoiceNinja
+Use:
 
-This module coordinates the overall workflow between the other modules.
+```text
+--commit
+```
 
-Rules:
-- Do not move shared logic into this module unless explicitly instructed.
-- Prefer keeping reusable logic inside the originating module.
-- Do not refactor across module boundaries unless explicitly instructed.
-- Preserve module boundaries.
-- Keep orchestration/application logic here.
-- Keep reusable library logic in the independent modules.
-- Before changing interfaces used by other modules, inspect the affected module carefully.
+for persistent Invoice Ninja changes.
 
-Forbidden:
-- Do not merge modules together.
-- Do not consolidate unrelated packages for "consistency."
-- Do not introduce circular dependencies.
-- Do not copy large blocks of code between modules.
+Without `--commit`, remote write-capable operations preview or refuse writes.
 
-Commands:
-- go test ./...
-- go build ./...
+## Local export replacement
 
-## CLI safety rules
+Use:
 
-Commands preview or refuse risky writes by default.
+```text
+--force
+```
 
-Use --commit to make persistent changes.
+to overwrite an existing local output file or export directory contents.
 
-Do not add:
-- --dry-run
-- --apply
-- --force
+Creating new export output does not require `--force`.
 
---commit is the only flag that allows:
-- Invoice Ninja writes
-- local file overwrites
+`--force` never permits Invoice Ninja writes.
 
-## Bunnings source selection
+## Flag meanings
 
-Default Bunnings data source is the Bunnings API.
+```text
+--commit = persist Invoice Ninja changes
+--force  = replace existing local output
+```
 
---web means:
-Use the website-derived Bunnings retrieval path instead of the Bunnings API.
+Do not introduce `--apply` or `--dry-run`.
 
---web must not:
-- imply --commit
-- silently fall back to the API
-- modify Invoice Ninja
-- change output shape
-- make Invoice Ninja credentials required for Bunnings-only commands
-
-If --web is supplied and required website data cannot be retrieved, fail clearly.
-
-Commands that should support --web:
-- bunnings get <IN...>
-- bunnings lookup <IN...>
-- bunnings find <query>
-- sync refresh
-- sync import <IN>
-- sync search <query>
-
-Commands that should not support --web:
-- ninja export ...
-- ninja import ...
-- version
-
-## Output compatibility
-
-When --web is used, output shape must remain the same as the API-backed command.
-
-bunnings get and bunnings find must keep the CSV output shape.
-
-bunnings lookup must keep the human-readable detail output shape.
-
-sync commands must keep the same preview/commit result output shape.
-
+Do not use `--force` as a Product Sync freshness override or validation bypass.
