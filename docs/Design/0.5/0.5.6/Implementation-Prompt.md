@@ -80,6 +80,55 @@ Use optional `exports.directory` when configured; otherwise use the current work
 
 Do not append timestamps or automatic collision suffixes.
 
+## Date filtering
+
+Financial export is a raw-data/diagnostic export.
+
+Filter transactional entities by their own source dates:
+
+```text
+invoice / income record
+    -> invoice date
+
+customer payment
+    -> payment date
+
+expense
+    -> expense date
+
+supplier transaction / supplier payment
+    -> transaction/payment date
+
+quote, if included
+    -> quote date
+```
+
+Do not date-filter these reference/master entities merely because a date range is selected:
+
+```text
+customers
+vendors
+products
+projects/jobs
+```
+
+They may be included as needed to preserve relationships or source context.
+
+Do not use:
+
+```text
+BAS GST recognition date
+EOFY recognition date
+```
+
+as the Financial-export inclusion date for raw transactional rows.
+
+For BAS-style Financial selectors, first resolve `--fy` / `--period` to a concrete start/end date range, then apply the same source-date rules above.
+
+If a transactional record has no usable required source date, do not guess another date. Surface it in Exceptions with source identity/details.
+
+Related records may legitimately fall on opposite sides of a range boundary.
+
 ## Accounting Dataset and raw data
 
 Reuse the v0.5.4 Accounting Dataset minimum contract for shared calculated accounting facts.
@@ -102,6 +151,17 @@ Preserve source IDs and useful relationships.
 
 Cover at least:
 
+- invoice filtering uses invoice date;
+- customer-payment filtering uses payment date;
+- expense filtering uses expense date;
+- supplier-transaction filtering uses transaction/payment date;
+- quote filtering, if implemented, uses quote date;
+- customers/vendors/products/projects/jobs are not independently date-filtered;
+- a June invoice with a July payment can produce an excluded invoice row and included July payment row;
+- BAS GST recognition date does not control Financial inclusion;
+- EOFY recognition date does not control Financial inclusion;
+- BAS-style Financial selectors resolve to a date range, then use source-date filtering;
+- missing required source date is surfaced as an exception rather than guessed;
 - shared dataset facts remain traceable to Invoice Ninja records;
 - raw diagnostic data remains available where the dataset would lose source fidelity;
 - Financial filtering does not mutate or decorate the Accounting Dataset with report-period fields;

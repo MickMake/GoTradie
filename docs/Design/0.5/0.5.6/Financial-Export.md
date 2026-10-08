@@ -160,9 +160,70 @@ archived/deleted markers where relevant
 
 ## Filtering
 
-When a date restriction is supplied, apply a deterministic documented date rule per entity.
+Financial date filtering is source-record filtering.
 
-Do not silently omit undated or unclassifiable records. Surface materially ambiguous cases.
+Do not use BAS GST recognition dates or EOFY recognition dates to decide whether a raw Financial-export row belongs in a selected date range.
+
+Use the entity's own source date:
+
+```text
+invoice / income record
+    -> invoice date
+
+customer payment
+    -> payment date
+
+expense
+    -> expense date
+
+supplier transaction / supplier payment
+    -> transaction/payment date
+
+quote, if included
+    -> quote date
+```
+
+Reference/master entities are not date-filtered merely because the export has a date range:
+
+```text
+customers
+vendors
+products
+projects/jobs
+```
+
+They may still be included when needed to preserve relationships or source context for the filtered transactional rows.
+
+This means related records can legitimately fall on different sides of a range boundary.
+
+Example:
+
+```text
+invoice date  = 28 June
+payment date  = 5 July
+
+July-only Financial export:
+    invoice row  -> excluded from the invoice/income sheet
+    payment row  -> included in the payments sheet
+```
+
+That is expected raw-data behaviour, not an inconsistency.
+
+### Missing or ambiguous dates
+
+Do not silently assign a different date merely to make a record fit the requested range.
+
+If a transactional record that requires date filtering has no usable source date, surface it in Exceptions with enough source identity to diagnose it.
+
+Where an entity has multiple source dates, use the specific date rule above rather than choosing whichever date happens to fall inside the requested range.
+
+### BAS-style ranges
+
+When `--fy` / `--period` is used for Financial export, first resolve those selectors to a concrete start/end date range using the BAS calendar mapping rules.
+
+Then apply the same source-date rules defined in this section.
+
+BAS-style selector syntax does not convert Financial export into BAS accounting recognition.
 
 ## Accounting Dataset
 
@@ -199,4 +260,4 @@ Do not turn this slice into a dashboard project, KPI framework, BI system, gener
 
 ## Design rule
 
-> Export the data cleanly first. Analyse it later when there is a real reason.
+> Financial export filters raw records by their own source dates; accounting recognition belongs to BAS and EOFY.
