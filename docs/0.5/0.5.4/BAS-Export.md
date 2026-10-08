@@ -378,8 +378,6 @@ archived/deleted marked accounting record that affects the result
 other unresolved accounting state that can materially alter BAS figures
 ```
 
-A stale ATO due-date verification is an operational WARNING, not an accounting ERROR.
-
 Rules:
 
 ```text

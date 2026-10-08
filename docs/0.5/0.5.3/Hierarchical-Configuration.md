@@ -248,7 +248,6 @@ Configuration should fail clearly for:
 - unsupported GST basis;
 - unsupported EOFY accounting basis;
 - invalid EOFY instant asset write-off threshold;
-- invalid `ato_due_dates` configuration;
 - invalid `exports.directory` value when present;
 - invalid values that cannot be interpreted safely.
 
