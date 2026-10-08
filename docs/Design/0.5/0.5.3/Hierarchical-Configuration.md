@@ -113,7 +113,15 @@ eofy.accounting_basis
 
 EOFY recognition must be deterministic from `eofy.accounting_basis`.
 
-Missing or unsupported accounting-significant values are configuration errors. GoTradie must not silently fall back to another BAS reporting period, GST basis, or EOFY accounting basis.
+`eofy.instant_asset_writeoff_threshold` is the instant asset write-off threshold to apply for the selected EOFY reporting year.
+
+The threshold is year-dependent tax data. Do not treat the configured number as a timeless universal threshold or hard-code one into reporting logic.
+
+For threshold testing, use the asset's relevant cost reduced only by GST input tax credits the business is entitled to claim. Do not reduce the threshold-test cost by private/non-business use.
+
+Business-use percentage affects the deductible/review amount after the threshold test; it does not reduce the asset cost used to determine whether the asset is below the threshold.
+
+Missing or unsupported accounting-significant values are configuration errors. GoTradie must not silently fall back to another BAS reporting period, GST basis, EOFY accounting basis, or asset threshold.
 
 ## Optional export directory
 
@@ -240,9 +248,11 @@ Configuration should fail clearly for:
 - missing required BAS reporting period;
 - missing required GST basis;
 - missing required EOFY accounting basis;
+- missing required EOFY instant asset write-off threshold;
 - unsupported BAS reporting period;
 - unsupported GST basis;
 - unsupported EOFY accounting basis;
+- invalid EOFY instant asset write-off threshold;
 - invalid `ato_due_dates` configuration;
 - invalid `exports.directory` value when present;
 - invalid values that cannot be interpreted safely.
