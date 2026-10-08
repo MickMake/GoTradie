@@ -372,13 +372,13 @@ func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, args []stri
 		return a.runNinjaERPNextExport(ctx, svc, args[1:])
 	}
 
-	outPath, commit, err := parseExportArgs(args[1:])
+	outPath, force, err := parseExportArgs(args[1:])
 	if err != nil {
 		fmt.Fprintln(a.Err, err)
 		fmt.Fprintf(a.Err, "usage: GoTradie ninja export %s <file|-> [--force]\n", kind)
 		return 2
 	}
-	w, closeFn, err := writerFor(outPath, a.Out, commit)
+	w, closeFn, err := writerFor(outPath, a.Out, force)
 	if err != nil {
 		fmt.Fprintln(a.Err, "output error:", err)
 		return 1
@@ -504,12 +504,12 @@ func (a App) runNinjaImport(ctx context.Context, svc *ninja.Service, args []stri
 }
 
 func parseExportArgs(args []string) (string, bool, error) {
-	commit := false
+	force := false
 	var paths []string
 	for _, arg := range args {
 		switch {
-		case arg == "--commit":
-			commit = true
+		case arg == "--force":
+			force = true
 		case strings.HasPrefix(arg, "-"):
 			return "", false, fmt.Errorf("unknown export flag %q", arg)
 		default:
@@ -519,7 +519,7 @@ func parseExportArgs(args []string) (string, bool, error) {
 	if len(paths) != 1 {
 		return "", false, fmt.Errorf("expected exactly one export path, got %d", len(paths))
 	}
-	return paths[0], commit, nil
+	return paths[0], force, nil
 }
 
 func parseImportArgs(args []string) (string, bool, error) {
@@ -640,7 +640,7 @@ func readerFor(path string, stdin io.Reader) (io.Reader, func(), error) {
 	return f, func() { _ = f.Close() }, nil
 }
 
-func writerFor(path string, stdout io.Writer, commit bool) (io.Writer, func(), error) {
+func writerFor(path string, stdout io.Writer, force bool) (io.Writer, func(), error) {
 	if path == "-" {
 		return stdout, func() {}, nil
 	}
@@ -648,7 +648,7 @@ func writerFor(path string, stdout io.Writer, commit bool) (io.Writer, func(), e
 		return nil, func() {}, fmt.Errorf("export path is required")
 	}
 	flags := os.O_WRONLY | os.O_CREATE
-	if commit {
+	if force {
 		flags |= os.O_TRUNC
 	} else {
 		flags |= os.O_EXCL
@@ -656,7 +656,7 @@ func writerFor(path string, stdout io.Writer, commit bool) (io.Writer, func(), e
 	f, err := os.OpenFile(path, flags, 0644)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
-			return nil, func() {}, fmt.Errorf("refusing to overwrite existing file %s; use --commit", path)
+			return nil, func() {}, fmt.Errorf("refusing to overwrite existing file %s; use --force", path)
 		}
 		return nil, func() {}, fmt.Errorf("open export file %s: %w", path, err)
 	}
@@ -840,16 +840,16 @@ Commands:
   sync refresh                          Preview linked product refresh; use --commit to update.
   sync import <IN>                      Preview one product import; use --commit to update.
   sync search <query>                   Guarded Bunnings search/import workflow for Invoice Ninja.
-  ninja export products <file|->        Export Invoice Ninja products as CSV; use --commit to overwrite.
+  ninja export products <file|->        Export Invoice Ninja products as CSV; use --force to overwrite.
   ninja import products <file|->        Preview product CSV changes; use --commit to update.
-  ninja export clients <file|->         Export Invoice Ninja clients as CSV; use --commit to overwrite.
+  ninja export clients <file|->         Export Invoice Ninja clients as CSV; use --force to overwrite.
   ninja import clients <file|->         Preview client CSV changes; use --commit to update.
   ninja import expenses <file> [--receipts-root <dir>] [--batch-size <n>] [--pause]
                                          Preflight and preview expenses; use --commit to write/upload.
-  ninja export quotes <file|->          Export Invoice Ninja quotes as CSV; use --commit to overwrite.
-  ninja export invoices <file|->        Export Invoice Ninja invoices as CSV; use --commit to overwrite.
-  ninja export payments <file|->        Export Invoice Ninja payments as CSV; use --commit to overwrite.
-  ninja export erpnext <directory>      Export ERPNext import CSVs; use --commit to overwrite.
+  ninja export quotes <file|->          Export Invoice Ninja quotes as CSV; use --force to overwrite.
+  ninja export invoices <file|->        Export Invoice Ninja invoices as CSV; use --force to overwrite.
+  ninja export payments <file|->        Export Invoice Ninja payments as CSV; use --force to overwrite.
+  ninja export erpnext <directory>      Export ERPNext import CSVs; use --force to overwrite.
   commands                              Show extended command help with output examples.
   version                               Print version.
 
@@ -864,7 +864,7 @@ Examples:
   GoTradie sync search "merbau decking" --create --select=0123456,0987654 --commit
   GoTradie ninja export products products.csv
   GoTradie ninja export products -
-  GoTradie ninja export products products.csv --commit
+  GoTradie ninja export products products.csv --force
   GoTradie ninja import products products.csv
   GoTradie ninja import products --commit products.csv
   GoTradie ninja export clients clients.csv
