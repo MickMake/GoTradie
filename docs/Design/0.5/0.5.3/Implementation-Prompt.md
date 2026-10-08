@@ -69,6 +69,8 @@ The implementation must:
 - provide structural homes for `invoice_ninja`, `tax`, `bas`, `eofy`, `product_sync`, and `providers`;
 - support Provider canonical `name` plus `aliases`;
 - keep Provider configuration declarative;
+- not preserve or introduce a Product-key prefix setting such as the former `PRODUCT_PREFIX` / `BUNNINGS-` scheme;
+- support configurable Provider field mappings using Invoice Ninja Product concepts such as `product`, `description`, `cost`, `price`, `quantity`, and `image_url`;
 - avoid adding provider-fetch logic except where minimally required to validate parsing.
 
 ## Secret override contract
@@ -94,6 +96,19 @@ Store/location must remain separate Expense metadata and must not be encoded int
 
 Do not implement fuzzy supplier matching or automatic alias learning in this slice.
 
+## Provider Product-field mapping contract
+
+For configurable file/web Providers:
+
+- mapping keys describe the target Invoice Ninja Product concept;
+- mapping values identify the Provider source field;
+- `product` is required and is the supplier's own product identifier;
+- supplier terminology such as SKU, I/N, PartNo, Item Code, or Stock Code must not leak into GoTradie's canonical field names;
+- built-in Providers may define the same mapping in code;
+- do not configure or implement stock-level synchronisation in v0.5.3.
+
+Do not add a Product prefix setting. Product identity in v0.5.7 is based on `(Supplier, Product)`, with Product holding the supplier's exact product identifier.
+
 ## Scope exclusions
 
 Do not implement BAS, Accounting Dataset, EOFY, Financial, redesigned Product Sync, NST fetching, generic CSV fetching, provider lifecycle logic, speculative config features, legacy config migration, or a general environment-variable configuration system.
@@ -117,6 +132,8 @@ Add or update tests covering at least:
 - Provider canonical name and aliases;
 - canonical Vendor identity after alias resolution;
 - Store/location remaining separate from Vendor identity;
+- configurable Provider Product-field mapping;
+- absence of a Product prefix setting;
 - `eofy` configuration parsing;
 - validation failures;
 - preservation of existing defaults where defaults are appropriate.

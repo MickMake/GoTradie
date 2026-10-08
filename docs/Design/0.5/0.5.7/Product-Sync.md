@@ -75,9 +75,13 @@ Invoice Ninja Product identity is:
 The fields mean:
 
 ```text
-Product  = exact supplier SKU
+Product  = exact supplier product identifier
 Supplier = canonical supplier name
 ```
+
+The supplier may call its identifier SKU, I/N, PartNo, Item Code, Stock Code, or something else. GoTradie stores that exact identifier in Invoice Ninja `Product`.
+
+Do not prepend Provider-specific prefixes such as `BUNNINGS-`.
 
 Both participate in product matching and deduplication.
 
@@ -121,7 +125,11 @@ It does not participate in Product identity.
 
 `Last Sync Date` is a date field.
 
-It records the local calendar date of the last successful provider sync for that Product.
+It records the local calendar date on which that specific Invoice Ninja Product was last successfully synchronised against Provider data.
+
+The date belongs to the Product, not to the Provider source, API request, file, list, or catalogue.
+
+The same Product may appear in multiple lists from the same supplier. All such observations refer back to the single `(Supplier, Product)` Invoice Ninja Product identity and its one `Last Sync Date`.
 
 It must not change merely because a refresh was attempted.
 
@@ -134,10 +142,10 @@ A provider/API/source failure does not update `Last Sync Date`.
 Update rules:
 
 ```text
-provider positively confirms unavailable/discontinued -> true
-provider positively confirms available                 -> false
-provider/API/source request fails                       -> leave unchanged
-availability cannot be determined                       -> leave unchanged
+provider positively confirms not available -> true
+provider positively confirms available     -> false
+provider/API/source request fails           -> leave unchanged
+availability cannot be determined           -> leave unchanged
 ```
 
 A Product may disappear and later reappear.
@@ -152,6 +160,45 @@ Last Sync Date = successful sync date
 
 Do not delete and recreate the Product merely because its availability changed.
 
+Do not use `discontinued` as a generic Product Sync state. The Product-facing availability concept is only `Not Available`.
+
+## Existing-Product refresh ordering
+
+Invoice Ninja Products provide the durable refresh queue.
+
+Before missing-Product discovery:
+
+1. load existing Invoice Ninja Products;
+2. resolve Product `Supplier` to a configured Provider;
+3. filter out Products whose Supplier has no supported sync method;
+4. place Products with no `Last Sync Date` first;
+5. then sort remaining Products by `Last Sync Date`, oldest first;
+6. refresh in that order;
+7. update a Product's `Last Sync Date` only after that Product has been successfully processed.
+
+This allows subsequent runs to naturally refresh the stalest Products first without a separate scheduling database.
+
+## Syncable Invoice Ninja Product fields
+
+Product Sync is responsible for catalogue/Product data, not supplier inventory.
+
+The first implementation may update the relevant Invoice Ninja Product fields:
+
+```text
+Product
+Description
+Cost
+Price
+Quantity
+Image URL
+Vendor
+Product custom fields
+```
+
+`Quantity` means the Invoice Ninja Product/default line-item quantity where the Provider has data with the same meaning. It is not supplier stock-on-hand.
+
+Stock level, store-level availability, stock notification thresholds, and other inventory-management behaviour are explicitly deferred.
+
 ## Freshness
 
 Freshness depends on Provider type.
@@ -160,7 +207,7 @@ Freshness depends on Provider type.
 
 For API-backed Providers such as Bunnings, freshness is Product-oriented.
 
-Each Product's `Last Sync Date` determines whether the Product should be refreshed according to configured freshness rules.
+Each Product's `Last Sync Date` determines its relative refresh age.
 
 ### File-backed Providers
 
@@ -173,13 +220,19 @@ The preferred sequence is:
 3. calculate a deterministic content hash;
 4. compare with the previously successful source fingerprint;
 5. if unchanged, do not reprocess the catalogue;
-6. if changed, parse the source once and refresh affected Products.
+6. if changed, parse the source once and successfully process affected Products individually.
 
 The content hash is the authoritative source-change detector when available.
 
 ETag or Last-Modified may be retained and used as optimisation hints, but must not be the sole correctness mechanism where content hashing is practical.
 
 ## Source-fingerprint cache
+
+A source check and a Product sync are different events.
+
+If a file-backed Provider source is checked and its content is unchanged, the source-cache check state may advance, but Product `Last Sync Date` values do not change.
+
+When a changed source is processed, each Product successfully processed from that source receives its own successful `Last Sync Date`.
 
 A small persistent cache is permitted for file-backed Provider source freshness.
 
@@ -215,14 +268,14 @@ Internally distinguish:
 
 ```text
 available
-discontinued
+not_available
 unknown
 error
 ```
 
 These states drive the Product metadata rules above.
 
-Never interpret a failed request as discontinued or unavailable.
+Never interpret a failed request as `not_available`.
 
 ## Store analytics
 
@@ -237,3 +290,33 @@ Product state and sync metadata live in Invoice Ninja Product records.
 Do not add a persistent GoTradie product catalogue or product-state database.
 
 The narrow file-source fingerprint cache described above is permitted and is not product state.
+
+## Provider field mapping
+
+Built-in Providers may define source-to-Invoice-Ninja Product mappings directly in code.
+
+Configurable file/web Providers define mappings using Invoice Ninja Product concepts.
+
+Example:
+
+```yaml
+fields:
+  product: PartNo
+  description: Description
+  cost: TradePrice
+  price: RetailPrice
+  quantity: PackQuantity
+  image_url: ImageURL
+```
+
+The left-hand key is the target Product concept. The right-hand value is the Provider's source field.
+
+`product` is mandatory for a configurable syncing Provider.
+
+The Provider's canonical `name` supplies canonical Supplier/Vendor identity; it does not need to be repeated in every source row.
+
+GoTradie-managed custom fields such as `Last Sync Date` and `Not Available` are derived from sync behaviour rather than copied blindly from Provider source data.
+
+## Deferred scope
+
+Supplier inventory/stock-level synchronisation is deliberately deferred. It may be added later when a Provider model can represent location-specific and time-sensitive stock truthfully.

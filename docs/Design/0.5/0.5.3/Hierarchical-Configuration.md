@@ -88,9 +88,6 @@ bas:
 eofy:
   instant_asset_writeoff_threshold: 20000
 
-product_sync:
-  prefix: BUNNINGS-
-
 providers:
   bunnings:
     name: Bunnings
@@ -108,9 +105,12 @@ providers:
       - NST
     url: https://www.nst.net.au/nst/DownloadCSV
     fields:
-      item: PartNo
+      product: PartNo
       description: Description
+      cost: TradePrice
       price: Price
+      quantity: PackQuantity
+      image_url: ImageURL
 ```
 
 The exact North Shore Timber CSV column names must be verified against the actual CSV before implementation.
@@ -182,10 +182,28 @@ Initial configuration should remain small:
 source URL
 canonical provider name
 vendor aliases
-item field
-description field
-price field
+Invoice Ninja Product field mappings
 ```
+
+For configurable file/web Providers, field mappings should mirror Invoice Ninja Product concepts rather than supplier-specific terminology.
+
+Example:
+
+```yaml
+fields:
+  product: PartNo
+  description: Description
+  cost: TradePrice
+  price: RetailPrice
+  quantity: PackQuantity
+  image_url: ImageURL
+```
+
+The left-hand key is the GoTradie/Invoice Ninja Product concept. The right-hand value is the source field used by that Provider.
+
+`product` is mandatory for a configurable syncing Provider and means the supplier's own product identifier, regardless of whether that supplier calls it SKU, I/N, PartNo, Item Code, Stock Code, or something else.
+
+Built-in Providers such as Bunnings may define their source-to-Product mapping in code instead of YAML.
 
 Do not initially add:
 
