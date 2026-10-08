@@ -212,40 +212,6 @@ Arbitrary date-range export belongs to the Financial export.
 
 The no-flag/default BAS workflow depends on ATO BAS lodgement due-date rules.
 
-GoTradie should periodically verify those rules according to:
-
-```yaml
-bas:
-  ato_due_dates:
-    verify_every_days: 30
-```
-
-A small local operational cache is permitted, for example:
-
-```text
-~/.GoTradie/cache/ato_due_dates.json
-```
-
-It may contain only:
-
-```text
-last successful verification date
-cached ATO BAS due-date rules
-source/rule identifier where available
-```
-
-It must not contain BAS lodgement state or accounting data.
-
-If the verification interval has expired, GoTradie should attempt to refresh the ATO due-date rules.
-
-If refresh fails or has not succeeded for longer than the configured interval:
-
-```text
-continue using the existing cached/configured dates
-print a warning to stdout
-do not fail BAS generation solely because the due-date refresh is stale
-```
-
 ## Output
 
 Generated BAS output follows the global output-directory and overwrite rules in `docs/Command-Line-Spec.md`.
@@ -577,8 +543,6 @@ Keep the dataset intentionally narrow.
 After migration, the BAS must be reproducible from Invoice Ninja alone.
 
 Do not introduce another accounting database, SQLite allocation state, a persistent side ledger, or dependence on the historical import spreadsheet.
-
-The permitted ATO due-date cache is operational metadata only and is not accounting state.
 
 ## Design rule
 

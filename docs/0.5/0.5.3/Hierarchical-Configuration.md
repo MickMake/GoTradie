@@ -93,10 +93,6 @@ cash
 accrual
 ```
 
-`ato_due_dates.verify_every_days` controls how often GoTradie should re-check the ATO BAS due-date rules before considering its locally cached verification stale.
-
-The verification interval is operational configuration, not accounting state.
-
 ## Required EOFY accounting basis
 
 EOFY income/expense recognition is configured independently of BAS GST timing.
@@ -185,8 +181,6 @@ tax:
 bas:
   reporting_period: quarterly
   gst_basis: cash
-  ato_due_dates:
-    verify_every_days: 30
 
 eofy:
   accounting_basis: cash
@@ -223,28 +217,6 @@ providers:
 ## BAS ATO due-date verification
 
 The BAS default-selection workflow is date-driven and depends on ATO BAS period and lodgement due-date rules.
-
-GoTradie may keep a small local operational cache such as:
-
-```text
-~/.GoTradie/cache/ato_due_dates.json
-```
-
-The cache may contain only due-date verification metadata such as:
-
-```text
-last successful verification date
-ATO source/rule version or identifier where available
-cached BAS due-date rules
-```
-
-It must not contain BAS lodgement state, accounting records, Invoice Ninja-derived financial data, or a side ledger.
-
-When the cached ATO due-date verification is older than `bas.ato_due_dates.verify_every_days`, GoTradie should attempt to verify the rules again.
-
-If verification cannot be completed, GoTradie must continue using the existing configured/cached rules and print a warning to stdout indicating that the ATO due-date rules have not been refreshed recently.
-
-A stale or failed ATO verification is not, by itself, a reason to fail BAS generation.
 
 ## Secrets
 
