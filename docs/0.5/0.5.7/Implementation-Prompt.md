@@ -3,19 +3,19 @@
 Primary design contract:
 
 ```text
-docs/Design/0.5/0.5.7/Product-Sync.md
+docs/0.5/0.5.7/Product-Sync.md
 ```
 
 Cross-audit contract:
 
 ```text
-docs/Design/0.5/Cross-Audit.md
+docs/0.5/Cross-Audit.md
 ```
 
 Relevant configuration contract:
 
 ```text
-docs/Design/0.5/0.5.3/Hierarchical-Configuration.md
+docs/0.5/0.5.3/Hierarchical-Configuration.md
 ```
 
 ## Mandatory preflight

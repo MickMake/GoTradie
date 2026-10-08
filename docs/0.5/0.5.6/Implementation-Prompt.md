@@ -5,7 +5,7 @@ Implement the accepted Financial Data Export design.
 Primary contract:
 
 ```text
-docs/Design/0.5/0.5.6/Financial-Export.md
+docs/0.5/0.5.6/Financial-Export.md
 ```
 
 ## Mandatory preflight

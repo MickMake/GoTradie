@@ -7,19 +7,19 @@ Implement the accepted v0.5.3 hierarchical configuration design.
 Primary design contract:
 
 ```text
-docs/Design/0.5/0.5.3/Hierarchical-Configuration.md
+docs/0.5/0.5.3/Hierarchical-Configuration.md
 ```
 
 Cross-audit contract:
 
 ```text
-docs/Design/0.5/Cross-Audit.md
+docs/0.5/Cross-Audit.md
 ```
 
 Series context:
 
 ```text
-docs/Design/0.5/README.md
+docs/0.5/README.md
 ```
 
 Cross-release CLI contract:
@@ -145,9 +145,9 @@ Update affected documentation together with the implementation.
 At minimum inspect:
 
 ```text
-docs/Design/0.5/0.5.3/Hierarchical-Configuration.md
-docs/Design/0.5/Cross-Audit.md
-docs/Design/0.5/README.md
+docs/0.5/0.5.3/Hierarchical-Configuration.md
+docs/0.5/Cross-Audit.md
+docs/0.5/README.md
 docs/Design/Command-Line-Spec.md
 apps/GoTradie/README.md
 apps/GoTradie/internal/app/extended_help.go

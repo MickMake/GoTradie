@@ -5,7 +5,7 @@ Implement the accepted EOFY export design.
 Primary contract:
 
 ```text
-docs/Design/0.5/0.5.5/EOFY-Export.md
+docs/0.5/0.5.5/EOFY-Export.md
 ```
 
 ## Mandatory preflight

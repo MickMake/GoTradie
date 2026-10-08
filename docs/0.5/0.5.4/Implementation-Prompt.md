@@ -5,13 +5,13 @@ Implement the accepted BAS export design.
 Primary contract:
 
 ```text
-docs/Design/0.5/0.5.4/BAS-Export.md
+docs/0.5/0.5.4/BAS-Export.md
 ```
 
 Cross-audit and CLI contracts:
 
 ```text
-docs/Design/0.5/Cross-Audit.md
+docs/0.5/Cross-Audit.md
 docs/Design/Command-Line-Spec.md
 ```
 
