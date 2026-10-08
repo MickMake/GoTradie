@@ -73,26 +73,11 @@ BUNNINGS_CLIENT_ID
 BUNNINGS_CLIENT_SECRET
 ```
 
-Useful optional settings:
-
-```text
-INVOICE_NINJA_URL
-BUNNINGS_ENV
-BUNNINGS_COUNTRY
-BUNNINGS_LOCATION
-BUNNINGS_SCOPES
-PRODUCT_PREFIX
-BUNNINGS_IN_CUSTOM_FIELD
-BUNNINGS_IMAGE_CUSTOM_FIELD
-TAX_NAME
-TAX_RATE
-```
-
 See `gotradie.conf.example`.
 
 ## Commands
 
-All write-capable commands preview or refuse risky writes by default. Add `--commit` when you want to make a persistent change.
+All write-capable commands preview or refuse risky writes by default. Add `--commit` when you want to make a persistent change in InvoiceNinja.
 
 ## Bunnings data source
 
@@ -166,10 +151,10 @@ GoTradie ninja export products products.csv
 GoTradie ninja export products -
 ```
 
-Exports do not overwrite files unless `--commit` is used:
+Exports do not overwrite files unless `--force` is used:
 
 ```bash
-GoTradie ninja export products products.csv --commit
+GoTradie ninja export products products.csv --force
 ```
 
 Imports use a positional source:
