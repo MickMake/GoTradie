@@ -1,14 +1,14 @@
 # GoTradie Supplier Import Overview
 
 Version plan: v0.6.x  
-Primary repo: `MickMake/GoBunningsNinja`  
+Primary repo: `MickMake/GoTradie`  
 Status: Design / implementation planning document
 
 ---
 
 ## 1. Executive summary
 
-Add a new `supplier` command family to GoTradie / GoBunningsNinja for importing arbitrary supplier CSV/XLSX price lists into Invoice Ninja products.
+Add a new `supplier` command family to GoTradie for importing arbitrary supplier CSV/XLSX price lists into Invoice Ninja products.
 
 The core workflow is:
 
@@ -45,7 +45,7 @@ The new supplier workflow converts arbitrary supplier files through editable YAM
 6. Preserve the existing `--commit` safety model.
 7. Avoid changing native Invoice Ninja import/export behaviour.
 8. Keep Bunnings as its own command family.
-9. Keep supplier mapping/orchestration in `GoBunningsNinja`, not in SDK repos.
+9. Keep supplier mapping/orchestration in `GoTradie`, not in SDK repos.
 10. Implement in small versioned phases starting at v0.6.0.
 
 ---
@@ -239,7 +239,7 @@ This avoids relying on native Invoice Ninja CSV IDs and allows supplier import t
 
 ## 8. Suggested internal packages
 
-Suggested source structure in `GoBunningsNinja`:
+Suggested source structure in `GoTradie`:
 
 ```text
 internal/supplier/

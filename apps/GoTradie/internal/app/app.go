@@ -360,7 +360,7 @@ func (a App) runNinja(ctx context.Context, svc *ninja.Service, args []string) in
 
 func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, args []string) int {
 	if len(args) < 1 {
-		fmt.Fprintln(a.Err, "usage: GoTradie ninja export <products|clients|quotes|invoices|payments|erpnext> <file|directory|-> [--commit]")
+		fmt.Fprintln(a.Err, "usage: GoTradie ninja export <products|clients|quotes|invoices|payments|erpnext> <file|directory|-> [--force]")
 		return 2
 	}
 	kind := args[0]
@@ -375,7 +375,7 @@ func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, args []stri
 	outPath, commit, err := parseExportArgs(args[1:])
 	if err != nil {
 		fmt.Fprintln(a.Err, err)
-		fmt.Fprintf(a.Err, "usage: GoTradie ninja export %s <file|-> [--commit]\n", kind)
+		fmt.Fprintf(a.Err, "usage: GoTradie ninja export %s <file|-> [--force]\n", kind)
 		return 2
 	}
 	w, closeFn, err := writerFor(outPath, a.Out, commit)

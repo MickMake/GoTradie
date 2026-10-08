@@ -2,7 +2,7 @@
 
 Use this prompt to start an implementation chat for each v0.6.x phase.
 
-Primary repository: `MickMake/GoBunningsNinja`  
+Primary repository: `MickMake/GoTradie`  
 Supporting SDK repositories: `MickMake/GoBunnings`, `MickMake/GoInvoiceNinja`  
 Feature family: Supplier CSV/XLSX price list import into Invoice Ninja products
 
@@ -25,19 +25,19 @@ This project has three Go repositories under `MickMake`:
 1. `GoBunnings`
    - Reusable Bunnings API SDK.
    - Owns Bunnings auth/client/models/helpers.
-   - Must not import `GoInvoiceNinja` or `GoBunningsNinja`.
+   - Must not import `GoInvoiceNinja` or `GoTradie`.
 
 2. `GoInvoiceNinja`
    - Reusable Invoice Ninja v5 API SDK.
    - Owns Invoice Ninja auth/client/models/services/helpers.
-   - Must not import `GoBunnings` or `GoBunningsNinja`.
+   - Must not import `GoBunnings` or `GoTradie`.
 
-3. `GoBunningsNinja`
+3. `GoTradie`
    - CLI/application layer.
    - Owns commands, config loading, dry-run/commit behaviour, mapping, sync/import/export workflows, and orchestration between SDKs.
    - May import both SDKs.
 
-The supplier import feature belongs in `GoBunningsNinja` unless a genuinely reusable low-level SDK capability is required.
+The supplier import feature belongs in `GoTradie` unless a genuinely reusable low-level SDK capability is required.
 
 ---
 
@@ -442,10 +442,10 @@ Do not claim tests passed unless they actually passed.
 
 ## 12. Local validation commands
 
-For changes only in `GoBunningsNinja`:
+For changes only in `GoTradie`:
 
 ```bash
-cd /path/to/GoNinjaWorkspace/GoBunningsNinja
+cd /path/to/GoNinjaWorkspace/GoTradie
 git pull
 go test ./...
 go vet ./...
@@ -467,7 +467,7 @@ git pull
 go test ./...
 go vet ./...
 
-cd ../GoBunningsNinja
+cd ../GoTradie
 git pull
 go test ./...
 go vet ./...
@@ -481,7 +481,7 @@ go build ./cmd/bunnings-ninja
 Use this after an implementation PR is raised:
 
 ```text
-You are reviewing the last supplier import PR for GoTradie / GoBunningsNinja.
+You are reviewing the last supplier import PR for GoTradie.
 
 Confirm whether the PR is on track for its intended v0.6.x phase.
 
