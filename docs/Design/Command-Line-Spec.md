@@ -1,12 +1,20 @@
 # GoTradie Command-Line Contract
 
+## Authority and scope
+
+This document is the **single canonical contract for global GoTradie CLI semantics and safety rules that it explicitly defines**.
+
+Slice-specific design documents may define their own commands, arguments and feature behaviour, but they must not redefine global flag meanings or contradict the safety rules in this document.
+
+User documentation, application help and agent instructions may summarise these rules. They are not alternate CLI contracts.
+
 ## Core rule
 
 GoTradie uses distinct flags for distinct kinds of persistent effects:
 
 ```text
 --commit
-    Permit persistent changes to Invoice Ninja / remote application state.
+    Permit persistent changes to Invoice Ninja application or database state.
 
 --force
     Permit overwriting existing local files.
@@ -25,7 +33,7 @@ These meanings must never overlap.
 
 ### `--commit`
 
-`--commit` is the only flag that permits persistent changes to Invoice Ninja or other supported remote application state.
+`--commit` is the only flag that permits persistent changes to Invoice Ninja application or database state.
 
 Without it, write-capable commands must preview or otherwise remain non-mutating.
 
@@ -292,7 +300,7 @@ Do not reintroduce:
 Do not use `--force` to mean:
 
 ```text
-persist remote changes
+persist Invoice Ninja application or database changes
 ignore Product Sync freshness
 bypass validation
 ```
@@ -301,7 +309,7 @@ bypass validation
 
 ```text
 Look around freely.
-Preview remote changes safely.
+Preview Invoice Ninja application or database changes safely.
 Use --commit to change Invoice Ninja.
 Use --force to overwrite an existing local file.
 Generated reports go to exports.directory when configured, otherwise the current directory.

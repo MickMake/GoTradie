@@ -33,25 +33,35 @@ Related v0.5.1 records:
 - [Possible Future Scenarios](./0.5/0.5.1/Expense-Importing-Possible-Scenarios.md) — explicitly deferred, non-blocking scenarios.
 - [Implementation Review](./0.5/0.5.1/Expense-Importing-Review.md) — historical review evidence, not an open work list.
 
-### Command-Line-Spec.md
+### [Command-Line-Spec.md](./Command-Line-Spec.md)
 
-The existing GoTradie command-line behaviour contract remains authoritative and is not replaced by this package.
+This is the **single canonical contract for global CLI semantics and safety rules that it explicitly defines**.
 
-Its safety rules continue to apply, especially:
+In particular, it owns the meaning of global safety flags:
 
-- preview by default;
-- `--commit` as the single persistent-write flag;
-- command grouping and repository/SDK ownership boundaries.
+```text
+--commit
+    permit persistent Invoice Ninja application or database changes
+
+--force
+    permit replacement of existing local export output
+```
+
+Release/slice documents may define commands, slice-specific flags and feature behaviour, but they must not redefine the meaning of global flags or contradict the global CLI safety contract.
+
+Application README/help text and agent instructions may summarise this contract for their audience. They are not alternate sources of CLI authority.
 
 ## Working rule
 
 These documents describe deliberate behaviour, not whatever happens to fall out of today's implementation.
 
-When implementation and design disagree:
+When implementation and accepted design disagree:
 
 1. inspect the current GitHub branch and tests;
 2. decide whether the code or the accepted design is wrong;
 3. obtain approval before replacing an accepted invariant;
 4. update code, tests, and affected documentation together.
+
+When two authoritative design documents appear to conflict, do not choose whichever interpretation is convenient. Stop, resolve the design conflict, and update the affected documents before implementation continues.
 
 Do not silently reinterpret a design contract because a nearby function looked persuasive. Functions are excellent at being confident and have never once had to explain themselves to an accountant.

@@ -1,5 +1,13 @@
 # GoTradie Agent Rules
 
+Canonical global CLI contract:
+
+```text
+docs/Design/Command-Line-Spec.md
+```
+
+This file is a short operational summary for coding agents. It must not redefine or override the global CLI contract.
+
 ## Persistent changes
 
 Use:
@@ -8,9 +16,9 @@ Use:
 --commit
 ```
 
-for persistent Invoice Ninja changes.
+for persistent Invoice Ninja application or database changes.
 
-Without `--commit`, remote write-capable operations preview or refuse writes.
+Without `--commit`, Invoice Ninja write-capable operations preview or refuse writes.
 
 ## Local export replacement
 
@@ -36,3 +44,5 @@ Creating new export output does not require `--force`.
 Do not introduce `--apply` or `--dry-run`.
 
 Do not use `--force` as a Product Sync freshness override or validation bypass.
+
+If this summary and `docs/Design/Command-Line-Spec.md` ever appear to disagree, stop and correct this summary rather than inventing a third interpretation.
