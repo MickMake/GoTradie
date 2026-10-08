@@ -10,12 +10,6 @@ Primary design contract:
 docs/0.5/0.5.3/Hierarchical-Configuration.md
 ```
 
-Cross-audit contract:
-
-```text
-docs/0.5/Cross-Audit.md
-```
-
 Series context:
 
 ```text
@@ -146,7 +140,6 @@ At minimum inspect:
 
 ```text
 docs/0.5/0.5.3/Hierarchical-Configuration.md
-docs/0.5/Cross-Audit.md
 docs/0.5/README.md
 docs/Command-Line-Spec.md
 apps/GoTradie/README.md

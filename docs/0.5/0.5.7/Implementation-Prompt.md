@@ -6,12 +6,6 @@ Primary design contract:
 docs/0.5/0.5.7/Product-Sync.md
 ```
 
-Cross-audit contract:
-
-```text
-docs/0.5/Cross-Audit.md
-```
-
 Relevant configuration contract:
 
 ```text
