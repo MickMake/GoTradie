@@ -4,17 +4,42 @@ This directory groups design and closeout material for the GoTradie `v0.5.x` rel
 
 ## Releases
 
-| Version | Status | Scope |
-|---|---|---|
-| v0.5.1 | Closed | Historical Expense import and supplier-account settlement |
-| v0.5.2 | Implemented on `feature/ninja-expense-import-3` — pending review/merge | Expense import identity, preflight, UX, batching and receipt deduplication |
+| Version | Status                         | Scope |
+|---|--------------------------------|---|
+| v0.5.1 | Closed                         | Historical Expense import and supplier-account settlement |
+| v0.5.2 | Closed                         | Expense import identity, preflight, UX, batching and receipt deduplication |
 | v0.5.3 | Planned — implementation-ready | Hierarchical YAML configuration |
 | v0.5.4 | Planned — implementation-ready | Accounting Dataset and BAS XLSX export |
 | v0.5.5 | Planned — implementation-ready | EOFY preparation XLSX export |
 | v0.5.6 | Planned — implementation-ready | Financial data XLSX export |
 | v0.5.7 | Planned — implementation-ready | Product synchronisation and provider/catalogue sources |
 
-See `Cross-Audit.md` for accepted cross-slice reconciliations.
+
+Release/slice-specific design and closeout material for the `v0.5.x` series.
+
+### [v0.5.1 Expense Importing](./0.5.1/Expense-Importing.md)
+
+Accepted architecture for historical Expense import and supplier-account settlement. It locks in:
+
+- Invoice Ninja as the durable source of truth after import;
+- spreadsheets as migration sources which may be archived after validation;
+- Expenses as purchase and tax records;
+- Bank Transactions/Transactions as supplier-account withdrawals and settlement records;
+- customer Payments as money received, never supplier payments;
+- deterministic supplier/date/FIFO reconstruction from Invoice Ninja records and stable GoTradie markers;
+- tolerance of intermediate Unpaid state during partial settlement;
+- optional Paid-state tidying only after full settlement;
+- cash and non-cash BAS timing without double-counting;
+- the Bunnings and BlueCarve canonical examples;
+- an Invoice-Ninja-only target architectural/post-migration integrity test;
+- explicit rejection of a GoTradie cache/SQLite side ledger, duplicate settlement Expenses, misuse of customer Payments, and required native partial links.
+
+The document supersedes earlier spreadsheet-dependent or import-run-only allocation designs. The Invoice-Ninja-only integrity test describes the target post-migration architecture; it does not block completion of the current historical importer.
+
+Related v0.5.1 records:
+
+- [Possible Future Scenarios](./0.5.1/Expense-Importing-Possible-Scenarios.md) — explicitly deferred, non-blocking scenarios.
+- [Implementation Review](./0.5.1/Expense-Importing-Review.md) — historical review evidence, not an open work list.
 
 ## v0.5.3
 

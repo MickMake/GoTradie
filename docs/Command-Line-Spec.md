@@ -1,12 +1,29 @@
 # GoTradie Command-Line Contract
 
+This document defines accepted CLI behaviour. Individual features and commands become available when their corresponding releases are implemented.
+
 ## Authority and scope
 
-This document is the **single canonical contract for global GoTradie CLI semantics and safety rules that it explicitly defines**.
+This document is the **single canonical contract for global GoTradie CLI semantics and safety rules**.
 
-Slice-specific design documents may define their own commands, arguments and feature behaviour, but they must not redefine global flag meanings or contradict the safety rules in this document.
+Release and slice-specific design documents may define commands, arguments, flags, and feature behaviour, but must not redefine global flag meanings or contradict this contract.
 
-User documentation, application help and agent instructions may summarise these rules. They are not alternate CLI contracts.
+Application documentation, CLI help, and agent instructions may summarise these rules for their audience. They are not alternative sources of authority.
+
+## Working rule
+
+These documents describe deliberate behaviour, not merely the current implementation.
+
+When implementation and accepted design disagree:
+
+1. Inspect the current GitHub branch and tests.
+2. Determine whether the implementation or accepted design is incorrect.
+3. Obtain approval before changing an accepted design invariant.
+4. Update code, tests, and affected documentation together.
+
+When authoritative design documents conflict, stop implementation until the conflict is resolved and the affected documents are updated.
+
+Do not silently reinterpret accepted design based on existing code.
 
 ## Core rule
 
@@ -17,7 +34,7 @@ GoTradie uses distinct flags for distinct kinds of persistent effects:
     Permit persistent changes to Invoice Ninja application or database state.
 
 --force
-    Permit overwriting existing local files.
+    Permit overwriting existing local files.    
 ```
 
 These meanings must never overlap.

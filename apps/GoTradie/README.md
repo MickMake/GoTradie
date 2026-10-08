@@ -8,7 +8,7 @@ The goal is deliberately modest: refresh Invoice Ninja products from Bunnings pr
 
 ## Requirements
 
-- Go `1.22`
+- Go `1.25`
 - Local checkout of `GoBunnings`
 - Local checkout of `GoInvoiceNinja` v0.5 or later
 
