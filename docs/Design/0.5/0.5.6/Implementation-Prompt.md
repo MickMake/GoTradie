@@ -62,7 +62,23 @@ There is no `--all` flag.
 
 Financial export does not modify Invoice Ninja and does not use `--commit`.
 
-Local output follows the global `--force` overwrite rule.
+## Output
+
+Follow the global output-resolution and `--force` rules in `docs/Design/Command-Line-Spec.md`.
+
+Use these deterministic filenames:
+
+```text
+financial year -> FYyyyy-Financial.xlsx
+bounded range  -> Financial-YYYY-MM-DD-to-YYYY-MM-DD.xlsx
+from only      -> Financial-from-YYYY-MM-DD.xlsx
+to only        -> Financial-to-YYYY-MM-DD.xlsx
+unrestricted   -> Financial-All.xlsx
+```
+
+Use optional `exports.directory` when configured; otherwise use the current working directory.
+
+Do not append timestamps or automatic collision suffixes.
 
 ## Workbook
 
@@ -88,7 +104,11 @@ Cover at least:
 - rejection of `--fy` with `--from`/`--to`;
 - rejection of `--period` with `--from`/`--to`;
 - same monthly/quarterly/yearly period parsing as BAS;
-- local overwrite safety.
+- optional `exports.directory`;
+- current-working-directory fallback;
+- deterministic filename generation for every selection mode;
+- refusal on existing output without `--force`;
+- replacement with `--force`.
 
 ## Verification
 

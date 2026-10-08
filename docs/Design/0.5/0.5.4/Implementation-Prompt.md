@@ -44,6 +44,15 @@ bas:
     verify_every_days: 30
 ```
 
+Optional generated-export directory:
+
+```yaml
+exports:
+  directory: ~/Documents/GoTradie
+```
+
+If `exports.directory` is absent, write generated output to the current working directory.
+
 ## CLI selection
 
 `--fy` accepts `YYYY`.
@@ -114,7 +123,20 @@ Reject BAS:
 
 BAS export does not modify Invoice Ninja and does not use `--commit`.
 
-Local output follows the global `--force` overwrite rule.
+## Output
+
+Follow the global output-resolution and `--force` rules in `docs/Design/Command-Line-Spec.md`.
+
+Use these deterministic filenames:
+
+```text
+quarterly single period -> FYyyyy-BAS-Qn.xlsx
+monthly single period   -> FYyyyy-BAS-Mon.xlsx
+historic all-period FY  -> FYyyyy-BAS.xlsx
+yearly BAS              -> FYyyyy-BAS.xlsx
+```
+
+Do not append timestamps or automatic collision suffixes.
 
 ## ATO due-date verification
 
@@ -179,11 +201,15 @@ Cover at least:
 - quarterly integer/month-to-quarter parsing;
 - case-insensitive month parsing;
 - yearly rejection of `--period`;
+- optional `exports.directory`;
+- current-working-directory fallback;
+- quarterly/monthly/historical/yearly filename generation;
+- existing target refusal without `--force`;
+- replacement with `--force`;
 - ATO verification interval;
 - failed/stale ATO refresh prints stdout warning and continues;
 - no lodgement-state persistence;
-- cash/accrual GST basis;
-- local overwrite safety.
+- cash/accrual GST basis.
 
 ## Verification
 

@@ -38,11 +38,22 @@ A BAS-style period has no useful meaning for EOFY preparation.
 
 ## Output
 
+Generated EOFY output follows the global output-directory and overwrite rules in `docs/Design/Command-Line-Spec.md`.
+
+If no explicit output path is supported or supplied:
+
+```text
+exports.directory, if configured
+otherwise current working directory
+```
+
 Filename:
 
 ```text
 FY2027-EOFY.xlsx
 ```
+
+The filename is deterministic. Do not append timestamps or automatic collision suffixes.
 
 ## Expense categories
 

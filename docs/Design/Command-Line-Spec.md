@@ -60,6 +60,104 @@ GoTradie ninja export tax ./tax-export --force
 
 `--force` must not be used for Product Sync freshness, bypassing validation, bypassing accounting safety, or as another spelling of `--commit`.
 
+## Generated export output directory
+
+Generated BAS, EOFY and Financial XLSX exports use this output-directory precedence:
+
+```text
+explicit output path, if the command supports one
+    ↓
+exports.directory, if configured
+    ↓
+current working directory
+```
+
+`exports.directory` is optional.
+
+Example:
+
+```yaml
+exports:
+  directory: ~/Documents/GoTradie
+```
+
+If `exports.directory` is absent, generated exports are written to the current working directory.
+
+Do not require users to configure an export directory merely to use generated reports.
+
+The resolved target path is the path used by the `--force` overwrite rule.
+
+## Generated export filename contract
+
+Generated XLSX filenames are deterministic and must not contain timestamps or automatically appended collision suffixes.
+
+### BAS
+
+Quarterly single-period BAS:
+
+```text
+FY2027-BAS-Q1.xlsx
+FY2027-BAS-Q2.xlsx
+FY2027-BAS-Q3.xlsx
+FY2027-BAS-Q4.xlsx
+```
+
+Monthly single-period BAS:
+
+```text
+FY2027-BAS-Jul.xlsx
+FY2027-BAS-Aug.xlsx
+...
+FY2027-BAS-Jun.xlsx
+```
+
+Historical `--fy` with no `--period`, which contains all periods for that FY:
+
+```text
+FY2025-BAS.xlsx
+```
+
+Yearly BAS:
+
+```text
+FY2027-BAS.xlsx
+```
+
+Do not use ambiguous names such as `P1`, because period numbers mean different things under monthly and quarterly reporting.
+
+### EOFY
+
+```text
+FY2027-EOFY.xlsx
+```
+
+### Financial
+
+Financial-year export:
+
+```text
+FY2027-Financial.xlsx
+```
+
+Explicit date range:
+
+```text
+Financial-2025-01-01-to-2025-06-30.xlsx
+```
+
+Unrestricted export:
+
+```text
+Financial-All.xlsx
+```
+
+Where a one-sided date range is supported, use:
+
+```text
+Financial-from-2025-01-01.xlsx
+Financial-to-2025-06-30.xlsx
+```
+
 ## Export overwrite rule
 
 For local exports:
@@ -72,6 +170,8 @@ For local exports:
 | Output is stdout (`-`) | Write stdout; `--force` irrelevant |
 
 Generated BAS/EOFY/Financial output follows the same local-file rule.
+
+Do not automatically rename an output to avoid a collision.
 
 ## Removed/rejected meanings
 
@@ -97,4 +197,5 @@ Look around freely.
 Preview remote changes safely.
 Use --commit to change Invoice Ninja.
 Use --force to overwrite an existing local file.
+Generated reports go to exports.directory when configured, otherwise the current directory.
 ```

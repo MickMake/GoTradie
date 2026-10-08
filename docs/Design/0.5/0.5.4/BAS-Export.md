@@ -225,6 +225,49 @@ do not fail BAS generation solely because the due-date refresh is stale
 
 ## Output
 
+Generated BAS output follows the global output-directory and overwrite rules in `docs/Design/Command-Line-Spec.md`.
+
+If no explicit output path is supported or supplied:
+
+```text
+exports.directory, if configured
+otherwise current working directory
+```
+
+Filenames are deterministic.
+
+Quarterly single-period BAS:
+
+```text
+FY2027-BAS-Q1.xlsx
+FY2027-BAS-Q2.xlsx
+FY2027-BAS-Q3.xlsx
+FY2027-BAS-Q4.xlsx
+```
+
+Monthly single-period BAS:
+
+```text
+FY2027-BAS-Jul.xlsx
+FY2027-BAS-Aug.xlsx
+...
+FY2027-BAS-Jun.xlsx
+```
+
+Historical `--fy` with no `--period`, containing all periods:
+
+```text
+FY2025-BAS.xlsx
+```
+
+Yearly BAS:
+
+```text
+FY2027-BAS.xlsx
+```
+
+Do not use generic period labels such as `P1` in filenames.
+
 The workbook must identify:
 
 ```text

@@ -84,13 +84,43 @@ There is no `--all` flag because all data is already the default.
 
 ## Output
 
-For a restricted financial year:
+Generated Financial output follows the global output-directory and overwrite rules in `docs/Design/Command-Line-Spec.md`.
+
+If no explicit output path is supported or supplied:
+
+```text
+exports.directory, if configured
+otherwise current working directory
+```
+
+Filenames are deterministic.
+
+Financial-year export:
 
 ```text
 FY2027-Financial.xlsx
 ```
 
-For unrestricted or range-based dumps, use deterministic descriptive filenames.
+Explicit bounded date range:
+
+```text
+Financial-2025-01-01-to-2025-06-30.xlsx
+```
+
+One-sided ranges:
+
+```text
+Financial-from-2025-01-01.xlsx
+Financial-to-2025-06-30.xlsx
+```
+
+Unrestricted export:
+
+```text
+Financial-All.xlsx
+```
+
+Do not append timestamps or automatic collision suffixes.
 
 ## Workbook approach
 

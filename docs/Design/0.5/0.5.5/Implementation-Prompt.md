@@ -51,7 +51,19 @@ Reject:
 
 EOFY export does not modify Invoice Ninja and does not use `--commit`.
 
-Local output follows the global `--force` overwrite rule.
+## Output
+
+Follow the global output-resolution and `--force` rules in `docs/Design/Command-Line-Spec.md`.
+
+Default filename:
+
+```text
+FYyyyy-EOFY.xlsx
+```
+
+Use optional `exports.directory` when configured; otherwise use the current working directory.
+
+Do not append timestamps or automatic collision suffixes.
 
 ## Accounting rules
 

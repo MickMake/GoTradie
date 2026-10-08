@@ -76,6 +76,31 @@ The verification interval is operational configuration, not accounting state.
 
 Missing or unsupported accounting-significant values are configuration errors. GoTradie must not silently fall back to another BAS reporting period or GST basis.
 
+## Optional export directory
+
+Generated report exports may use an optional default directory:
+
+```yaml
+exports:
+  directory: ~/Documents/GoTradie
+```
+
+`exports.directory` is optional.
+
+If it is not configured, generated BAS, EOFY and Financial exports are written to the current working directory.
+
+The global output-resolution order is:
+
+```text
+explicit output path, if supported by the command
+    ↓
+exports.directory, if configured
+    ↓
+current working directory
+```
+
+Do not make an export directory mandatory.
+
 ## Proposed structure
 
 ```yaml
@@ -95,6 +120,9 @@ bas:
 
 eofy:
   instant_asset_writeoff_threshold: 20000
+
+exports:
+  directory: ~/Documents/GoTradie
 
 providers:
   bunnings:
@@ -121,8 +149,6 @@ providers:
       image_url: ImageURL
 ```
 
-The exact North Shore Timber CSV column names must be verified against the actual CSV before implementation.
-
 ## BAS ATO due-date verification
 
 The BAS default-selection workflow is date-driven and depends on ATO BAS period and lodgement due-date rules.
@@ -141,14 +167,7 @@ ATO source/rule version or identifier where available
 cached BAS due-date rules
 ```
 
-It must not contain:
-
-```text
-BAS lodgement state
-accounting records
-Invoice Ninja-derived financial data
-a side ledger
-```
+It must not contain BAS lodgement state, accounting records, Invoice Ninja-derived financial data, or a side ledger.
 
 When the cached ATO due-date verification is older than `bas.ato_due_dates.verify_every_days`, GoTradie should attempt to verify the rules again.
 
@@ -183,6 +202,7 @@ Configuration should fail clearly for:
 - unsupported BAS reporting period;
 - unsupported GST basis;
 - invalid `ato_due_dates` configuration;
+- invalid `exports.directory` value when present;
 - invalid values that cannot be interpreted safely.
 
 Silent fallback is not acceptable for accounting-significant configuration.
