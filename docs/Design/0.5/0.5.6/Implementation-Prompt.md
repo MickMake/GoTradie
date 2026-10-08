@@ -8,13 +8,6 @@ Primary contract:
 docs/Design/0.5/0.5.6/Financial-Export.md
 ```
 
-Cross-audit and CLI contracts:
-
-```text
-docs/Design/0.5/Cross-Audit.md
-docs/Design/Command-Line-Spec.md
-```
-
 ## Mandatory preflight
 
 Before changing code:
@@ -34,24 +27,42 @@ v0.5.6-financial-export
 
 ## CLI
 
-Implement:
+Implement unrestricted export:
 
 ```text
 GoTradie ninja export financial
-GoTradie ninja export financial --fy 2027
-GoTradie ninja export financial --from 2026-01-01 --to 2026-12-31
 ```
 
-No period flags means all available financial data.
+Support BAS-style selection:
 
-Financial export does not modify Invoice Ninja and therefore does not use `--commit`.
+```text
+GoTradie ninja export financial --fy 2025
+GoTradie ninja export financial --period 2
+GoTradie ninja export financial --period Jul
+GoTradie ninja export financial --period July
+GoTradie ninja export financial --fy 2025 --period 2
+GoTradie ninja export financial --fy 2025 --period Jul
+```
 
-Local output follows the global export rule:
+Support explicit date ranges:
 
-- create new output normally;
-- refuse to replace existing output unless `--force` is supplied.
+```text
+GoTradie ninja export financial --from 2025-01-01
+GoTradie ninja export financial --to 2025-06-30
+GoTradie ninja export financial --from 2025-01-01 --to 2025-06-30
+```
+
+BAS-style selectors and `--from`/`--to` are mutually exclusive.
+
+Use the same case-insensitive period parsing and FY mapping rules as BAS.
+
+No selection flags means all available financial data.
 
 There is no `--all` flag.
+
+Financial export does not modify Invoice Ninja and does not use `--commit`.
+
+Local output follows the global `--force` overwrite rule.
 
 ## Workbook
 
@@ -60,6 +71,24 @@ Keep v1 raw-data/diagnostic focused.
 Do not add dashboards, charts, KPI frameworks, margin engines or BI layers.
 
 Preserve source IDs and useful relationships.
+
+## Tests
+
+Cover at least:
+
+- unrestricted default;
+- `--fy`;
+- integer `--period`;
+- short month `--period`;
+- full month `--period`;
+- `--fy` + `--period`;
+- `--from` only;
+- `--to` only;
+- `--from` + `--to`;
+- rejection of `--fy` with `--from`/`--to`;
+- rejection of `--period` with `--from`/`--to`;
+- same monthly/quarterly/yearly period parsing as BAS;
+- local overwrite safety.
 
 ## Verification
 

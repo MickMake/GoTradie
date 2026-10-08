@@ -22,7 +22,7 @@ Before changing code:
 1. Fetch latest `origin/main`.
 2. Verify all earlier slice branches/PRs through v0.5.3 are merged or explicitly retired.
 3. If an earlier slice branch/PR is still active and unmerged, STOP and report it.
-4. Inspect Invoice Ninja invoice/payment/expense/transaction access, settlement reconstruction, configuration, CLI export handling and XLSX support.
+4. Inspect Invoice Ninja accounting access, configuration, CLI export handling and XLSX support.
 5. State intended change, branch, likely files/packages and blocking ambiguity.
 6. STOP and wait for approval.
 
@@ -40,134 +40,69 @@ Use:
 bas:
   reporting_period: quarterly
   gst_basis: cash
+  ato_due_dates:
+    verify_every_days: 30
 ```
 
-Supported `reporting_period` values:
+## CLI selection
+
+`--fy` accepts `YYYY`.
+
+If omitted, derive the current Australian FY from today's date:
 
 ```text
-monthly
-quarterly
-yearly
-```
-
-Supported `gst_basis` values:
-
-```text
-cash
-accrual
-```
-
-## CLI
-
-Implement for monthly and quarterly reporting:
-
-```text
-GoTradie ninja export bas
-GoTradie ninja export bas --fy 2027
-GoTradie ninja export bas --period 1
-GoTradie ninja export bas --period Jul
-GoTradie ninja export bas --fy 2025 --period 1
-GoTradie ninja export bas --fy 2025 --period Jul
+30/06/2020 -> FY2020
+01/07/2020 -> FY2021
 ```
 
 Resolve:
 
 ```text
-no --fy, no --period
-    -> current FY + current period
+bas
+    -> current FY + natural date-driven BAS period
 
---fy CURRENT
-    -> current FY + current period
+bas --fy CURRENT
+    -> current FY + natural date-driven BAS period
 
---fy NON-CURRENT
-    -> fail; --period required
+bas --fy HISTORIC
+    -> all BAS periods in HISTORIC FY
 
---period VALUE
-    -> current FY + selected period
+bas --period VALUE
+    -> current FY + selected BAS period
 
---fy YEAR --period VALUE
-    -> YEAR + selected period
+bas --fy YEAR --period VALUE
+    -> YEAR + selected BAS period
 ```
 
-Never infer a historical or future BAS period from today's date.
-
-The current date may determine the BAS period only when the selected FY is the current Australian FY.
+The default/no-period workflow is date-driven using period-end and ATO lodgement due-date rules. Do not track whether a BAS has actually been lodged.
 
 ### `--period`
 
-Accept either:
+Case-insensitive.
+
+Monthly BAS accepts:
 
 ```text
-integer period number
-standard three-letter English month abbreviation
+1..12
+Jan..Dec
+January..December
 ```
 
-Accepted month values:
+Quarterly BAS accepts:
 
 ```text
-Jan
-Feb
-Mar
-Apr
-May
-Jun
-Jul
-Aug
-Sep
-Oct
-Nov
-Dec
+1..4
+Jan..Dec
+January..December
 ```
 
-Parsing is case-insensitive.
+Quarterly month names map to their containing quarter.
 
-Do not accept full month names, `Sept`, partial names, or fuzzy aliases.
+Yearly BAS rejects `--period`.
 
-Integer interpretation:
+Do not add fuzzy month parsing or non-standard aliases.
 
-```text
-monthly   -> 1-12, July through June
-quarterly -> 1-4, Q1 through Q4
-yearly    -> invalid
-```
-
-Month interpretation:
-
-```text
-monthly:
-    Jul -> 1
-    Aug -> 2
-    Sep -> 3
-    Oct -> 4
-    Nov -> 5
-    Dec -> 6
-    Jan -> 7
-    Feb -> 8
-    Mar -> 9
-    Apr -> 10
-    May -> 11
-    Jun -> 12
-
-quarterly:
-    Jul/Aug/Sep -> 1
-    Oct/Nov/Dec -> 2
-    Jan/Feb/Mar -> 3
-    Apr/May/Jun -> 4
-```
-
-For yearly reporting:
-
-```text
-GoTradie ninja export bas
-    -> current FY
-
-GoTradie ninja export bas --fy YEAR
-    -> selected FY
-```
-
-Reject every `--period` value in yearly mode.
-
-Also reject:
+Reject BAS:
 
 ```text
 --from
@@ -180,6 +115,34 @@ Also reject:
 BAS export does not modify Invoice Ninja and does not use `--commit`.
 
 Local output follows the global `--force` overwrite rule.
+
+## ATO due-date verification
+
+Use:
+
+```text
+bas.ato_due_dates.verify_every_days
+```
+
+Allow a small local operational cache such as:
+
+```text
+~/.GoTradie/cache/ato_due_dates.json
+```
+
+The cache may store only ATO due-date verification metadata and cached rules.
+
+It must not store lodgement state or accounting data.
+
+When verification is stale, attempt to refresh the ATO due-date rules.
+
+If refresh fails:
+
+```text
+continue using existing cached/configured due dates
+print a warning to stdout that due-date verification is stale
+do not fail BAS generation solely because refresh failed
+```
 
 ## Accounting Dataset
 
@@ -200,35 +163,26 @@ Exceptions
 
 Implement G1, 1A, 1B, cash-basis customer payments, partial payments, ordinary Expenses, supplier-account settlement, proportional partial settlement, accrual-basis timing, and deterministic rounding.
 
-The workbook must state resolved FY, reporting-period type, reporting-period number where applicable, period start/end, and GST basis.
+For `--fy HISTORIC` with no period, output all periods in that FY and make each period clearly identifiable.
 
 ## Tests
 
 Cover at least:
 
-- current-FY/current-period default;
-- explicit current `--fy` with no period;
-- rejection of non-current `--fy` without period for monthly reporting;
-- rejection of non-current `--fy` without period for quarterly reporting;
-- explicit non-current `--fy` with integer period;
-- explicit non-current `--fy` with month period;
-- monthly integer mapping 1-12;
-- quarterly integer mapping 1-4;
-- monthly three-letter month mapping;
-- quarterly month-to-quarter mapping;
+- FY derivation on 30 June and 1 July;
+- no-flag natural-period selection before due date;
+- no-flag selection after due date but before next period completion;
+- current `--fy` with no period;
+- historical `--fy` returning all periods;
+- `--fy` + integer/short-month/full-month period;
+- monthly integer/month parsing;
+- quarterly integer/month-to-quarter parsing;
 - case-insensitive month parsing;
-- rejection of full month names;
-- rejection of `Sept`;
-- rejection of invalid/partial month names;
-- yearly current-FY default;
-- yearly explicit current/historical/future `--fy`;
-- yearly rejection of integer `--period`;
-- yearly rejection of month `--period`;
-- invalid integer period values;
-- rejection of `--from/--to`;
-- rejection of `--month` and `--quarter`;
-- cash GST basis;
-- accrual GST basis;
+- yearly rejection of `--period`;
+- ATO verification interval;
+- failed/stale ATO refresh prints stdout warning and continues;
+- no lodgement-state persistence;
+- cash/accrual GST basis;
 - local overwrite safety.
 
 ## Verification

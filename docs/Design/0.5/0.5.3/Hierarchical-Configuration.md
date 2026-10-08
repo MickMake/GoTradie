@@ -51,6 +51,8 @@ Required shape:
 bas:
   reporting_period: quarterly
   gst_basis: cash
+  ato_due_dates:
+    verify_every_days: 30
 ```
 
 Supported BAS reporting period values:
@@ -68,7 +70,11 @@ cash
 accrual
 ```
 
-Missing or unsupported values are configuration errors. GoTradie must not silently fall back to another BAS reporting period or GST basis.
+`ato_due_dates.verify_every_days` controls how often GoTradie should re-check the ATO BAS due-date rules before considering its locally cached verification stale.
+
+The verification interval is operational configuration, not accounting state.
+
+Missing or unsupported accounting-significant values are configuration errors. GoTradie must not silently fall back to another BAS reporting period or GST basis.
 
 ## Proposed structure
 
@@ -84,6 +90,8 @@ tax:
 bas:
   reporting_period: quarterly
   gst_basis: cash
+  ato_due_dates:
+    verify_every_days: 30
 
 eofy:
   instant_asset_writeoff_threshold: 20000
@@ -115,6 +123,39 @@ providers:
 
 The exact North Shore Timber CSV column names must be verified against the actual CSV before implementation.
 
+## BAS ATO due-date verification
+
+The BAS default-selection workflow is date-driven and depends on ATO BAS period and lodgement due-date rules.
+
+GoTradie may keep a small local operational cache such as:
+
+```text
+~/.GoTradie/cache/ato_due_dates.json
+```
+
+The cache may contain only due-date verification metadata such as:
+
+```text
+last successful verification date
+ATO source/rule version or identifier where available
+cached BAS due-date rules
+```
+
+It must not contain:
+
+```text
+BAS lodgement state
+accounting records
+Invoice Ninja-derived financial data
+a side ledger
+```
+
+When the cached ATO due-date verification is older than `bas.ato_due_dates.verify_every_days`, GoTradie should attempt to verify the rules again.
+
+If verification cannot be completed, GoTradie must continue using the existing configured/cached rules and print a warning to stdout indicating that the ATO due-date rules have not been refreshed recently.
+
+A stale or failed ATO verification is not, by itself, a reason to fail BAS generation.
+
 ## Secrets
 
 Secrets may exist in YAML, but explicitly supported environment variables may override them.
@@ -141,6 +182,7 @@ Configuration should fail clearly for:
 - missing required GST basis;
 - unsupported BAS reporting period;
 - unsupported GST basis;
+- invalid `ato_due_dates` configuration;
 - invalid values that cannot be interpreted safely.
 
 Silent fallback is not acceptable for accounting-significant configuration.
@@ -153,14 +195,6 @@ That canonical name is the official supplier name and is the Vendor identity use
 
 `aliases` are recognition inputs only. They may resolve incoming supplier names to the Provider, but they do not create alternate Vendor identities.
 
-Example:
-
-```text
-Incoming supplier: Bunnings Warehouse
-Configured alias:  Bunnings Warehouse
-Canonical Provider/Vendor identity: Bunnings
-```
-
 Provider alias matching should initially be deterministic:
 
 - trim surrounding whitespace;
@@ -168,22 +202,11 @@ Provider alias matching should initially be deterministic:
 - no fuzzy matching;
 - no automatic alias learning.
 
-Unknown supplier names do not prevent the supplier from existing as an Invoice Ninja Vendor. They simply do not resolve to a product-sync Provider until deliberately configured.
-
 Store/location does not belong in the Provider or Vendor name.
 
 Store/location is separate Expense metadata used for business analytics.
 
 ## Generic CSV provider
-
-Initial configuration should remain small:
-
-```text
-source URL
-canonical provider name
-vendor aliases
-Invoice Ninja Product field mappings
-```
 
 For configurable file/web Providers, field mappings should mirror Invoice Ninja Product concepts rather than supplier-specific terminology.
 
@@ -199,25 +222,9 @@ fields:
   image_url: ImageURL
 ```
 
-The left-hand key is the GoTradie/Invoice Ninja Product concept. The right-hand value is the source field used by that Provider.
-
 `product` is mandatory for a configurable syncing Provider and means the supplier's own product identifier, regardless of whether that supplier calls it SKU, I/N, PartNo, Item Code, Stock Code, or something else.
 
 Built-in Providers such as Bunnings may define their source-to-Product mapping in code instead of YAML.
-
-Do not initially add:
-
-```text
-arbitrary regex transforms
-HTML selector languages
-embedded scripting
-row-expression languages
-generic workflow logic
-```
-
-Rule:
-
-> Config describes the source. Code implements behaviour.
 
 ## Compatibility and migration
 
@@ -228,19 +235,6 @@ v0.5.3 is an intentional configuration break.
 3. Legacy flat configuration is not supported.
 4. Environment variables override only explicitly supported secret fields.
 5. No generic migration or compatibility framework is required.
-
-## Required structural homes
-
-The v0.5.3 implementation must provide configuration homes for at least:
-
-```text
-invoice_ninja
-tax
-bas
-eofy
-product_sync
-providers
-```
 
 ## Scope guardrail
 

@@ -10,11 +10,6 @@ Produce a general-purpose XLSX export of financial data from Invoice Ninja.
 
 The first implementation is deliberately a **raw data and diagnostic export**, not a dashboard or management-analysis engine.
 
-It should be useful for two equally valid jobs:
-
-1. export data for later spreadsheet analysis;
-2. inspect Invoice Ninja when something looks wrong and a faithful data dump is needed.
-
 ## Command
 
 Default:
@@ -23,21 +18,66 @@ Default:
 GoTradie ninja export financial
 ```
 
-With no period flags, export **all available financial data**.
+With no selection flags, export all available financial data.
 
-Optional restrictions:
+Financial export supports two mutually exclusive selection styles.
+
+## BAS-style selection
+
+Support:
 
 ```text
-GoTradie ninja export financial --fy 2027
-GoTradie ninja export financial --from 2026-01-01 --to 2026-12-31
+--fy YYYY
+--period VALUE
+--fy YYYY --period VALUE
 ```
 
-Selection modes are mutually exclusive:
+Use the same period parsing as BAS.
+
+Monthly:
 
 ```text
-no period flags      = all available data
---fy                  = one financial year
---from + --to         = explicit range
+1..12
+Jan..Dec
+January..December
+```
+
+Quarterly:
+
+```text
+1..4
+Jan..Dec
+January..December
+```
+
+Yearly:
+
+```text
+--period invalid
+```
+
+`--period` is case-insensitive.
+
+Where BAS-style selection is used, use the same FY and period mapping rules as BAS.
+
+## Explicit date-range selection
+
+Also support:
+
+```text
+--from YYYY-MM-DD
+--to YYYY-MM-DD
+--from YYYY-MM-DD --to YYYY-MM-DD
+```
+
+BAS-style selectors and explicit date-range selectors are mutually exclusive.
+
+Reject combinations such as:
+
+```text
+--fy 2025 --from 2025-01-01
+--period 2 --to 2025-06-30
+--fy 2025 --period 2 --from 2024-10-01 --to 2024-12-31
 ```
 
 There is no `--all` flag because all data is already the default.
@@ -50,13 +90,13 @@ For a restricted financial year:
 FY2027-Financial.xlsx
 ```
 
-For an unrestricted dump, use a deterministic descriptive filename that clearly indicates an all-data financial export. The implementation should keep this simple and document the chosen name.
+For unrestricted or range-based dumps, use deterministic descriptive filenames.
 
 ## Workbook approach
 
 Prefer faithful, well-structured data sheets over dashboards.
 
-Include the financial entities available from Invoice Ninja that materially help analysis and diagnosis. Expected sheets include the equivalent of:
+Expected sheets include the equivalent of:
 
 ```text
 Income
@@ -69,8 +109,6 @@ Products
 Projects-Jobs
 Exceptions
 ```
-
-If the current Invoice Ninja model exposes a more accurate entity name or a useful supporting entity, use that model rather than inventing a parallel abstraction.
 
 ## Raw data and relationships
 
@@ -87,68 +125,26 @@ dates
 amounts
 GST/tax values
 status/state
-archived/deleted markers where available and relevant
+archived/deleted markers where relevant
 ```
-
-The export should be useful for answering questions such as:
-
-> There is something fishy with Invoice Ninja. What records actually exist and how do they relate?
-
-Do not transform away useful source evidence merely to make the workbook prettier.
 
 ## Filtering
 
-When a date restriction is supplied, apply the most natural accounting/event date for each entity and document any entity-specific treatment in code/tests.
+When a date restriction is supplied, apply a deterministic documented date rule per entity.
 
-Do not silently omit undated or unclassifiable records. Put materially ambiguous cases in `Exceptions` or otherwise make them visible.
+Do not silently omit undated or unclassifiable records. Surface materially ambiguous cases.
 
 ## Accounting Dataset
 
-Reuse the Accounting Dataset where it provides useful calculated financial values, but keep raw Invoice Ninja data visible where needed for diagnosis.
-
-Do not force every sheet through the Accounting Dataset if doing so would lose source fidelity.
+Reuse the Accounting Dataset where it provides useful calculated financial values, while preserving raw Invoice Ninja data where needed for diagnosis.
 
 ## Deferred analysis
 
-The first version does not need:
-
-```text
-dashboards
-charts
-margin calculations
-trend analysis
-KPI framework
-customer concentration analysis
-supplier concentration analysis
-management commentary
-```
-
-Those can be added later if actual use proves them valuable.
-
-## XLSX usability
-
-Use basic spreadsheet usability only:
-
-- clear sheet names;
-- stable columns;
-- useful headers;
-- date/number formatting;
-- filters/frozen header rows where already supported and cheap to provide;
-- deterministic ordering where practical.
-
-Do not spend the slice building presentation polish.
+The first version does not need dashboards, charts, margin calculations, trend analysis, KPI frameworks, concentration analysis, or management commentary.
 
 ## Scope guardrail
 
-Do not turn this slice into:
-
-```text
-a dashboard project
-a KPI framework
-a business-intelligence system
-a general ledger
-a second accounting database
-```
+Do not turn this slice into a dashboard project, KPI framework, BI system, general ledger, or second accounting database.
 
 ## Design rule
 

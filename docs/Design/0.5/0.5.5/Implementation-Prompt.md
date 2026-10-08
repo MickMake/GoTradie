@@ -8,13 +8,6 @@ Primary contract:
 docs/Design/0.5/0.5.5/EOFY-Export.md
 ```
 
-Cross-audit and CLI contracts:
-
-```text
-docs/Design/0.5/Cross-Audit.md
-docs/Design/Command-Line-Spec.md
-```
-
 ## Mandatory preflight
 
 Before changing code:
@@ -41,14 +34,24 @@ GoTradie ninja export eofy
 GoTradie ninja export eofy --fy 2027
 ```
 
-No flags means the most recently completed financial year.
+`--fy` accepts `YYYY`.
 
-EOFY export does not modify Invoice Ninja and therefore does not use `--commit`.
+No `--fy` means the most recently completed financial year.
 
-Local output follows the global export rule:
+Reject:
 
-- create new output normally;
-- refuse to replace existing output unless `--force` is supplied.
+```text
+--period
+--from
+--to
+--all
+--month
+--quarter
+```
+
+EOFY export does not modify Invoice Ninja and does not use `--commit`.
+
+Local output follows the global `--force` overwrite rule.
 
 ## Accounting rules
 

@@ -20,6 +20,8 @@ BAS configuration is mandatory in `~/.GoTradie/config.yaml`.
 bas:
   reporting_period: quarterly
   gst_basis: cash
+  ato_due_dates:
+    verify_every_days: 30
 ```
 
 Supported `reporting_period` values:
@@ -37,19 +39,138 @@ cash
 accrual
 ```
 
-Missing or unsupported values are configuration errors. GoTradie must not guess or silently fall back.
+Missing or unsupported accounting-significant values are configuration errors. GoTradie must not guess or silently fall back.
 
-## Commands
+## Core selection rule
 
-For monthly and quarterly reporting:
+BAS selection is deliberately date-driven.
+
+GoTradie does **not** track whether a BAS has actually been lodged.
+
+There is no BAS lodgement state in Invoice Ninja and no local lodgement-state file.
+
+Selection uses only:
+
+```text
+current date
+configured reporting period
+ATO BAS period and due-date rules
+explicit --fy
+explicit --period
+```
+
+## Financial year
+
+`--fy` accepts exactly:
+
+```text
+YYYY
+```
+
+If `--fy` is omitted, derive the Australian financial year from the current date.
+
+Examples:
+
+```text
+30/06/2020 -> FY2020
+01/07/2020 -> FY2021
+```
+
+Financial years are named for the calendar year in which they end.
+
+```text
+FY2027 = 1 July 2026 to 30 June 2027
+```
+
+## Default BAS period
+
+If `--period` is omitted and no historical FY is explicitly selected, use the current date together with the configured reporting period and ATO due-date rules to select the natural BAS period.
+
+A completed BAS period remains the natural period through its ATO lodgement due date.
+
+If that due date has passed and the next BAS period has not yet completed, continue to select the most recently completed BAS period.
+
+This is purely date-driven. GoTradie does not attempt to infer whether the BAS has already been lodged.
+
+Example for quarterly reporting:
+
+```text
+8 October 2026
+    -> FY2027 period 1
+```
+
+because Jul-Sep has completed and its ATO lodgement due date has not yet passed.
+
+## Explicit historical financial year
+
+If `--fy` selects a non-current financial year and `--period` is omitted:
+
+```text
+GoTradie ninja export bas --fy 2025
+```
+
+produce **all BAS periods within FY2025**.
+
+For monthly reporting this means all 12 periods.
+
+For quarterly reporting this means all 4 periods.
+
+For yearly reporting this means the single FY2025 reporting year.
+
+If `--fy` selects the current financial year and `--period` is omitted, use the natural date-driven BAS period.
+
+If both `--fy` and `--period` are supplied, produce only the selected BAS period.
+
+## `--period` formats
+
+`--period` is case-insensitive.
+
+For monthly BAS, accept:
+
+```text
+1 .. 12
+Jan .. Dec
+January .. December
+```
+
+For quarterly BAS, accept:
+
+```text
+1 .. 4
+Jan .. Dec
+January .. December
+```
+
+For quarterly BAS, a month name selects the quarter containing that month:
+
+```text
+Jul / July / Aug / August / Sep / September -> period 1
+Oct / October / Nov / November / Dec / December -> period 2
+Jan / January / Feb / February / Mar / March -> period 3
+Apr / April / May / Jun / June -> period 4
+```
+
+For yearly BAS, `--period` is invalid.
+
+Do not add fuzzy month parsing or non-standard aliases.
+
+## Command-resolution matrix
 
 ```text
 GoTradie ninja export bas
-GoTradie ninja export bas --fy 2027
-GoTradie ninja export bas --period 1
-GoTradie ninja export bas --period Jul
-GoTradie ninja export bas --fy 2025 --period 1
-GoTradie ninja export bas --fy 2025 --period Jul
+    -> current FY + natural date-driven BAS period
+
+GoTradie ninja export bas --fy CURRENT
+    -> current FY + natural date-driven BAS period
+
+GoTradie ninja export bas --fy HISTORIC
+    -> all BAS periods in that FY
+
+GoTradie ninja export bas --period VALUE
+    -> current FY + selected BAS period
+
+GoTradie ninja export bas --fy YEAR --period VALUE
+    -> selected FY + selected BAS period
 ```
 
 BAS does not support:
@@ -62,177 +183,45 @@ BAS does not support:
 --quarter
 ```
 
-Arbitrary date-range export belongs to the Financial/dump export.
+Arbitrary date-range export belongs to the Financial export.
 
-## Financial year selection
+## ATO due dates
 
-If `--fy` is omitted, use the current Australian financial year.
+The no-flag/default BAS workflow depends on ATO BAS lodgement due-date rules.
 
-Financial years are named for the calendar year in which they end.
+GoTradie should periodically verify those rules according to:
 
-```text
-FY2027 = 1 July 2026 to 30 June 2027
+```yaml
+bas:
+  ato_due_dates:
+    verify_every_days: 30
 ```
 
-For monthly and quarterly reporting:
+A small local operational cache is permitted, for example:
 
 ```text
-no --fy, no --period
-    -> current FY + current BAS period
-
---fy CURRENT
-    -> current FY + current BAS period
-
---fy NON-CURRENT
-    -> fail; --period is required
-
---period VALUE
-    -> current FY + selected BAS period
-
---fy YEAR --period VALUE
-    -> selected FY + selected BAS period
+~/.GoTradie/cache/ato_due_dates.json
 ```
 
-An explicit `--fy` must never cause GoTradie to infer a historical or future BAS period from today's date.
-
-When `--fy` is supplied without `--period` for monthly or quarterly reporting, the selected FY must be the current FY. Otherwise the command fails.
-
-When both `--fy` and `--period` are supplied, the selected period is resolved within the explicitly selected FY regardless of whether that FY is current, historical, or future.
-
-## Reporting-period selection
-
-For monthly and quarterly reporting, `--period` accepts either:
+It may contain only:
 
 ```text
-an integer period number
-a standard three-letter English month abbreviation
+last successful verification date
+cached ATO BAS due-date rules
+source/rule identifier where available
 ```
 
-Accepted month abbreviations:
+It must not contain BAS lodgement state or accounting data.
+
+If the verification interval has expired, GoTradie should attempt to refresh the ATO due-date rules.
+
+If refresh fails or has not succeeded for longer than the configured interval:
 
 ```text
-Jan
-Feb
-Mar
-Apr
-May
-Jun
-Jul
-Aug
-Sep
-Oct
-Nov
-Dec
+continue using the existing cached/configured dates
+print a warning to stdout
+do not fail BAS generation solely because the due-date refresh is stale
 ```
-
-Month abbreviations are case-insensitive.
-
-Do not accept full month names, `Sept`, partial names, or fuzzy matching.
-
-A month value selects the BAS period containing that month according to configured `bas.reporting_period`.
-
-### Monthly reporting
-
-| Period | Month | Selector |
-| ---: | --- | --- |
-| 1 | July | `Jul` |
-| 2 | August | `Aug` |
-| 3 | September | `Sep` |
-| 4 | October | `Oct` |
-| 5 | November | `Nov` |
-| 6 | December | `Dec` |
-| 7 | January | `Jan` |
-| 8 | February | `Feb` |
-| 9 | March | `Mar` |
-| 10 | April | `Apr` |
-| 11 | May | `May` |
-| 12 | June | `Jun` |
-
-Examples:
-
-```text
-GoTradie ninja export bas --period Jul
-    -> current FY, period 1
-
-GoTradie ninja export bas --fy 2025 --period Jan
-    -> FY2025, period 7
-    -> January 2025
-```
-
-Integer values outside `1-12` are invalid.
-
-### Quarterly reporting
-
-| Period | Quarter | Months | Dates |
-| ---: | --- | --- | --- |
-| 1 | Q1 | Jul, Aug, Sep | 1 Jul – 30 Sep |
-| 2 | Q2 | Oct, Nov, Dec | 1 Oct – 31 Dec |
-| 3 | Q3 | Jan, Feb, Mar | 1 Jan – 31 Mar |
-| 4 | Q4 | Apr, May, Jun | 1 Apr – 30 Jun |
-
-These are equivalent under quarterly reporting:
-
-```text
---period 1
---period Jul
---period Aug
---period Sep
-```
-
-Example:
-
-```text
-GoTradie ninja export bas --fy 2025 --period Jan
-    -> FY2025, period 3
-    -> 1 January 2025 to 31 March 2025
-```
-
-Integer values outside `1-4` are invalid.
-
-### Yearly reporting
-
-When `bas.reporting_period` is `yearly`, there is no BAS sub-period.
-
-```text
-GoTradie ninja export bas
-    -> current FY
-
-GoTradie ninja export bas --fy 2025
-    -> FY2025
-```
-
-An explicit FY is valid even when it is not current because there is no sub-period to infer.
-
-`--period` is always invalid for yearly reporting, whether supplied as an integer or month.
-
-## Command-resolution matrix
-
-For monthly and quarterly reporting:
-
-```text
-GoTradie ninja export bas
-    -> current FY + current period
-
-GoTradie ninja export bas --fy CURRENT
-    -> current FY + current period
-
-GoTradie ninja export bas --fy NON-CURRENT
-    -> fail: --period required
-
-GoTradie ninja export bas --period N
-    -> current FY + period N
-
-GoTradie ninja export bas --period Mon
-    -> current FY + period containing Mon
-
-GoTradie ninja export bas --fy YEAR --period N
-    -> YEAR + period N
-
-GoTradie ninja export bas --fy YEAR --period Mon
-    -> YEAR + period containing Mon
-```
-
-The software derives a BAS period from today's date only when the selected FY is the current FY.
 
 ## Output
 
@@ -248,6 +237,8 @@ GST basis
 Generated timestamp
 Source
 ```
+
+When a historical `--fy` requests all BAS periods, the output must clearly separate or identify each period.
 
 Workbook sheets:
 
@@ -353,7 +344,9 @@ archived/deleted marked accounting record
 other unresolved accounting state
 ```
 
-Material exceptions should cause the command to report failure rather than silently produce authoritative-looking figures.
+Material accounting exceptions should cause the command to report failure rather than silently produce authoritative-looking figures.
+
+A stale ATO due-date verification is an operational warning, not a material accounting exception.
 
 ## Accounting Dataset
 
@@ -372,22 +365,7 @@ Accounting Dataset
 
 The Accounting Dataset owns reusable accounting facts and calculations.
 
-The BAS exporter owns BAS-specific period selection, BAS labels, workbook layout and presentation.
-
-Shared rules include:
-
-```text
-income recognition
-expense recognition
-GST attribution
-cash versus accrual timing
-partial customer payments
-supplier-account allocation
-partial supplier payments
-rounding
-business-use percentages
-GST treatment
-```
+The BAS exporter owns BAS-specific selection, ATO due-date handling, labels, workbook layout and presentation.
 
 Keep the dataset intentionally narrow.
 
@@ -397,32 +375,7 @@ After migration, the BAS must be reproducible from Invoice Ninja alone.
 
 Do not introduce another accounting database, SQLite allocation state, a persistent side ledger, or dependence on the historical import spreadsheet.
 
-## Immediate scope
-
-Implement:
-
-1. monthly, quarterly or yearly BAS reporting-period selection;
-2. `--fy` financial-year selection;
-3. `--period` integer or standard three-letter month selection for monthly/quarterly reporting;
-4. current FY when `--fy` is omitted;
-5. current BAS period when appropriate;
-6. failure when monthly/quarterly `--fy` selects a non-current FY without `--period`;
-7. month-to-period resolution according to configured reporting period;
-8. case-insensitive standard three-letter month parsing only;
-9. rejection of `--period` for yearly reporting;
-10. rejection of BAS `--from/--to`, `--month`, `--quarter`, and `--all`;
-11. cash GST basis;
-12. accrual GST basis;
-13. G1, 1A and 1B;
-14. partial customer payment treatment;
-15. ordinary Expense treatment;
-16. supplier-account settlement treatment;
-17. partial supplier payment treatment;
-18. XLSX output;
-19. Summary, Sales, Purchases and Exceptions sheets;
-20. traceable audit detail;
-21. explicit exceptions;
-22. the minimum shared Accounting Dataset required by BAS and known later reporting slices.
+The permitted ATO due-date cache is operational metadata only and is not accounting state.
 
 ## Design rule
 
