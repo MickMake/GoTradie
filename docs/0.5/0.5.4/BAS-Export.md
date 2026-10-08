@@ -225,7 +225,7 @@ do not fail BAS generation solely because the due-date refresh is stale
 
 ## Output
 
-Generated BAS output follows the global output-directory and overwrite rules in `docs/Design/Command-Line-Spec.md`.
+Generated BAS output follows the global output-directory and overwrite rules in `docs/Command-Line-Spec.md`.
 
 If no explicit output path is supported or supplied:
 
@@ -375,7 +375,7 @@ Supplier settlement reconstruction must remain deterministic and use Invoice Nin
 
 ## Exceptions and report status
 
-BAS follows the shared generated-report severity and exit-status contract in `docs/Design/Command-Line-Spec.md`.
+BAS follows the shared generated-report severity and exit-status contract in `docs/Command-Line-Spec.md`.
 
 Examples of BAS accounting errors include:
 

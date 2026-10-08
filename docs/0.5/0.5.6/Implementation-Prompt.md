@@ -64,7 +64,7 @@ Financial export does not modify Invoice Ninja and does not use `--commit`.
 
 ## Output
 
-Follow the global output-resolution and `--force` rules in `docs/Design/Command-Line-Spec.md`.
+Follow the global output-resolution and `--force` rules in `docs/Command-Line-Spec.md`.
 
 Use these deterministic filenames:
 

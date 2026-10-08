@@ -70,7 +70,7 @@ The configured accounting basis must be shown in the generated workbook so the r
 
 ## Output
 
-Generated EOFY output follows the global output-directory and overwrite rules in `docs/Design/Command-Line-Spec.md`.
+Generated EOFY output follows the global output-directory and overwrite rules in `docs/Command-Line-Spec.md`.
 
 If no explicit output path is supported or supplied:
 
@@ -201,7 +201,7 @@ Report Status
 
 ## Exceptions and report status
 
-EOFY follows the shared generated-report severity and exit-status contract in `docs/Design/Command-Line-Spec.md`.
+EOFY follows the shared generated-report severity and exit-status contract in `docs/Command-Line-Spec.md`.
 
 Rules:
 

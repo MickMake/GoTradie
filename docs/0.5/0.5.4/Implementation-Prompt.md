@@ -8,11 +8,10 @@ Primary contract:
 docs/0.5/0.5.4/BAS-Export.md
 ```
 
-Cross-audit and CLI contracts:
+CLI contracts:
 
 ```text
-docs/0.5/Cross-Audit.md
-docs/Design/Command-Line-Spec.md
+docs/Command-Line-Spec.md
 ```
 
 ## Mandatory preflight
@@ -125,7 +124,7 @@ BAS export does not modify Invoice Ninja and does not use `--commit`.
 
 ## Output
 
-Follow the global output-resolution and `--force` rules in `docs/Design/Command-Line-Spec.md`.
+Follow the global output-resolution and `--force` rules in `docs/Command-Line-Spec.md`.
 
 Use these deterministic filenames:
 

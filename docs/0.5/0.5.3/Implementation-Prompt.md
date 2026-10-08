@@ -25,7 +25,7 @@ docs/0.5/README.md
 Cross-release CLI contract:
 
 ```text
-docs/Design/Command-Line-Spec.md
+docs/Command-Line-Spec.md
 ```
 
 ## Mandatory preflight
@@ -148,14 +148,14 @@ At minimum inspect:
 docs/0.5/0.5.3/Hierarchical-Configuration.md
 docs/0.5/Cross-Audit.md
 docs/0.5/README.md
-docs/Design/Command-Line-Spec.md
+docs/Command-Line-Spec.md
 apps/GoTradie/README.md
 apps/GoTradie/internal/app/extended_help.go
 apps/GoTradie/internal/app/app.go
 CHANGES.md
 ```
 
-BAS/EOFY/Financial local-file overwrite semantics are already defined by `docs/Design/Command-Line-Spec.md` and must not be redefined differently here.
+BAS/EOFY/Financial local-file overwrite semantics are already defined by `docs/Command-Line-Spec.md` and must not be redefined differently here.
 
 ## Verification
 

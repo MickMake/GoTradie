@@ -84,7 +84,7 @@ There is no `--all` flag because all data is already the default.
 
 ## Output
 
-Generated Financial output follows the global output-directory and overwrite rules in `docs/Design/Command-Line-Spec.md`.
+Generated Financial output follows the global output-directory and overwrite rules in `docs/Command-Line-Spec.md`.
 
 If no explicit output path is supported or supplied:
 
@@ -229,7 +229,7 @@ BAS-style selector syntax does not convert Financial export into BAS accounting 
 
 ## Exceptions and report status
 
-Financial export follows the shared generated-report severity and exit-status contract in `docs/Design/Command-Line-Spec.md`.
+Financial export follows the shared generated-report severity and exit-status contract in `docs/Command-Line-Spec.md`.
 
 Rules:
 

@@ -81,7 +81,7 @@ The workbook must state the resolved EOFY accounting basis.
 
 ## Output
 
-Follow the global output-resolution and `--force` rules in `docs/Design/Command-Line-Spec.md`.
+Follow the global output-resolution and `--force` rules in `docs/Command-Line-Spec.md`.
 
 Default filename:
 

@@ -3,7 +3,7 @@
 Canonical global CLI contract:
 
 ```text
-docs/Design/Command-Line-Spec.md
+docs/Command-Line-Spec.md
 ```
 
 This file is a short operational summary for coding agents. It must not redefine or override the global CLI contract.
@@ -45,4 +45,4 @@ Do not introduce `--apply` or `--dry-run`.
 
 Do not use `--force` as a Product Sync freshness override or validation bypass.
 
-If this summary and `docs/Design/Command-Line-Spec.md` ever appear to disagree, stop and correct this summary rather than inventing a third interpretation.
+If this summary and `docs/Command-Line-Spec.md` ever appear to disagree, stop and correct this summary rather than inventing a third interpretation.
