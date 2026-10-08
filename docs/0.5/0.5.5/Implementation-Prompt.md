@@ -1,201 +1,38 @@
 # GoTradie v0.5.5 — Implementation Prompt
 
-Implement the accepted EOFY export design.
+**Objective:** Implement [EOFY export](./EOFY-Export.md) as the authoritative feature design.
 
-Primary contract:
-
-```text
-docs/0.5/0.5.5/EOFY-Export.md
-```
+**Suggested branch:** `v0.5.5-eofy-export`
 
 ## Mandatory preflight
 
-Before changing code:
+Before modifying code:
 
-1. Fetch latest `origin/main`.
-2. Verify all earlier slice branches/PRs through v0.5.4 are merged.
-3. If not, STOP and report it.
-4. Inspect Accounting Dataset, Income/Expense/Payment/Transaction access, config, CLI export handling and XLSX support.
-5. State intended implementation, branch, likely files/packages and blocking ambiguity.
-6. STOP and wait for approval.
+1. Fetch the latest `origin/main` and inspect the current implementation, tests, and relevant module layout.
+2. Check earlier v0.5 slice branches and PRs. Confirm they are merged or explicitly retired. Report any unresolved active predecessor and STOP.
+3. Compare existing behaviour with the authoritative design. Identify missing source data, incompatible APIs, or design ambiguities; do not invent answers.
+4. Present the proposed branch, affected packages/files, intended approach, and blockers. **STOP for approval before creating a branch or changing code.**
 
-Suggested branch:
+After approval, branch from the latest `origin/main`.
 
-```text
-v0.5.5-eofy-export
-```
+## Common delivery rules
 
-## CLI
+- The linked design is authoritative for feature behaviour. Do not reproduce or reinterpret its configuration schema, CLI rules, financial calculations, or data model in this prompt.
+- Follow the global [CLI contract](../../Command-Line-Spec.md) for `--commit`, `--force`, output naming, severity, and exit status.
+- Preserve existing unrelated behaviour. Do not implement a later slice early.
+- Add focused unit and integration tests for the design's acceptance conditions, including errors and boundary cases. Use deterministic fixtures and no live service dependency in automated tests.
+- Run `gofmt`, `go vet`, `go test`, and `go build` **for every affected Go module**, using correct module-relative commands; report any untested hardware, API, or external-service paths.
+- Maximum review/fix iterations: **3**. Report remaining issues instead of continuing indefinitely.
+- Completion report: branch and commit, implementation summary, tests and commands/results, design deviations (if any), and known limitations.
 
-Implement:
+## Slice-specific implementation work
 
-```text
-GoTradie ninja export eofy
-GoTradie ninja export eofy --fy 2027
-```
+- Inspect the v0.5.4 Accounting Dataset, Invoice Ninja expense categories and available asset evidence.
+- Reuse shared accounting facts rather than building a second recognition or allocation engine.
+- Generate the accountant-review workbook as specified in the design. Do not implement depreciation or pooling.
 
-`--fy` accepts `YYYY`.
+## Focused acceptance evidence
 
-No `--fy` means the most recently completed financial year.
+Test independent BAS/EOFY accounting bases; selected financial year; source/category traceability; no/full/partial GST credit entitlement; business-use treatment; first-used date and threshold boundary; exception severity; deterministic filenames and overwrite safety.
 
-Reject:
-
-```text
---period
---from
---to
---all
---month
---quarter
-```
-
-EOFY export does not modify Invoice Ninja and does not use `--commit`.
-
-## EOFY accounting basis
-
-Require:
-
-```yaml
-eofy:
-  accounting_basis: cash
-```
-
-Supported values:
-
-```text
-cash
-accrual
-```
-
-Apply EOFY income/expense recognition deterministically from `eofy.accounting_basis`.
-
-Do not derive or infer EOFY recognition from:
-
-```text
-bas.gst_basis
-```
-
-Treat BAS GST timing and EOFY accounting recognition as separate configuration and separate accounting rules.
-
-The workbook must state the resolved EOFY accounting basis.
-
-## Output
-
-Follow the global output-resolution and `--force` rules in `docs/Command-Line-Spec.md`.
-
-Default filename:
-
-```text
-FYyyyy-EOFY.xlsx
-```
-
-Use optional `exports.directory` when configured; otherwise use the current working directory.
-
-Do not append timestamps or automatic collision suffixes.
-
-## Accounting rules
-
-- Reuse the v0.5.4 Accounting Dataset minimum contract.
-- Do not create EOFY-only duplicate accounting facts that already belong in the shared dataset.
-- Apply income/expense recognition according to `eofy.accounting_basis`.
-- Never substitute `bas.gst_basis` for EOFY accounting basis.
-- Invoice Ninja Expense Categories are authoritative.
-- Preserve source IDs and accountant-review evidence.
-- Do not calculate depreciation.
-
-EOFY financial-year selection and workbook structure remain outside the Accounting Dataset.
-
-## Instant asset write-off review
-
-Use:
-
-```yaml
-eofy:
-  instant_asset_writeoff_threshold: 20000
-```
-
-Treat the configured value as the threshold applicable to the selected EOFY financial year.
-
-Do not hard-code a universal threshold.
-
-For each asset under review, calculate:
-
-```text
-threshold-test cost
-    = relevant asset cost
-    - GST input tax credits the business is entitled to claim
-```
-
-Rules:
-
-```text
-no GST credit entitlement
-    -> subtract no GST
-
-partial GST credit entitlement
-    -> subtract only the claimable GST credit
-
-private/non-business use
-    -> do not reduce threshold-test cost
-
-threshold eligibility
-    -> compare entire threshold-test cost with configured threshold
-
-business-use percentage
-    -> apply after threshold eligibility, to deductible/review amount
-```
-
-Eligibility is tied to the financial year in which the asset is first used or installed ready for use.
-
-The workbook must expose enough evidence to review the calculation, including:
-
-```text
-first-used / installed-ready-for-use date
-source asset cost
-GST amount
-claimable GST credit used
-threshold-test cost
-configured threshold
-business-use percentage
-business-use-adjusted amount
-source record ID
-classification/result
-```
-
-Items that are not straightforward instant asset write-off candidates remain review items. Do not implement depreciation or pooling calculations.
-
-## Tests
-
-Cover at least:
-
-- EOFY uses the shared dataset source IDs and recognition events;
-- EOFY does not add FY labels or workbook presentation fields to the dataset;
-- required `eofy.accounting_basis`;
-- supported `cash`;
-- supported `accrual`;
-- rejection of unsupported EOFY accounting basis;
-- EOFY recognition changes only according to `eofy.accounting_basis`;
-- changing `bas.gst_basis` does not change EOFY recognition;
-- workbook states EOFY accounting basis;
-- full GST credit reduces threshold-test cost by the claimable GST credit;
-- no GST credit leaves GST in threshold-test cost;
-- partial GST credit removes only the claimable portion;
-- private/business-use percentage does not alter threshold eligibility;
-- business-use percentage affects the deductible/review amount after threshold testing;
-- asset at or above threshold is not treated as below-threshold;
-- first-used / installed-ready-for-use date determines the relevant financial year;
-- workbook states the threshold used;
-- local overwrite safety.
-
-## Verification
-
-Run:
-
-```text
-gofmt
-go vet
-go test
-go build
-```
-
-Maximum review/fix loops: 3.
+**Open question:** The design does not fully specify how to classify an asset when first-used date, GST entitlement or business-use evidence is unavailable. Flag it in preflight rather than inventing values or eligibility.

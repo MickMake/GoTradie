@@ -11,3 +11,5 @@ Accepted design documents define the intended behaviour for their respective rel
 ### [v0.5 design series](./0.5/README.md)
 
 ### [Command-Line-Spec.md](./Command-Line-Spec.md)
+
+### [Command-Line-Spec.md](./Command-Line-Spec.md)

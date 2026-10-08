@@ -1,197 +1,38 @@
 # GoTradie v0.5.6 — Implementation Prompt
 
-Implement the accepted Financial Data Export design.
+**Objective:** Implement [Financial data export](./Financial-Export.md) as the authoritative feature design.
 
-Primary contract:
-
-```text
-docs/0.5/0.5.6/Financial-Export.md
-```
+**Suggested branch:** `v0.5.6-financial-export`
 
 ## Mandatory preflight
 
-Before changing code:
+Before modifying code:
 
-1. Fetch latest `origin/main`.
-2. Verify all earlier slice branches/PRs through v0.5.5 are merged.
-3. If not, STOP and report it.
-4. Inspect Invoice Ninja entity access, Accounting Dataset, CLI export handling and XLSX support.
-5. State intended implementation, branch, likely files/packages and source-data gaps.
-6. STOP and wait for approval.
+1. Fetch the latest `origin/main` and inspect the current implementation, tests, and relevant module layout.
+2. Check earlier v0.5 slice branches and PRs. Confirm they are merged or explicitly retired. Report any unresolved active predecessor and STOP.
+3. Compare existing behaviour with the authoritative design. Identify missing source data, incompatible APIs, or design ambiguities; do not invent answers.
+4. Present the proposed branch, affected packages/files, intended approach, and blockers. **STOP for approval before creating a branch or changing code.**
 
-Suggested branch:
+After approval, branch from the latest `origin/main`.
 
-```text
-v0.5.6-financial-export
-```
+## Common delivery rules
 
-## CLI
+- The linked design is authoritative for feature behaviour. Do not reproduce or reinterpret its configuration schema, CLI rules, financial calculations, or data model in this prompt.
+- Follow the global [CLI contract](../../Command-Line-Spec.md) for `--commit`, `--force`, output naming, severity, and exit status.
+- Preserve existing unrelated behaviour. Do not implement a later slice early.
+- Add focused unit and integration tests for the design's acceptance conditions, including errors and boundary cases. Use deterministic fixtures and no live service dependency in automated tests.
+- Run `gofmt`, `go vet`, `go test`, and `go build` **for every affected Go module**, using correct module-relative commands; report any untested hardware, API, or external-service paths.
+- Maximum review/fix iterations: **3**. Report remaining issues instead of continuing indefinitely.
+- Completion report: branch and commit, implementation summary, tests and commands/results, design deviations (if any), and known limitations.
 
-Implement unrestricted export:
+## Slice-specific implementation work
 
-```text
-GoTradie ninja export financial
-```
+- Inspect Invoice Ninja entity access, shared Accounting Dataset, CLI selection code and XLSX support.
+- Export raw source records and necessary relationships alongside shared calculated facts; avoid a duplicate accounting engine.
+- Keep this a diagnostic/raw-data export, not a reporting dashboard.
 
-Support BAS-style selection:
+## Focused acceptance evidence
 
-```text
-GoTradie ninja export financial --fy 2025
-GoTradie ninja export financial --period 2
-GoTradie ninja export financial --period Jul
-GoTradie ninja export financial --period July
-GoTradie ninja export financial --fy 2025 --period 2
-GoTradie ninja export financial --fy 2025 --period Jul
-```
+Test unrestricted export; FY/period and explicit range selectors, including invalid combinations; source-date filtering by entity; records crossing date boundaries; missing dates; related master-data retention; source fidelity; output naming and overwrite protection.
 
-Support explicit date ranges:
-
-```text
-GoTradie ninja export financial --from 2025-01-01
-GoTradie ninja export financial --to 2025-06-30
-GoTradie ninja export financial --from 2025-01-01 --to 2025-06-30
-```
-
-BAS-style selectors and `--from`/`--to` are mutually exclusive.
-
-Use the same case-insensitive period parsing and FY mapping rules as BAS.
-
-No selection flags means all available financial data.
-
-There is no `--all` flag.
-
-Financial export does not modify Invoice Ninja and does not use `--commit`.
-
-## Output
-
-Follow the global output-resolution and `--force` rules in `docs/Command-Line-Spec.md`.
-
-Use these deterministic filenames:
-
-```text
-financial year -> FYyyyy-Financial.xlsx
-bounded range  -> Financial-YYYY-MM-DD-to-YYYY-MM-DD.xlsx
-from only      -> Financial-from-YYYY-MM-DD.xlsx
-to only        -> Financial-to-YYYY-MM-DD.xlsx
-unrestricted   -> Financial-All.xlsx
-```
-
-Use optional `exports.directory` when configured; otherwise use the current working directory.
-
-Do not append timestamps or automatic collision suffixes.
-
-## Date filtering
-
-Financial export is a raw-data/diagnostic export.
-
-Filter transactional entities by their own source dates:
-
-```text
-invoice / income record
-    -> invoice date
-
-customer payment
-    -> payment date
-
-expense
-    -> expense date
-
-supplier transaction / supplier payment
-    -> transaction/payment date
-
-quote, if included
-    -> quote date
-```
-
-Do not date-filter these reference/master entities merely because a date range is selected:
-
-```text
-customers
-vendors
-products
-projects/jobs
-```
-
-They may be included as needed to preserve relationships or source context.
-
-Do not use:
-
-```text
-BAS GST recognition date
-EOFY recognition date
-```
-
-as the Financial-export inclusion date for raw transactional rows.
-
-For BAS-style Financial selectors, first resolve `--fy` / `--period` to a concrete start/end date range, then apply the same source-date rules above.
-
-If a transactional record has no usable required source date, do not guess another date. Surface it in Exceptions with source identity/details.
-
-Related records may legitimately fall on opposite sides of a range boundary.
-
-## Accounting Dataset and raw data
-
-Reuse the v0.5.4 Accounting Dataset minimum contract for shared calculated accounting facts.
-
-Preserve raw Invoice Ninja records alongside it where useful for diagnosis.
-
-Do not duplicate shared accounting calculations inside Financial export.
-
-Do not add report-selection or workbook-presentation fields to the Accounting Dataset.
-
-## Workbook
-
-Keep v1 raw-data/diagnostic focused.
-
-Do not add dashboards, charts, KPI frameworks, margin engines or BI layers.
-
-Preserve source IDs and useful relationships.
-
-## Tests
-
-Cover at least:
-
-- invoice filtering uses invoice date;
-- customer-payment filtering uses payment date;
-- expense filtering uses expense date;
-- supplier-transaction filtering uses transaction/payment date;
-- quote filtering, if implemented, uses quote date;
-- customers/vendors/products/projects/jobs are not independently date-filtered;
-- a June invoice with a July payment can produce an excluded invoice row and included July payment row;
-- BAS GST recognition date does not control Financial inclusion;
-- EOFY recognition date does not control Financial inclusion;
-- BAS-style Financial selectors resolve to a date range, then use source-date filtering;
-- missing required source date is surfaced as an exception rather than guessed;
-- shared dataset facts remain traceable to Invoice Ninja records;
-- raw diagnostic data remains available where the dataset would lose source fidelity;
-- Financial filtering does not mutate or decorate the Accounting Dataset with report-period fields;
-- unrestricted default;
-- `--fy`;
-- integer `--period`;
-- short month `--period`;
-- full month `--period`;
-- `--fy` + `--period`;
-- `--from` only;
-- `--to` only;
-- `--from` + `--to`;
-- rejection of `--fy` with `--from`/`--to`;
-- rejection of `--period` with `--from`/`--to`;
-- same monthly/quarterly/yearly period parsing as BAS;
-- optional `exports.directory`;
-- current-working-directory fallback;
-- deterministic filename generation for every selection mode;
-- refusal on existing output without `--force`;
-- replacement with `--force`.
-
-## Verification
-
-Run:
-
-```text
-gofmt
-go vet
-go test
-go build
-```
-
-Maximum review/fix loops: 3.
+**Open question:** Confirm the default financial year when `--period` is supplied without `--fy`, and the exact mapping of period selectors under different BAS reporting cadences. Resolve any ambiguity in the design, not here.

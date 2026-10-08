@@ -1,273 +1,39 @@
 # GoTradie v0.5.4 — Implementation Prompt
 
-Implement the accepted BAS export design.
+**Objective:** Implement [BAS export and shared Accounting Dataset](./BAS-Export.md) as the authoritative feature design.
 
-Primary contract:
-
-```text
-docs/0.5/0.5.4/BAS-Export.md
-```
-
-CLI contracts:
-
-```text
-docs/Command-Line-Spec.md
-```
+**Suggested branch:** `v0.5.4-bas-export`
 
 ## Mandatory preflight
 
-Before changing code:
+Before modifying code:
 
-1. Fetch latest `origin/main`.
-2. Verify all earlier slice branches/PRs through v0.5.3 are merged or explicitly retired.
-3. If an earlier slice branch/PR is still active and unmerged, STOP and report it.
-4. Inspect Invoice Ninja accounting access, configuration, CLI export handling and XLSX support.
-5. State intended change, branch, likely files/packages and blocking ambiguity.
-6. STOP and wait for approval.
+1. Fetch the latest `origin/main` and inspect the current implementation, tests, and relevant module layout.
+2. Check earlier v0.5 slice branches and PRs. Confirm they are merged or explicitly retired. Report any unresolved active predecessor and STOP.
+3. Compare existing behaviour with the authoritative design. Identify missing source data, incompatible APIs, or design ambiguities; do not invent answers.
+4. Present the proposed branch, affected packages/files, intended approach, and blockers. **STOP for approval before creating a branch or changing code.**
 
-Suggested branch:
+After approval, branch from the latest `origin/main`.
 
-```text
-v0.5.4-bas-export
-```
+## Common delivery rules
 
-## Configuration
+- The linked design is authoritative for feature behaviour. Do not reproduce or reinterpret its configuration schema, CLI rules, financial calculations, or data model in this prompt.
+- Follow the global [CLI contract](../../Command-Line-Spec.md) for `--commit`, `--force`, output naming, severity, and exit status.
+- Preserve existing unrelated behaviour. Do not implement a later slice early.
+- Add focused unit and integration tests for the design's acceptance conditions, including errors and boundary cases. Use deterministic fixtures and no live service dependency in automated tests.
+- Run `gofmt`, `go vet`, `go test`, and `go build` **for every affected Go module**, using correct module-relative commands; report any untested hardware, API, or external-service paths.
+- Maximum review/fix iterations: **3**. Report remaining issues instead of continuing indefinitely.
+- Completion report: branch and commit, implementation summary, tests and commands/results, design deviations (if any), and known limitations.
 
-Use:
+## Slice-specific implementation work
 
-```yaml
-bas:
-  reporting_period: quarterly
-  gst_basis: cash
+- Inspect current Invoice Ninja invoices, customer payments, expenses, supplier transactions/settlements, configuration and XLSX libraries.
+- Implement the minimum shared Accounting Dataset in this slice; keep source identity and accounting facts independent from workbook presentation.
+- Build BAS export using that shared dataset and the authoritative selection, calculation, output and exception rules.
+- Do not implement EOFY or Financial exports in this slice.
 
-  periods:
-    Q1:
-      bas_begin: "07-01"
-      bas_end: "09-30"
-      submit_begin: "10-01"
-      submit_end: "10-28"
+## Focused acceptance evidence
 
-    Q2:
-      bas_begin: "10-01"
-      bas_end: "12-31"
-      submit_begin: "01-01"
-      submit_end: "02-28"
+Use deterministic examples for period/FY selection, boundary dates, cash versus accrual recognition, partial customer receipts, partial supplier settlement and FIFO allocation, GST rounding, missing/ambiguous evidence, source traceability, workbook totals, incomplete-report status and overwrite safety.
 
-    Q3:
-      bas_begin: "01-01"
-      bas_end: "03-31"
-      submit_begin: "04-01"
-      submit_end: "04-28"
-
-    Q4:
-      bas_begin: "04-01"
-      bas_end: "06-30"
-      submit_begin: "07-01"
-      submit_end: "07-28"
-```
-
-Optional generated-export directory:
-
-```yaml
-exports:
-  directory: ~/Documents/GoTradie
-```
-
-If `exports.directory` is absent, write generated output to the current working directory.
-
-## CLI selection
-
-`--fy` accepts `YYYY`.
-
-If omitted, derive the current Australian FY from today's date:
-
-```text
-30/06/2020 -> FY2020
-01/07/2020 -> FY2021
-```
-
-Resolve:
-
-```text
-bas
-    -> current FY + natural date-driven BAS period
-
-bas --fy CURRENT
-    -> current FY + natural date-driven BAS period
-
-bas --fy HISTORIC
-    -> all BAS periods in HISTORIC FY
-
-bas --period VALUE
-    -> current FY + selected BAS period
-
-bas --fy YEAR --period VALUE
-    -> YEAR + selected BAS period
-```
-
-The default/no-period workflow is date-driven using period-end and ATO lodgement due-date rules. Do not track whether a BAS has actually been lodged.
-
-### `--period`
-
-Case-insensitive.
-
-Monthly BAS accepts:
-
-```text
-1..12
-Jan..Dec
-January..December
-```
-
-Quarterly BAS accepts:
-
-```text
-1..4
-Jan..Dec
-January..December
-```
-
-Quarterly month names map to their containing quarter.
-
-Yearly BAS rejects `--period`.
-
-Do not add fuzzy month parsing or non-standard aliases.
-
-Reject BAS:
-
-```text
---from
---to
---all
---month
---quarter
-```
-
-BAS export does not modify Invoice Ninja and does not use `--commit`.
-
-## Output
-
-Follow the global output-resolution and `--force` rules in `docs/Command-Line-Spec.md`.
-
-Use these deterministic filenames:
-
-```text
-quarterly single period -> FYyyyy-BAS-Qn.xlsx
-monthly single period   -> FYyyyy-BAS-Mon.xlsx
-historic all-period FY  -> FYyyyy-BAS.xlsx
-yearly BAS              -> FYyyyy-BAS.xlsx
-```
-
-Do not append timestamps or automatic collision suffixes.
-
-## ATO due-date verification
-
-Use:
-
-```text
-bas.ato_due_dates.verify_every_days
-```
-
-Allow a small local operational cache such as:
-
-```text
-~/.GoTradie/cache/ato_due_dates.json
-```
-
-The cache may store only ATO due-date verification metadata and cached rules.
-
-It must not store lodgement state or accounting data.
-
-When verification is stale, attempt to refresh the ATO due-date rules.
-
-If refresh fails:
-
-```text
-continue using existing cached/configured due dates
-print a warning to stdout that due-date verification is stale
-do not fail BAS generation solely because refresh failed
-```
-
-## Accounting Dataset
-
-Build the minimum shared in-memory Accounting Dataset defined by `BAS-Export.md`.
-
-At minimum, preserve:
-
-```text
-source record type and Invoice Ninja ID
-customer/vendor identity where relevant
-gross/net/GST amounts where relevant
-business-use percentage where relevant
-source/event dates
-GST recognition date/event
-EOFY recognition date/event
-invoice -> customer-payment allocations
-expense -> supplier-settlement allocations
-exception state/details
-```
-
-Do not store report-period labels, workbook structure, output filenames or selected report ranges in the dataset.
-
-Do not flatten partial-payment or supplier-settlement relationships in a way that loses allocation or timing detail.
-
-Do not add persistent accounting state.
-
-Do not build a general ledger or speculative accounting framework.
-
-## Workbook
-
-Produce:
-
-```text
-Summary
-Sales
-Purchases
-Exceptions
-```
-
-Implement G1, 1A, 1B, cash-basis customer payments, partial payments, ordinary Expenses, supplier-account settlement, proportional partial settlement, accrual-basis timing, and deterministic rounding.
-
-For `--fy HISTORIC` with no period, output all periods in that FY and make each period clearly identifiable.
-
-## Tests
-
-Cover at least:
-
-- source traceability from dataset facts to Invoice Ninja IDs;
-- customer-payment allocations remain distinct;
-- supplier-settlement allocations remain distinct;
-- recognition dates change deterministically with configured accounting basis;
-- dataset does not contain BAS/FY report labels or workbook structure;
-- FY derivation on 30 June and 1 July;
-- no-flag natural-period selection before due date;
-- no-flag selection after due date but before next period completion;
-- current `--fy` with no period;
-- historical `--fy` returning all periods;
-- `--fy` + integer/short-month/full-month period;
-- monthly integer/month parsing;
-- quarterly integer/month-to-quarter parsing;
-- case-insensitive month parsing;
-- yearly rejection of `--period`;
-- optional `exports.directory`;
-- current-working-directory fallback;
-- quarterly/monthly/historical/yearly filename generation;
-- existing target refusal without `--force`;
-- replacement with `--force`;
-- ATO verification interval;
-- failed/stale ATO refresh prints stdout warning and continues;
-- no lodgement-state persistence;
-- cash/accrual GST basis.
-
-## Verification
-
-Run:
-
-```text
-gofmt
-go vet
-go test
-go build
-```
-
-Maximum review/fix loops: 3.
+**Design blocker:** The accepted BAS design still describes ATO due-date verification/cache and selection rules. Resolve that document against the agreed config-driven BAS/reporting/submission dates **before coding**. Do not implement both approaches or decide the selection rule inside this prompt.
