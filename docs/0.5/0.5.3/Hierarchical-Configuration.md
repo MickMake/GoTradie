@@ -51,8 +51,31 @@ Required shape:
 bas:
   reporting_period: quarterly
   gst_basis: cash
-  ato_due_dates:
-    verify_every_days: 30
+
+  periods:
+    Q1:
+      bas_begin: "07-01"
+      bas_end: "09-30"
+      submit_begin: "10-01"
+      submit_end: "10-28"
+
+    Q2:
+      bas_begin: "10-01"
+      bas_end: "12-31"
+      submit_begin: "01-01"
+      submit_end: "02-28"
+
+    Q3:
+      bas_begin: "01-01"
+      bas_end: "03-31"
+      submit_begin: "04-01"
+      submit_end: "04-28"
+
+    Q4:
+      bas_begin: "04-01"
+      bas_end: "06-30"
+      submit_begin: "07-01"
+      submit_end: "07-28"
 ```
 
 Supported BAS reporting period values:
@@ -76,7 +99,7 @@ The verification interval is operational configuration, not accounting state.
 
 ## Required EOFY accounting basis
 
-EOFY income/expense recognition is configured independently from BAS GST timing.
+EOFY income/expense recognition is configured independently of BAS GST timing.
 
 Required shape:
 
