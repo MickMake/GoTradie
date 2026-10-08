@@ -196,7 +196,34 @@ EOFY accounting basis
 instant asset write-off threshold used
 generated timestamp
 source = Invoice Ninja
+Report Status
 ```
+
+## Exceptions and report status
+
+EOFY follows the shared generated-report severity and exit-status contract in `docs/Design/Command-Line-Spec.md`.
+
+Rules:
+
+```text
+INFO/WARNING
+    -> workbook remains valid
+    -> exit 0
+
+ERROR
+    -> if technically possible, write workbook
+    -> mark Report Status = INCOMPLETE prominently on Summary
+    -> record error in Exceptions
+    -> exit 1
+
+execution failure
+    -> workbook need not be written
+    -> exit 1
+```
+
+Any unresolved condition that can materially alter EOFY figures or asset-review classification is an ERROR rather than a WARNING.
+
+Never silently omit an errored record and produce an EOFY workbook that appears complete.
 
 ## Accounting Dataset
 

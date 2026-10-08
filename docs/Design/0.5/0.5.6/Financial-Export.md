@@ -140,6 +140,8 @@ Projects-Jobs
 Exceptions
 ```
 
+The Summary or equivalent report-metadata area must expose `Report Status`.
+
 ## Raw data and relationships
 
 Preserve useful source fields and relationships, especially:
@@ -224,6 +226,34 @@ When `--fy` / `--period` is used for Financial export, first resolve those selec
 Then apply the same source-date rules defined in this section.
 
 BAS-style selector syntax does not convert Financial export into BAS accounting recognition.
+
+## Exceptions and report status
+
+Financial export follows the shared generated-report severity and exit-status contract in `docs/Design/Command-Line-Spec.md`.
+
+Rules:
+
+```text
+INFO/WARNING
+    -> workbook remains valid
+    -> exit 0
+
+ERROR
+    -> if technically possible, write diagnostic workbook
+    -> mark Report Status = INCOMPLETE prominently
+    -> record error in Exceptions
+    -> exit 1
+
+execution failure
+    -> workbook need not be written
+    -> exit 1
+```
+
+For Financial export, an issue is an ERROR when required requested data cannot be represented faithfully or when silently omitting it would make the export misleading.
+
+Missing optional metadata that does not compromise the requested raw data may remain a WARNING.
+
+Never silently omit an errored record and produce a Financial workbook that appears complete.
 
 ## Accounting Dataset
 

@@ -279,6 +279,7 @@ Period end
 GST basis
 Generated timestamp
 Source
+Report Status
 ```
 
 When a historical `--fy` requests all BAS periods, the output must clearly separate or identify each period.
@@ -305,6 +306,7 @@ Period end
 GST basis
 Generated timestamp
 Source
+Report Status
 G1
 1A
 1B
@@ -371,25 +373,43 @@ Customer Payments = when customer invoices were paid
 
 Supplier settlement reconstruction must remain deterministic and use Invoice Ninja as the durable source of truth.
 
-## Exceptions
+## Exceptions and report status
 
-Anything that could make the BAS unsafe or incomplete must be surfaced explicitly.
+BAS follows the shared generated-report severity and exit-status contract in `docs/Design/Command-Line-Spec.md`.
 
-Examples:
+Examples of BAS accounting errors include:
 
 ```text
 ambiguous supplier settlement
-unapplied supplier payment
-missing payment date
+unapplied supplier payment required for calculation
+missing payment date required for calculation
 missing GST treatment
-unsupported foreign-currency settlement
-archived/deleted marked accounting record
-other unresolved accounting state
+unsupported foreign-currency settlement required for calculation
+archived/deleted marked accounting record that affects the result
+other unresolved accounting state that can materially alter BAS figures
 ```
 
-Material accounting exceptions should cause the command to report failure rather than silently produce authoritative-looking figures.
+A stale ATO due-date verification is an operational WARNING, not an accounting ERROR.
 
-A stale ATO due-date verification is an operational warning, not a material accounting exception.
+Rules:
+
+```text
+INFO/WARNING
+    -> workbook remains valid
+    -> exit 0
+
+ERROR
+    -> if technically possible, write workbook
+    -> mark Report Status = INCOMPLETE prominently on Summary
+    -> record error in Exceptions
+    -> exit 1
+
+execution failure
+    -> workbook need not be written
+    -> exit 1
+```
+
+Never silently omit an accounting error and produce a BAS workbook that appears complete.
 
 ## Accounting Dataset
 
@@ -493,11 +513,13 @@ Do not flatten these relationships into a single total if doing so would lose ti
 
 #### Exception state
 
-Accounting facts must be able to carry or reference unresolved state such as:
+Accounting facts must be able to carry or reference unresolved state using the shared report severity contract:
 
 ```text
 normal
-warning/exception
+INFO
+WARNING
+ERROR
 ```
 
 The dataset must preserve enough detail for BAS, EOFY and Financial exporters to surface the underlying issue.
