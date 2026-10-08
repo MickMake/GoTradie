@@ -20,5 +20,3 @@
 ## Focused acceptance evidence
 
 Use deterministic examples for period/FY selection, boundary dates, cash versus accrual recognition, partial customer receipts, partial supplier settlement and FIFO allocation, GST rounding, missing/ambiguous evidence, source traceability, workbook totals, incomplete-report status and overwrite safety.
-
-**Design blocker:** The accepted BAS design still describes ATO due-date verification/cache and selection rules. Resolve that document against the agreed config-driven BAS/reporting/submission dates **before coding**. Do not implement both approaches or decide the selection rule inside this prompt.

@@ -15,10 +15,8 @@
 - Inspect existing flat configuration consumers and their tests before replacing the loader.
 - Update configuration parsing, validation, secret override handling, and consumers as specified by the design.
 - Check that existing Invoice Ninja, Bunnings, tax and ERPNext paths still work under the replacement configuration.
-- Update CLI help and affected application documentation; do not introduce backwards compatibility unless the design is formally amended.
+- Update CLI help and affected application documentation; do not introduce backwards compatibility.
 
 ## Focused acceptance evidence
 
 Test mandatory-file handling; unknown/invalid fields; required accounting settings; valid hierarchy and provider mapping; defaults/YAML/secret precedence; rejection of generic environment overrides; and migration failures that should be explicit rather than silent.
-
-**Dependency:** The accepted configuration design currently specifies ATO due-date verification. Our proposed change to configured BAS/submission dates must be made in the **design** before this slice is implemented.
