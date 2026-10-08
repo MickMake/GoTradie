@@ -148,13 +148,28 @@ source = Invoice Ninja
 
 ## Accounting Dataset
 
-Reuse the shared Accounting Dataset from v0.5.4.
+Reuse the shared Accounting Dataset contract defined in v0.5.4.
 
 Do not create a parallel EOFY accounting engine.
+
+EOFY consumes the dataset's:
+
+```text
+source identity
+party identity
+amounts and GST
+business-use percentage
+relevant source/event dates
+EOFY recognition event/date
+payment/settlement relationships where relevant
+exception state/details
+```
 
 The Accounting Dataset must apply EOFY income/expense recognition according to `eofy.accounting_basis`.
 
 BAS GST timing remains controlled separately by `bas.gst_basis`.
+
+EOFY owns financial-year selection and workbook presentation. Those report-selection concepts do not belong in the shared dataset.
 
 ## Source of truth
 

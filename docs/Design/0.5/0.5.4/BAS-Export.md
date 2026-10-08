@@ -406,7 +406,122 @@ Accounting Dataset
       +--> Financial workbook (v0.5.6)
 ```
 
-The Accounting Dataset owns reusable accounting facts and calculations.
+The Accounting Dataset is an in-memory normalised view of accounting facts required by the reporting slices.
+
+It is **not**:
+
+```text
+a database
+a persistent ledger
+a general ledger
+a replacement for Invoice Ninja
+a report-period model
+a speculative accounting framework
+```
+
+### Minimum contract
+
+The dataset must preserve enough information to represent these minimum fact groups.
+
+#### Source identity
+
+```text
+source entity/record type
+Invoice Ninja source record ID
+```
+
+Every derived accounting fact must remain traceable to its source record.
+
+#### Party identity
+
+Where relevant:
+
+```text
+customer identity
+vendor/supplier identity
+```
+
+Do not invent a separate party master.
+
+#### Amounts and GST
+
+Where relevant:
+
+```text
+gross amount
+net amount
+GST amount
+```
+
+Preserve the source amounts needed to audit or reconstruct derived values.
+
+#### Business use
+
+Where relevant:
+
+```text
+business-use percentage
+```
+
+Do not silently assume 100% business use when the source explicitly provides another value.
+
+#### Relevant dates
+
+Preserve source/event dates needed by accounting rules, including where applicable:
+
+```text
+source transaction date
+invoice/expense date
+customer payment date
+supplier settlement/payment date
+GST recognition date/event
+EOFY recognition date/event
+```
+
+Recognition events must be derived deterministically from the relevant configured accounting basis.
+
+#### Payment and settlement relationships
+
+Preserve allocation relationships needed for cash-basis and partial-payment calculations:
+
+```text
+invoice -> customer payment allocation
+expense -> supplier settlement/payment allocation
+```
+
+Do not flatten these relationships into a single total if doing so would lose timing or allocation information.
+
+#### Exception state
+
+Accounting facts must be able to carry or reference unresolved state such as:
+
+```text
+normal
+warning/exception
+```
+
+The dataset must preserve enough detail for BAS, EOFY and Financial exporters to surface the underlying issue.
+
+### What does not belong in the dataset
+
+Do not store report-selection or presentation concepts in the Accounting Dataset:
+
+```text
+financial-year labels
+BAS period numbers
+quarter labels
+workbook sheet names
+output filenames
+selected report range
+```
+
+The dataset provides dated accounting facts and recognition events.
+
+BAS, EOFY and Financial exporters decide whether those facts belong in a requested reporting range and how to present them.
+
+### Guardrail
+
+> The Accounting Dataset contains normalised accounting facts, recognition events and source relationships only. It does not contain report periods, workbook structure, persistent accounting state, or speculative accounting abstractions.
 
 The BAS exporter owns BAS-specific selection, ATO due-date handling, labels, workbook layout and presentation.
 

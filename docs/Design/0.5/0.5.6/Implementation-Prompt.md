@@ -80,6 +80,16 @@ Use optional `exports.directory` when configured; otherwise use the current work
 
 Do not append timestamps or automatic collision suffixes.
 
+## Accounting Dataset and raw data
+
+Reuse the v0.5.4 Accounting Dataset minimum contract for shared calculated accounting facts.
+
+Preserve raw Invoice Ninja records alongside it where useful for diagnosis.
+
+Do not duplicate shared accounting calculations inside Financial export.
+
+Do not add report-selection or workbook-presentation fields to the Accounting Dataset.
+
 ## Workbook
 
 Keep v1 raw-data/diagnostic focused.
@@ -92,6 +102,9 @@ Preserve source IDs and useful relationships.
 
 Cover at least:
 
+- shared dataset facts remain traceable to Invoice Ninja records;
+- raw diagnostic data remains available where the dataset would lose source fidelity;
+- Financial filtering does not mutate or decorate the Accounting Dataset with report-period fields;
 - unrestricted default;
 - `--fy`;
 - integer `--period`;

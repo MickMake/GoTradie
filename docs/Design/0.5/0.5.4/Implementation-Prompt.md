@@ -168,9 +168,30 @@ do not fail BAS generation solely because refresh failed
 
 ## Accounting Dataset
 
-Build only the minimum shared in-memory Accounting Dataset required by BAS and known later reporting needs.
+Build the minimum shared in-memory Accounting Dataset defined by `BAS-Export.md`.
+
+At minimum, preserve:
+
+```text
+source record type and Invoice Ninja ID
+customer/vendor identity where relevant
+gross/net/GST amounts where relevant
+business-use percentage where relevant
+source/event dates
+GST recognition date/event
+EOFY recognition date/event
+invoice -> customer-payment allocations
+expense -> supplier-settlement allocations
+exception state/details
+```
+
+Do not store report-period labels, workbook structure, output filenames or selected report ranges in the dataset.
+
+Do not flatten partial-payment or supplier-settlement relationships in a way that loses allocation or timing detail.
 
 Do not add persistent accounting state.
+
+Do not build a general ledger or speculative accounting framework.
 
 ## Workbook
 
@@ -191,6 +212,11 @@ For `--fy HISTORIC` with no period, output all periods in that FY and make each 
 
 Cover at least:
 
+- source traceability from dataset facts to Invoice Ninja IDs;
+- customer-payment allocations remain distinct;
+- supplier-settlement allocations remain distinct;
+- recognition dates change deterministically with configured accounting basis;
+- dataset does not contain BAS/FY report labels or workbook structure;
 - FY derivation on 30 June and 1 July;
 - no-flag natural-period selection before due date;
 - no-flag selection after due date but before next period completion;

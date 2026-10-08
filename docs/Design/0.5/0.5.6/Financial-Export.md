@@ -166,7 +166,28 @@ Do not silently omit undated or unclassifiable records. Surface materially ambig
 
 ## Accounting Dataset
 
-Reuse the Accounting Dataset where it provides useful calculated financial values, while preserving raw Invoice Ninja data where needed for diagnosis.
+Reuse the shared Accounting Dataset minimum contract defined in v0.5.4 wherever calculated accounting facts are needed.
+
+Financial export may also present raw Invoice Ninja fields directly when source fidelity is useful for diagnosis.
+
+Do not force raw diagnostic sheets through the Accounting Dataset if that would lose source information.
+
+When the shared dataset is used, consume its existing:
+
+```text
+source identity
+party identity
+amounts and GST
+business-use percentage
+relevant source/event dates
+recognition events
+payment/settlement relationships
+exception state/details
+```
+
+Do not add report ranges, FY labels, workbook sheet names or output filenames to the Accounting Dataset.
+
+Financial selection/filtering and workbook presentation remain exporter concerns.
 
 ## Deferred analysis
 

@@ -95,7 +95,8 @@ Do not append timestamps or automatic collision suffixes.
 
 ## Accounting rules
 
-- Reuse Accounting Dataset.
+- Reuse the v0.5.4 Accounting Dataset minimum contract.
+- Do not create EOFY-only duplicate accounting facts that already belong in the shared dataset.
 - Apply income/expense recognition according to `eofy.accounting_basis`.
 - Never substitute `bas.gst_basis` for EOFY accounting basis.
 - Invoice Ninja Expense Categories are authoritative.
@@ -104,10 +105,14 @@ Do not append timestamps or automatic collision suffixes.
 - Preserve source IDs and accountant-review evidence.
 - Do not calculate depreciation.
 
+EOFY financial-year selection and workbook structure remain outside the Accounting Dataset.
+
 ## Tests
 
 Cover at least:
 
+- EOFY uses the shared dataset source IDs and recognition events;
+- EOFY does not add FY labels or workbook presentation fields to the dataset;
 - required `eofy.accounting_basis`;
 - supported `cash`;
 - supported `accrual`;
