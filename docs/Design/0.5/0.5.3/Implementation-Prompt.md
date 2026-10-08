@@ -60,8 +60,8 @@ The implementation must:
 - support environment overrides only for explicitly defined secret/security-sensitive fields;
 - not implement generic environment-variable mapping;
 - not preserve legacy flat config support;
-- require BAS frequency and GST basis in YAML;
-- accept BAS frequency only as `monthly`, `quarterly`, or `yearly`;
+- require BAS reporting period and GST basis in YAML;
+- accept BAS reporting period only as `monthly`, `quarterly`, or `yearly`;
 - accept GST basis only as `cash` or `accrual`;
 - fail on missing or unsupported accounting-significant configuration;
 - fail on unknown YAML fields rather than silently ignoring misspellings;
@@ -69,6 +69,8 @@ The implementation must:
 - provide structural homes for `invoice_ninja`, `tax`, `bas`, `eofy`, `product_sync`, and `providers`;
 - support Provider canonical `name` plus `aliases`;
 - keep Provider configuration declarative;
+- not preserve or introduce a Product-key prefix setting such as the former `PRODUCT_PREFIX` / `BUNNINGS-` scheme;
+- support configurable Provider field mappings using Invoice Ninja Product concepts such as `product`, `description`, `cost`, `price`, `quantity`, and `image_url`;
 - avoid adding provider-fetch logic except where minimally required to validate parsing.
 
 ## Secret override contract
@@ -80,15 +82,32 @@ INVOICE_NINJA_TOKEN
 BUNNINGS_CLIENT_SECRET
 ```
 
-Do not add environment overrides for ordinary structural configuration such as URLs, BAS frequency, GST basis, provider mappings, filenames or field mappings.
+Do not add environment overrides for ordinary structural configuration such as URLs, BAS reporting period, GST basis, provider mappings, filenames or field mappings.
 
 ## Provider configuration contract
 
-Provider configuration must support one canonical name and multiple accepted aliases.
+Provider configuration must support one canonical official supplier name and multiple accepted aliases.
+
+When an incoming supplier matches a configured Provider alias, the Provider canonical name is the Vendor identity.
+
+Aliases are recognition inputs only and must not become alternate Vendor identities.
+
+Store/location must remain separate Expense metadata and must not be encoded into Provider or Vendor identity.
 
 Do not implement fuzzy supplier matching or automatic alias learning in this slice.
 
-Store/location must not be encoded into the canonical Provider name.
+## Provider Product-field mapping contract
+
+For configurable file/web Providers:
+
+- mapping keys describe the target Invoice Ninja Product concept;
+- mapping values identify the Provider source field;
+- `product` is required and is the supplier's own product identifier;
+- supplier terminology such as SKU, I/N, PartNo, Item Code, or Stock Code must not leak into GoTradie's canonical field names;
+- built-in Providers may define the same mapping in code;
+- do not configure or implement stock-level synchronisation in v0.5.3.
+
+Do not add a Product prefix setting. Product identity in v0.5.7 is based on `(Supplier, Product)`, with Product holding the supplier's exact product identifier.
 
 ## Scope exclusions
 
@@ -104,13 +123,17 @@ Add or update tests covering at least:
 - default -> YAML -> secret-environment precedence;
 - explicitly supported secret overrides;
 - absence of generic environment overrides;
-- required BAS frequency;
+- required BAS reporting period;
 - required GST basis;
-- valid BAS frequency values;
+- valid BAS reporting-period values;
 - valid GST basis values;
 - unknown-field rejection;
 - malformed YAML;
 - Provider canonical name and aliases;
+- canonical Vendor identity after alias resolution;
+- Store/location remaining separate from Vendor identity;
+- configurable Provider Product-field mapping;
+- absence of a Product prefix setting;
 - `eofy` configuration parsing;
 - validation failures;
 - preservation of existing defaults where defaults are appropriate.

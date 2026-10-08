@@ -39,21 +39,23 @@ If `~/.GoTradie/config.yaml` is missing, configuration loading fails.
 
 Environment-variable support is opt-in per secret field. There is no generic hierarchical environment-variable mapping.
 
-Environment variables must not override structural configuration such as BAS frequency, GST basis, provider mappings, URLs, filenames, or field mappings.
+Environment variables must not override structural configuration such as BAS reporting period, GST basis, provider mappings, URLs, filenames, or field mappings.
 
 ## Required BAS/GST configuration
 
-BAS frequency and GST basis materially affect accounting output and must always be explicit in the configuration file.
+BAS reporting period and GST basis materially affect accounting output and must always be explicit in the configuration file.
 
 Required shape:
 
 ```yaml
 bas:
-  frequency: quarterly
+  reporting_period: quarterly
   gst_basis: cash
+  ato_due_dates:
+    verify_every_days: 30
 ```
 
-Supported BAS frequency values:
+Supported BAS reporting period values:
 
 ```text
 monthly
@@ -68,7 +70,83 @@ cash
 accrual
 ```
 
-Missing or unsupported values are configuration errors. GoTradie must not silently fall back to another BAS frequency or GST basis.
+`ato_due_dates.verify_every_days` controls how often GoTradie should re-check the ATO BAS due-date rules before considering its locally cached verification stale.
+
+The verification interval is operational configuration, not accounting state.
+
+## Required EOFY accounting basis
+
+EOFY income/expense recognition is configured independently from BAS GST timing.
+
+Required shape:
+
+```yaml
+eofy:
+  accounting_basis: cash
+  instant_asset_writeoff_threshold: 20000
+```
+
+Supported `accounting_basis` values:
+
+```text
+cash
+accrual
+```
+
+`eofy.accounting_basis` is the sole EOFY recognition-basis setting.
+
+It must not be inferred from, copied from, or otherwise coupled to:
+
+```text
+bas.gst_basis
+```
+
+The two settings answer different questions:
+
+```text
+bas.gst_basis
+    -> GST timing for BAS
+
+eofy.accounting_basis
+    -> income/expense recognition for EOFY
+```
+
+EOFY recognition must be deterministic from `eofy.accounting_basis`.
+
+`eofy.instant_asset_writeoff_threshold` is the instant asset write-off threshold to apply for the selected EOFY reporting year.
+
+The threshold is year-dependent tax data. Do not treat the configured number as a timeless universal threshold or hard-code one into reporting logic.
+
+For threshold testing, use the asset's relevant cost reduced only by GST input tax credits the business is entitled to claim. Do not reduce the threshold-test cost by private/non-business use.
+
+Business-use percentage affects the deductible/review amount after the threshold test; it does not reduce the asset cost used to determine whether the asset is below the threshold.
+
+Missing or unsupported accounting-significant values are configuration errors. GoTradie must not silently fall back to another BAS reporting period, GST basis, EOFY accounting basis, or asset threshold.
+
+## Optional export directory
+
+Generated report exports may use an optional default directory:
+
+```yaml
+exports:
+  directory: ~/Documents/GoTradie
+```
+
+`exports.directory` is optional.
+
+If it is not configured, generated BAS, EOFY and Financial exports are written to the current working directory.
+
+The global output-resolution order is:
+
+```text
+explicit output path, if supported by the command
+    ↓
+exports.directory, if configured
+    ↓
+current working directory
+```
+
+Do not make an export directory mandatory.
 
 ## Proposed structure
 
@@ -82,14 +160,17 @@ tax:
   rate: 10
 
 bas:
-  frequency: quarterly
+  reporting_period: quarterly
   gst_basis: cash
+  ato_due_dates:
+    verify_every_days: 30
 
 eofy:
+  accounting_basis: cash
   instant_asset_writeoff_threshold: 20000
 
-product_sync:
-  prefix: BUNNINGS-
+exports:
+  directory: ~/Documents/GoTradie
 
 providers:
   bunnings:
@@ -108,12 +189,39 @@ providers:
       - NST
     url: https://www.nst.net.au/nst/DownloadCSV
     fields:
-      item: PartNo
+      product: PartNo
       description: Description
+      cost: TradePrice
       price: Price
+      quantity: PackQuantity
+      image_url: ImageURL
 ```
 
-The exact North Shore Timber CSV column names must be verified against the actual CSV before implementation.
+## BAS ATO due-date verification
+
+The BAS default-selection workflow is date-driven and depends on ATO BAS period and lodgement due-date rules.
+
+GoTradie may keep a small local operational cache such as:
+
+```text
+~/.GoTradie/cache/ato_due_dates.json
+```
+
+The cache may contain only due-date verification metadata such as:
+
+```text
+last successful verification date
+ATO source/rule version or identifier where available
+cached BAS due-date rules
+```
+
+It must not contain BAS lodgement state, accounting records, Invoice Ninja-derived financial data, or a side ledger.
+
+When the cached ATO due-date verification is older than `bas.ato_due_dates.verify_every_days`, GoTradie should attempt to verify the rules again.
+
+If verification cannot be completed, GoTradie must continue using the existing configured/cached rules and print a warning to stdout indicating that the ATO due-date rules have not been refreshed recently.
+
+A stale or failed ATO verification is not, by itself, a reason to fail BAS generation.
 
 ## Secrets
 
@@ -128,7 +236,7 @@ BUNNINGS_CLIENT_SECRET
 
 Environment overrides are for secret/security-sensitive values only.
 
-Do not add general environment overrides for ordinary configuration values such as URLs, BAS frequency, GST basis, provider mappings, filenames, or field mappings.
+Do not add general environment overrides for ordinary configuration values such as URLs, BAS reporting period, GST basis, EOFY accounting basis, provider mappings, filenames, or field mappings.
 
 ## Validation
 
@@ -137,10 +245,16 @@ Configuration should fail clearly for:
 - missing `~/.GoTradie/config.yaml`;
 - malformed YAML;
 - unknown configuration fields;
-- missing required BAS frequency;
+- missing required BAS reporting period;
 - missing required GST basis;
-- unsupported BAS frequency;
+- missing required EOFY accounting basis;
+- missing required EOFY instant asset write-off threshold;
+- unsupported BAS reporting period;
 - unsupported GST basis;
+- unsupported EOFY accounting basis;
+- invalid EOFY instant asset write-off threshold;
+- invalid `ato_due_dates` configuration;
+- invalid `exports.directory` value when present;
 - invalid values that cannot be interpreted safely.
 
 Silent fallback is not acceptable for accounting-significant configuration.
@@ -149,15 +263,9 @@ Silent fallback is not acceptable for accounting-significant configuration.
 
 Each Provider has one canonical `name`.
 
-`aliases` are accepted source/vendor names used only to resolve input data to that Provider.
+That canonical name is the official supplier name and is the Vendor identity used when an incoming supplier resolves to the Provider.
 
-Example:
-
-```text
-Incoming supplier: Bunnings Warehouse
-Configured alias:  Bunnings Warehouse
-Canonical Provider/Vendor identity: Bunnings
-```
+`aliases` are recognition inputs only. They may resolve incoming supplier names to the Provider, but they do not create alternate Vendor identities.
 
 Provider alias matching should initially be deterministic:
 
@@ -166,38 +274,29 @@ Provider alias matching should initially be deterministic:
 - no fuzzy matching;
 - no automatic alias learning.
 
-Unknown supplier names do not prevent the supplier from existing as an Invoice Ninja Vendor. They simply do not resolve to a product-sync Provider until deliberately configured.
-
-Store/location does not belong in the Provider name.
+Store/location does not belong in the Provider or Vendor name.
 
 Store/location is separate Expense metadata used for business analytics.
 
 ## Generic CSV provider
 
-Initial configuration should remain small:
+For configurable file/web Providers, field mappings should mirror Invoice Ninja Product concepts rather than supplier-specific terminology.
 
-```text
-source URL
-canonical provider name
-vendor aliases
-item field
-description field
-price field
+Example:
+
+```yaml
+fields:
+  product: PartNo
+  description: Description
+  cost: TradePrice
+  price: RetailPrice
+  quantity: PackQuantity
+  image_url: ImageURL
 ```
 
-Do not initially add:
+`product` is mandatory for a configurable syncing Provider and means the supplier's own product identifier, regardless of whether that supplier calls it SKU, I/N, PartNo, Item Code, Stock Code, or something else.
 
-```text
-arbitrary regex transforms
-HTML selector languages
-embedded scripting
-row-expression languages
-generic workflow logic
-```
-
-Rule:
-
-> Config describes the source. Code implements behaviour.
+Built-in Providers such as Bunnings may define their source-to-Product mapping in code instead of YAML.
 
 ## Compatibility and migration
 
@@ -208,19 +307,6 @@ v0.5.3 is an intentional configuration break.
 3. Legacy flat configuration is not supported.
 4. Environment variables override only explicitly supported secret fields.
 5. No generic migration or compatibility framework is required.
-
-## Required structural homes
-
-The v0.5.3 implementation must provide configuration homes for at least:
-
-```text
-invoice_ninja
-tax
-bas
-eofy
-product_sync
-providers
-```
 
 ## Scope guardrail
 

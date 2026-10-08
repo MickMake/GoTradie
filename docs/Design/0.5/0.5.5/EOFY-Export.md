@@ -14,19 +14,70 @@ This is not a complete personal income tax return. It is a business-side prepara
 
 ```text
 GoTradie ninja export eofy
-```
-
-With no period flags, export the **most recently completed financial year**.
-
-Override:
-
-```text
 GoTradie ninja export eofy --fy 2027
 ```
 
-`--all` is invalid for EOFY export.
+`--fy` accepts `YYYY`.
+
+With no `--fy`, export the most recently completed financial year.
+
+EOFY supports financial-year selection only.
+
+Reject:
+
+```text
+--period
+--from
+--to
+--all
+--month
+--quarter
+```
+
+A BAS-style period has no useful meaning for EOFY preparation.
+
+## EOFY accounting basis
+
+EOFY income and expense recognition is controlled by:
+
+```yaml
+eofy:
+  accounting_basis: cash
+```
+
+Supported values:
+
+```text
+cash
+accrual
+```
+
+The selected value determines the EOFY recognition rules applied by the Accounting Dataset.
+
+EOFY recognition must be deterministic from `eofy.accounting_basis`.
+
+`eofy.accounting_basis` is independent of:
+
+```text
+bas.gst_basis
+```
+
+Do not infer EOFY recognition from the BAS GST basis.
+
+Do not reuse `bas.gst_basis` as an EOFY setting.
+
+The configured accounting basis must be shown in the generated workbook so the recognition basis used to produce the figures is explicit.
 
 ## Output
+
+Generated EOFY output follows the global output-directory and overwrite rules in `docs/Design/Command-Line-Spec.md`.
+
+If no explicit output path is supported or supplied:
+
+```text
+exports.directory, if configured
+otherwise current working directory
+```
 
 Filename:
 
@@ -34,63 +85,97 @@ Filename:
 FY2027-EOFY.xlsx
 ```
 
+The filename is deterministic. Do not append timestamps or automatic collision suffixes.
+
 ## Expense categories
 
 Existing Invoice Ninja Expense Categories are authoritative.
 
-Those categories originate from the accepted spreadsheet/import workflow and have already been approved for the user's accounting needs.
-
-Do not:
-
-- introduce a second EOFY category mapping layer;
-- automatically recategorise Expenses;
-- replace Invoice Ninja categories with inferred tax categories.
+Do not introduce a second EOFY category mapping layer or automatically recategorise Expenses.
 
 ## Capital and asset review
 
-Use a configurable instant asset write-off threshold, for example:
+Use the configured instant asset write-off threshold:
 
 ```yaml
 eofy:
+  accounting_basis: cash
   instant_asset_writeoff_threshold: 20000
 ```
 
-The threshold is data, not a boolean "write-off year" flag.
+The threshold is tax data for the selected financial year, not a boolean "write-off year" flag and not a timeless hard-coded constant.
 
-Use the configured threshold to separate ordinary immediate-write-off candidates from items that require capital/depreciation review.
+GoTradie must follow the ATO threshold mechanics rather than invent its own asset-cost test.
 
-The workbook must preserve enough evidence for the accountant to determine final treatment, including where available:
+### Threshold-test cost
+
+For an asset under review:
 
 ```text
-purchase date
+threshold-test cost
+    = relevant asset cost
+    - GST input tax credits the business is entitled to claim
+```
+
+If no GST credit is claimable, do not remove GST from the threshold-test cost.
+
+If only part of the GST credit is claimable, remove only that claimable amount.
+
+Compare the **entire resulting asset cost** against the configured threshold.
+
+Do not reduce the threshold-test cost by private or non-business use.
+
+### Business-use percentage
+
+Business-use percentage is applied after the threshold test.
+
+Conceptually:
+
+```text
+eligible under threshold
+    -> threshold-test cost is below the applicable threshold
+
+deductible/review amount
+    -> taxable/business-use portion of the eligible cost
+```
+
+An asset does not become eligible merely because its business-use-adjusted amount falls below the threshold.
+
+### Relevant financial year
+
+Instant asset write-off eligibility is tied to the financial year in which the asset is first used or installed ready for use.
+
+The configured threshold must therefore be the threshold applicable to the selected EOFY financial year.
+
+Do not assume the threshold is identical across all years.
+
+### Workbook evidence
+
+For each capital/asset-review item, preserve enough information to show, where available:
+
+```text
+first-used / installed-ready-for-use date
 supplier
 description
-amount
-GST
+source asset/expense cost
+GST amount
+claimable GST credit used in the threshold calculation
+threshold-test cost
+configured threshold
 business-use percentage
+business-use-adjusted amount
 Invoice Ninja Expense Category
 source record identity
+classification/result
 ```
 
-Items below the configured threshold may be presented as potential immediate-write-off candidates, subject to accountant review.
+The workbook must state the configured instant asset write-off threshold used for the report.
 
-Items at or above the configured threshold must be clearly surfaced for capital/depreciation review.
-
-GoTradie must not become a depreciation engine. It must not calculate:
-
-```text
-depreciation schedules
-pool balances
-decline in value
-disposal adjustments
-asset-register tax treatment
-```
-
-The threshold is a presentation/classification aid only; final tax treatment remains an accountant decision.
+GoTradie must not become a depreciation engine. Items that are not straightforward instant-write-off candidates remain capital/depreciation review items.
 
 ## Workbook
 
-Produce a practical accountant-facing workbook. At minimum it should include the equivalent of:
+At minimum include the equivalent of:
 
 ```text
 Summary
@@ -102,75 +187,77 @@ Exceptions
 Supporting Detail
 ```
 
-The implementation may adjust exact sheet names or split/merge supporting sheets where this improves usability, provided the accepted information and traceability are preserved.
-
-### Summary
-
-Include at least:
+The workbook must identify:
 
 ```text
 financial year
 period start/end
-gross business income
-total expenses
-net business result
-GST totals/reconciliation summary
-capital-asset review count/value
+EOFY accounting basis
+instant asset write-off threshold used
 generated timestamp
 source = Invoice Ninja
+Report Status
 ```
 
-### Income
+## Exceptions and report status
 
-Present income detail supporting the EOFY totals with source identifiers and dates sufficient to trace each amount back to Invoice Ninja.
+EOFY follows the shared generated-report severity and exit-status contract in `docs/Design/Command-Line-Spec.md`.
 
-### Expenses
+Rules:
 
-Present Expenses grouped or sortable by the authoritative Invoice Ninja Expense Category. Preserve GST and source-record information.
+```text
+INFO/WARNING
+    -> workbook remains valid
+    -> exit 0
 
-### Capital-Asset Review
+ERROR
+    -> if technically possible, write workbook
+    -> mark Report Status = INCOMPLETE prominently on Summary
+    -> record error in Exceptions
+    -> exit 1
 
-Present threshold-flagged purchases separately without changing their underlying Invoice Ninja Expense Category.
+execution failure
+    -> workbook need not be written
+    -> exit 1
+```
 
-### GST Reconciliation
+Any unresolved condition that can materially alter EOFY figures or asset-review classification is an ERROR rather than a WARNING.
 
-Reuse the Accounting Dataset rather than reimplementing GST calculations. Present enough information to compare annual values with BAS-period reporting.
-
-### Exceptions
-
-Surface unresolved or materially incomplete accounting records rather than silently guessing.
-
-Examples include missing category/tax treatment, unresolved supplier settlement state, unsupported currency treatment, or accounting records whose state prevents reliable reporting.
-
-### Supporting Detail
-
-Preserve source IDs and evidence needed to trace workbook figures back to Invoice Ninja.
+Never silently omit an errored record and produce an EOFY workbook that appears complete.
 
 ## Accounting Dataset
 
-Reuse the shared Accounting Dataset from v0.5.4.
+Reuse the shared Accounting Dataset contract defined in v0.5.4.
 
 Do not create a parallel EOFY accounting engine.
+
+EOFY consumes the dataset's:
+
+```text
+source identity
+party identity
+amounts and GST
+business-use percentage
+relevant source/event dates
+EOFY recognition event/date
+payment/settlement relationships where relevant
+exception state/details
+```
+
+The Accounting Dataset must apply EOFY income/expense recognition according to `eofy.accounting_basis`.
+
+BAS GST timing remains controlled separately by `bas.gst_basis`.
+
+EOFY owns financial-year selection and workbook presentation. Those report-selection concepts do not belong in the shared dataset.
 
 ## Source of truth
 
 Invoice Ninja remains the runtime source of truth.
 
-The workbook must be reproducible from Invoice Ninja data without relying on the historical spreadsheet at runtime.
-
 ## Scope guardrail
 
-Do not add:
-
-```text
-personal tax-return preparation
-depreciation engine
-asset pooling engine
-ATO lodgement
-a second accounting database
-an EOFY-specific category mapping system
-```
+Do not add personal tax-return preparation, depreciation calculation, asset pooling, ATO lodgement, a second accounting database, or an EOFY-specific category mapping system.
 
 ## Design rule
 
-> Calculate once, present for EOFY.
+> Follow the ATO asset-cost test; do not invent a GoTradie version of tax law.
