@@ -51,6 +51,34 @@ Reject:
 
 EOFY export does not modify Invoice Ninja and does not use `--commit`.
 
+## EOFY accounting basis
+
+Require:
+
+```yaml
+eofy:
+  accounting_basis: cash
+```
+
+Supported values:
+
+```text
+cash
+accrual
+```
+
+Apply EOFY income/expense recognition deterministically from `eofy.accounting_basis`.
+
+Do not derive or infer EOFY recognition from:
+
+```text
+bas.gst_basis
+```
+
+Treat BAS GST timing and EOFY accounting recognition as separate configuration and separate accounting rules.
+
+The workbook must state the resolved EOFY accounting basis.
+
 ## Output
 
 Follow the global output-resolution and `--force` rules in `docs/Design/Command-Line-Spec.md`.
@@ -68,11 +96,26 @@ Do not append timestamps or automatic collision suffixes.
 ## Accounting rules
 
 - Reuse Accounting Dataset.
+- Apply income/expense recognition according to `eofy.accounting_basis`.
+- Never substitute `bas.gst_basis` for EOFY accounting basis.
 - Invoice Ninja Expense Categories are authoritative.
 - Use configured instant asset write-off threshold for review classification.
 - Threshold comparison uses asset cost excluding claimable GST.
 - Preserve source IDs and accountant-review evidence.
 - Do not calculate depreciation.
+
+## Tests
+
+Cover at least:
+
+- required `eofy.accounting_basis`;
+- supported `cash`;
+- supported `accrual`;
+- rejection of unsupported EOFY accounting basis;
+- EOFY recognition changes only according to `eofy.accounting_basis`;
+- changing `bas.gst_basis` does not change EOFY recognition;
+- workbook states EOFY accounting basis;
+- local overwrite safety.
 
 ## Verification
 

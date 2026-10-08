@@ -36,6 +36,38 @@ Reject:
 
 A BAS-style period has no useful meaning for EOFY preparation.
 
+## EOFY accounting basis
+
+EOFY income and expense recognition is controlled by:
+
+```yaml
+eofy:
+  accounting_basis: cash
+```
+
+Supported values:
+
+```text
+cash
+accrual
+```
+
+The selected value determines the EOFY recognition rules applied by the Accounting Dataset.
+
+EOFY recognition must be deterministic from `eofy.accounting_basis`.
+
+`eofy.accounting_basis` is independent of:
+
+```text
+bas.gst_basis
+```
+
+Do not infer EOFY recognition from the BAS GST basis.
+
+Do not reuse `bas.gst_basis` as an EOFY setting.
+
+The configured accounting basis must be shown in the generated workbook so the recognition basis used to produce the figures is explicit.
+
 ## Output
 
 Generated EOFY output follows the global output-directory and overwrite rules in `docs/Design/Command-Line-Spec.md`.
@@ -67,6 +99,7 @@ Use a configurable instant asset write-off threshold, for example:
 
 ```yaml
 eofy:
+  accounting_basis: cash
   instant_asset_writeoff_threshold: 20000
 ```
 
@@ -103,11 +136,25 @@ Exceptions
 Supporting Detail
 ```
 
+The workbook must identify:
+
+```text
+financial year
+period start/end
+EOFY accounting basis
+generated timestamp
+source = Invoice Ninja
+```
+
 ## Accounting Dataset
 
 Reuse the shared Accounting Dataset from v0.5.4.
 
 Do not create a parallel EOFY accounting engine.
+
+The Accounting Dataset must apply EOFY income/expense recognition according to `eofy.accounting_basis`.
+
+BAS GST timing remains controlled separately by `bas.gst_basis`.
 
 ## Source of truth
 
@@ -119,4 +166,4 @@ Do not add personal tax-return preparation, depreciation calculation, asset pool
 
 ## Design rule
 
-> Calculate once, present for EOFY.
+> EOFY recognition is explicit, deterministic, and independent of BAS GST timing.

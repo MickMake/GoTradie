@@ -74,7 +74,46 @@ accrual
 
 The verification interval is operational configuration, not accounting state.
 
-Missing or unsupported accounting-significant values are configuration errors. GoTradie must not silently fall back to another BAS reporting period or GST basis.
+## Required EOFY accounting basis
+
+EOFY income/expense recognition is configured independently from BAS GST timing.
+
+Required shape:
+
+```yaml
+eofy:
+  accounting_basis: cash
+  instant_asset_writeoff_threshold: 20000
+```
+
+Supported `accounting_basis` values:
+
+```text
+cash
+accrual
+```
+
+`eofy.accounting_basis` is the sole EOFY recognition-basis setting.
+
+It must not be inferred from, copied from, or otherwise coupled to:
+
+```text
+bas.gst_basis
+```
+
+The two settings answer different questions:
+
+```text
+bas.gst_basis
+    -> GST timing for BAS
+
+eofy.accounting_basis
+    -> income/expense recognition for EOFY
+```
+
+EOFY recognition must be deterministic from `eofy.accounting_basis`.
+
+Missing or unsupported accounting-significant values are configuration errors. GoTradie must not silently fall back to another BAS reporting period, GST basis, or EOFY accounting basis.
 
 ## Optional export directory
 
@@ -119,6 +158,7 @@ bas:
     verify_every_days: 30
 
 eofy:
+  accounting_basis: cash
   instant_asset_writeoff_threshold: 20000
 
 exports:
@@ -188,7 +228,7 @@ BUNNINGS_CLIENT_SECRET
 
 Environment overrides are for secret/security-sensitive values only.
 
-Do not add general environment overrides for ordinary configuration values such as URLs, BAS reporting period, GST basis, provider mappings, filenames, or field mappings.
+Do not add general environment overrides for ordinary configuration values such as URLs, BAS reporting period, GST basis, EOFY accounting basis, provider mappings, filenames, or field mappings.
 
 ## Validation
 
@@ -199,8 +239,10 @@ Configuration should fail clearly for:
 - unknown configuration fields;
 - missing required BAS reporting period;
 - missing required GST basis;
+- missing required EOFY accounting basis;
 - unsupported BAS reporting period;
 - unsupported GST basis;
+- unsupported EOFY accounting basis;
 - invalid `ato_due_dates` configuration;
 - invalid `exports.directory` value when present;
 - invalid values that cannot be interpreted safely.
