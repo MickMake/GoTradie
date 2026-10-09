@@ -1,6 +1,6 @@
 # Expense Importing — Identity, Preflight, Operational UX and Batching
 
-Status: **Draft design for v0.5.2**  
+Status: **Design for v0.5.2**  
 Software version: `v0.5.2`
 
 ## Purpose

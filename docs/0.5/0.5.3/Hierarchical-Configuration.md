@@ -2,7 +2,7 @@
 
 ## Status
 
-**Implemented on `v0.5.3-hierarchical-config` — pending review and merge**
+**CLOSED: Implemented on `v0.5.3-hierarchical-config` and merged to main**
 
 ## Purpose
 
