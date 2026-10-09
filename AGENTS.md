@@ -24,7 +24,7 @@ Rules:
 - Each module has its own AGENTS.md containing local operational rules.
 - Run tests separately for each changed module.
 - Summarise changes module-by-module.
-- Use Go 1.22.
+- Use Go 1.25.
 - Implementation work must follow docs/Implementation-Workflow.md.
 - For v0.5.x releases, read the relevant docs/0.5/0.5.x/Implementation-Prompt.md and its linked authoritative design before making changes.
 
