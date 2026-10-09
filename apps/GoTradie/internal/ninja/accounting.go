@@ -85,15 +85,15 @@ func buildSalesFacts(invoices []invoiceninja.Invoice, payments []invoiceninja.Pa
 	for _, payment := range payments {
 		allocations := invoicePaymentAllocations(payment)
 		if payment.Refunded != 0 {
-			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "payment", SourceID: payment.ID, Message: "customer payment refund has no dated allocation suitable for BAS calculation"})
+			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "payment", SourceID: payment.ID, Message: "customer payment refund has no dated allocation suitable for BAS calculation", CashBasisOnly: true})
 		}
 		if len(allocations) == 0 && moneyCents(payment.Applied) != 0 {
-			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "payment", SourceID: payment.ID, Date: payment.Date, Message: "applied customer payment has no invoice allocation"})
+			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "payment", SourceID: payment.ID, Date: payment.Date, Message: "applied customer payment has no invoice allocation", CashBasisOnly: true})
 		}
 		for _, allocation := range allocations {
 			index, ok := byID[allocation.InvoiceID]
 			if !ok {
-				exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "payment", SourceID: payment.ID, Date: payment.Date, Message: fmt.Sprintf("invoice allocation references unavailable invoice %q", allocation.InvoiceID)})
+				exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "payment", SourceID: payment.ID, Date: payment.Date, Message: fmt.Sprintf("invoice allocation references unavailable invoice %q", allocation.InvoiceID), CashBasisOnly: true})
 				continue
 			}
 			sales[index].Payments = append(sales[index].Payments, accounting.Allocation{
@@ -183,18 +183,18 @@ func buildPurchaseFacts(expenses []invoiceninja.Expense, transactions []invoicen
 
 		if supplierAccount {
 			if expense.IsDeleted || expense.ArchivedAt != 0 {
-				exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "expense", SourceID: expense.ID, Message: "archived or deleted marked supplier-account expense affects settlement reconstruction"})
+				exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "expense", SourceID: expense.ID, Message: "archived or deleted marked supplier-account expense affects settlement reconstruction", CashBasisOnly: true})
 				continue
 			}
 			if supplierMarker == "" || purchaseMarker == "" {
-				exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "expense", SourceID: expense.ID, Message: "supplier-account expense is missing a durable supplier or purchase marker"})
+				exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "expense", SourceID: expense.ID, Message: "supplier-account expense is missing a durable supplier or purchase marker", CashBasisOnly: true})
 				continue
 			}
 			total, parseErr := parseExpenseMoney(privateNoteValues(expense.PrivateNotes)["Source total inc GST"])
 			settlementGross := moneyCents(total)
 			purchases[index].SettlementBaseCents = settlementGross
 			if parseErr != nil || settlementGross == 0 {
-				exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "expense", SourceID: expense.ID, Message: "marked supplier-account expense has no valid non-zero Source total inc GST"})
+				exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "expense", SourceID: expense.ID, Message: "marked supplier-account expense has no valid non-zero Source total inc GST", CashBasisOnly: true})
 				continue
 			}
 			expenseCopy := expense
@@ -222,7 +222,7 @@ func buildPurchaseFacts(expenses []invoiceninja.Expense, transactions []invoicen
 			continue
 		}
 		for _, record := range records {
-			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "expense", SourceID: record.expense.ID, Message: fmt.Sprintf("supplier purchase marker %q is duplicated", marker)})
+			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "expense", SourceID: record.expense.ID, Message: fmt.Sprintf("supplier purchase marker %q is duplicated", marker), CashBasisOnly: true})
 		}
 	}
 
@@ -234,16 +234,16 @@ func buildPurchaseFacts(expenses []invoiceninja.Expense, transactions []invoicen
 			continue
 		}
 		if transaction.IsDeleted || transaction.ArchivedAt != 0 {
-			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "bank_transaction", SourceID: transaction.ID, Message: "archived or deleted marked supplier settlement affects reconstruction"})
+			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "bank_transaction", SourceID: transaction.ID, Message: "archived or deleted marked supplier settlement affects reconstruction", CashBasisOnly: true})
 			continue
 		}
 		if paymentMarker == "" || supplierMarker == "" {
-			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "bank_transaction", SourceID: transaction.ID, Message: "marked supplier settlement is missing a durable payment or supplier marker"})
+			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "bank_transaction", SourceID: transaction.ID, Message: "marked supplier settlement is missing a durable payment or supplier marker", CashBasisOnly: true})
 			continue
 		}
 		date, amountCents, durableErr := durableSupplierSettlementValues(transaction)
 		if durableErr != nil {
-			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "bank_transaction", SourceID: transaction.ID, Message: durableErr.Error()})
+			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "bank_transaction", SourceID: transaction.ID, Message: durableErr.Error(), CashBasisOnly: true})
 			continue
 		}
 		transactionCopy := transaction
@@ -260,7 +260,7 @@ func buildPurchaseFacts(expenses []invoiceninja.Expense, transactions []invoicen
 			continue
 		}
 		for _, record := range records {
-			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "bank_transaction", SourceID: record.transaction.ID, Message: fmt.Sprintf("supplier payment marker %q is duplicated", marker)})
+			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "bank_transaction", SourceID: record.transaction.ID, Message: fmt.Sprintf("supplier payment marker %q is duplicated", marker), CashBasisOnly: true})
 		}
 	}
 
@@ -272,7 +272,7 @@ func buildPurchaseFacts(expenses []invoiceninja.Expense, transactions []invoicen
 			if legacy.supplier != "" && supplierAccountMarker(legacy.supplier) != payment.supplierAccount {
 				continue
 			}
-			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "expense", SourceID: legacy.expenseID, Message: "older unpaid imported expense has no durable supplier-account marker"})
+			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "expense", SourceID: legacy.expenseID, Message: "older unpaid imported expense has no durable supplier-account marker", CashBasisOnly: true})
 			payment.amountCents = 0
 		}
 	}
@@ -284,7 +284,7 @@ func buildPurchaseFacts(expenses []invoiceninja.Expense, transactions []invoicen
 			transactionByMarker[payment.sourceID] = *payment.transaction
 		}
 		if payment.unappliedCents > 0 && payment.transaction != nil {
-			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "bank_transaction", SourceID: payment.transaction.ID, Message: fmt.Sprintf("unapplied supplier payment amount %.2f is required for calculation", centsAmount(payment.unappliedCents))})
+			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "bank_transaction", SourceID: payment.transaction.ID, Message: fmt.Sprintf("unapplied supplier payment amount %.2f is required for calculation", centsAmount(payment.unappliedCents)), CashBasisOnly: true})
 		}
 	}
 	for _, purchase := range validPurchases {

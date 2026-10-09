@@ -45,6 +45,16 @@ func TestBuildSalesFactsExcludesDraftsAndCreditOnlyPaymentables(t *testing.T) {
 	}
 }
 
+func TestBuildSalesFactsMarksPaymentProblemsCashBasisOnly(t *testing.T) {
+	payments := []invoiceninja.Payment{{
+		Entity: invoiceninja.Entity{ID: "payment-1"}, Date: "2026-09-30", Refunded: 10,
+	}}
+	_, exceptions := buildSalesFacts(nil, payments, nil)
+	if len(exceptions) != 1 || !exceptions[0].CashBasisOnly {
+		t.Fatalf("exceptions = %#v", exceptions)
+	}
+}
+
 func TestBuildPurchaseFactsReusesFIFOSettlementAllocation(t *testing.T) {
 	supplier := supplierAccountMarker("Bunnings")
 	expenses := []invoiceninja.Expense{
@@ -83,7 +93,7 @@ func TestBuildPurchaseFactsReportsUnappliedSettlement(t *testing.T) {
 		Description: supplier + "\n[GoTradie import-id:v1:payment-1]",
 	}
 	_, exceptions := buildPurchaseFacts([]invoiceninja.Expense{expense}, []invoiceninja.BankTransaction{transaction}, nil)
-	if len(exceptions) != 1 || exceptions[0].SourceID != "transaction-1" {
+	if len(exceptions) != 1 || exceptions[0].SourceID != "transaction-1" || !exceptions[0].CashBasisOnly {
 		t.Fatalf("exceptions = %#v", exceptions)
 	}
 }
@@ -96,7 +106,7 @@ func TestBuildPurchaseFactsReportsMissingPartialSettlementDate(t *testing.T) {
 		Description: supplier + "\n[GoTradie import-id:v1:payment-1]",
 	}
 	_, exceptions := buildPurchaseFacts([]invoiceninja.Expense{expense}, []invoiceninja.BankTransaction{transaction}, nil)
-	if len(exceptions) != 1 || exceptions[0].SourceID != "transaction-1" || !strings.Contains(exceptions[0].Message, "date is empty") {
+	if len(exceptions) != 1 || exceptions[0].SourceID != "transaction-1" || !strings.Contains(exceptions[0].Message, "date is empty") || !exceptions[0].CashBasisOnly {
 		t.Fatalf("exceptions = %#v", exceptions)
 	}
 }
@@ -112,8 +122,8 @@ func TestBuildPurchaseFactsReportsAmbiguousAndArchivedSettlementEvidence(t *test
 		t.Fatalf("exceptions = %#v", exceptions)
 	}
 	for _, exception := range exceptions {
-		if exception.Severity != accounting.SeverityError || exception.Date != "" {
-			t.Fatalf("settlement exception should be globally blocking: %#v", exception)
+		if exception.Severity != accounting.SeverityError || exception.Date != "" || !exception.CashBasisOnly {
+			t.Fatalf("cash-basis settlement exception should remain undated and blocking: %#v", exception)
 		}
 	}
 }

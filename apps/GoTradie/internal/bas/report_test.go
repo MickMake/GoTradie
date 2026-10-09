@@ -62,6 +62,44 @@ func TestBuildMarksAccountingErrorsIncomplete(t *testing.T) {
 	}
 }
 
+func TestBuildAccrualIgnoresCashBasisOnlyErrors(t *testing.T) {
+	dataset := accounting.Dataset{
+		Source: "Invoice Ninja",
+		Sales: []accounting.Sale{{
+			SourceID: "invoice-1", Date: "2026-08-01", TaxKnown: true,
+			Amounts: accounting.Amounts{GrossCents: 11000, NetCents: 10000, GSTCents: 1000},
+		}},
+		Exceptions: []accounting.Exception{{
+			Severity: accounting.SeverityError, SourceType: "payment", SourceID: "payment-1",
+			Message: "unapplied customer payment", CashBasisOnly: true,
+		}},
+	}
+	cfg := quarterlyConfig()
+	cfg.GSTBasis = "accrual"
+	report, err := Build(dataset, cfg, Options{FY: "2027", Period: "1", Now: mustDate(t, "2026-10-09")}, mustDate(t, "2026-10-09"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Status != "COMPLETE" || len(report.Exceptions) != 0 || len(report.Sales) != 1 {
+		t.Fatalf("report status=%q exceptions=%#v sales=%#v", report.Status, report.Exceptions, report.Sales)
+	}
+}
+
+func TestBuildCashIncludesAllocationErrorInPaymentPeriod(t *testing.T) {
+	dataset := accounting.Dataset{Source: "Invoice Ninja", Sales: []accounting.Sale{{
+		SourceID: "invoice-1", Date: "2026-08-01", TaxKnown: true,
+		Amounts:  accounting.Amounts{GrossCents: 11000, NetCents: 10000, GSTCents: 1000},
+		Payments: []accounting.Allocation{{SourceType: "payment", SourceID: "payment-1", Date: "2026-10-01", AmountCents: 11001}},
+	}}}
+	report, err := Build(dataset, quarterlyConfig(), Options{FY: "2027", Period: "2", Now: mustDate(t, "2027-01-01")}, mustDate(t, "2027-01-01"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Status != "INCOMPLETE" || len(report.Exceptions) != 1 || report.Exceptions[0].Exception.Date != "2026-10-01" {
+		t.Fatalf("report status=%q exceptions=%#v", report.Status, report.Exceptions)
+	}
+}
+
 func TestWorkbookContainsRequiredSheetsTotalsAndTraceability(t *testing.T) {
 	dataset := accounting.Dataset{Source: "Invoice Ninja", Sales: []accounting.Sale{{
 		SourceID: "invoice-1", Number: "INV-1", Date: "2026-08-01", TaxKnown: true,

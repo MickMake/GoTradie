@@ -34,13 +34,58 @@ func TestCashAllocationRoundingPreservesSourceTotals(t *testing.T) {
 
 func TestCashAllocationOverSourceIsIncomplete(t *testing.T) {
 	dataset := Dataset{Sales: []Sale{{
-		SourceID: "invoice-1", TaxKnown: true,
+		SourceID: "invoice-1", Date: "2026-07-01", TaxKnown: true,
 		Amounts:  Amounts{GrossCents: 100, NetCents: 91, GSTCents: 9},
-		Payments: []Allocation{{SourceType: "payment", SourceID: "payment-1", Date: "2026-07-01", AmountCents: 101}},
+		Payments: []Allocation{{SourceType: "payment", SourceID: "payment-1", Date: "2026-10-01", AmountCents: 101}},
 	}}}
 	_, exceptions := dataset.GSTEvents("cash")
-	if len(exceptions) != 1 || exceptions[0].Severity != SeverityError {
+	if len(exceptions) != 1 || exceptions[0].Severity != SeverityError || exceptions[0].Date != "2026-10-01" {
 		t.Fatalf("exceptions = %#v", exceptions)
+	}
+}
+
+func TestCashPurchaseAllocationProblemUsesSettlementDate(t *testing.T) {
+	dataset := Dataset{Purchases: []Purchase{{
+		SourceID: "expense-1", Date: "2026-07-01", TaxKnown: true, SupplierAccount: true,
+		Amounts: Amounts{GrossCents: 100, NetCents: 91, GSTCents: 9}, SettlementBaseCents: 100,
+		Settlements: []Allocation{{SourceType: "bank_transaction", SourceID: "transaction-1", Date: "2026-10-02", AmountCents: 101}},
+	}}}
+	_, exceptions := dataset.GSTEvents("cash")
+	if len(exceptions) != 1 || exceptions[0].Date != "2026-10-02" {
+		t.Fatalf("exceptions = %#v", exceptions)
+	}
+}
+
+func TestCashAllocationValidatesRowsAfterSourceTotalIsReached(t *testing.T) {
+	dataset := Dataset{Sales: []Sale{{
+		SourceID: "invoice-1", TaxKnown: true,
+		Amounts: Amounts{GrossCents: 100, NetCents: 91, GSTCents: 9},
+		Payments: []Allocation{
+			{SourceType: "payment", SourceID: "payment-1", Date: "2026-07-01", AmountCents: 100},
+			{SourceType: "payment", SourceID: "payment-duplicate", Date: "2026-07-02", AmountCents: 1},
+		},
+	}}}
+	events, exceptions := dataset.GSTEvents("cash")
+	if len(events) != 1 || events[0].Amounts != (Amounts{GrossCents: 100, NetCents: 91, GSTCents: 9}) {
+		t.Fatalf("events = %#v", events)
+	}
+	if len(exceptions) != 1 || exceptions[0].Date != "2026-07-02" || !strings.Contains(exceptions[0].Message, "exceed source gross amount") {
+		t.Fatalf("exceptions = %#v", exceptions)
+	}
+}
+
+func TestGSTEventsFiltersCashBasisOnlySourceExceptionsFromAccrual(t *testing.T) {
+	dataset := Dataset{Exceptions: []Exception{
+		{Severity: SeverityError, SourceType: "payment", SourceID: "payment-1", Message: "cash-only", CashBasisOnly: true},
+		{Severity: SeverityError, SourceType: "invoice", SourceID: "invoice-1", Message: "all bases"},
+	}}
+	_, cashExceptions := dataset.GSTEvents("cash")
+	if len(cashExceptions) != 2 {
+		t.Fatalf("cash exceptions = %#v", cashExceptions)
+	}
+	_, accrualExceptions := dataset.GSTEvents("accrual")
+	if len(accrualExceptions) != 1 || accrualExceptions[0].Message != "all bases" {
+		t.Fatalf("accrual exceptions = %#v", accrualExceptions)
 	}
 }
 

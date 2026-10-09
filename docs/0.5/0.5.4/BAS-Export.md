@@ -399,6 +399,8 @@ execution failure
 
 Never silently omit an accounting error and produce a BAS workbook that appears complete.
 
+Payment, refund and supplier-settlement exceptions that can alter only cash-basis recognition remain in the shared Accounting Dataset but are surfaced only in cash-basis BAS reports.
+
 ## Accounting Dataset
 
 This slice introduces the shared **Accounting Dataset** used by BAS, EOFY and Financial reporting.

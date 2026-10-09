@@ -22,11 +22,12 @@ type Amounts struct {
 }
 
 type Exception struct {
-	Severity   Severity
-	SourceType string
-	SourceID   string
-	Date       string
-	Message    string
+	Severity      Severity
+	SourceType    string
+	SourceID      string
+	Date          string
+	Message       string
+	CashBasisOnly bool
 }
 
 type Allocation struct {
@@ -101,7 +102,13 @@ type GSTEvent struct {
 }
 
 func (d Dataset) GSTEvents(basis string) ([]GSTEvent, []Exception) {
-	exceptions := append([]Exception(nil), d.Exceptions...)
+	exceptions := make([]Exception, 0, len(d.Exceptions))
+	for _, exception := range d.Exceptions {
+		if basis == "accrual" && exception.CashBasisOnly {
+			continue
+		}
+		exceptions = append(exceptions, exception)
+	}
 	var events []GSTEvent
 
 	for _, sale := range d.Sales {
@@ -130,7 +137,7 @@ func (d Dataset) GSTEvents(basis string) ([]GSTEvent, []Exception) {
 			events = append(events, event)
 			exceptions = appendRecognitionExceptions(exceptions, d.CompanyCurrencyID, firstNonEmpty(allocation.allocation.CurrencyID, sale.CurrencyID), sale.TaxKnown, sale.ArchivedOrDeleted || allocation.allocation.ArchivedOrDeleted, event)
 		}
-		exceptions = appendAllocationProblems(exceptions, "invoice", sale.SourceID, sale.Date, problems)
+		exceptions = appendAllocationProblems(exceptions, "invoice", sale.SourceID, problems)
 	}
 
 	for _, purchase := range d.Purchases {
@@ -174,7 +181,7 @@ func (d Dataset) GSTEvents(basis string) ([]GSTEvent, []Exception) {
 			events = append(events, event)
 			exceptions = appendRecognitionExceptions(exceptions, d.CompanyCurrencyID, firstNonEmpty(allocation.allocation.CurrencyID, purchase.CurrencyID), purchase.TaxKnown, purchase.ArchivedOrDeleted || allocation.allocation.ArchivedOrDeleted, event)
 		}
-		exceptions = appendAllocationProblems(exceptions, "expense", purchase.SourceID, purchase.Date, problems)
+		exceptions = appendAllocationProblems(exceptions, "expense", purchase.SourceID, problems)
 	}
 
 	sort.SliceStable(events, func(i, j int) bool {
@@ -222,12 +229,17 @@ type proportionalAllocation struct {
 	amounts    Amounts
 }
 
-func allocateProportionally(total Amounts, denominator int64, allocations []Allocation) ([]proportionalAllocation, []string) {
+type allocationProblem struct {
+	date    string
+	message string
+}
+
+func allocateProportionally(total Amounts, denominator int64, allocations []Allocation) ([]proportionalAllocation, []allocationProblem) {
 	if len(allocations) == 0 {
 		return nil, nil
 	}
 	if denominator <= 0 {
-		return nil, []string{"cannot allocate payment proportionally because the source gross amount is not positive"}
+		return nil, []allocationProblem{{message: "cannot allocate payment proportionally because the source gross amount is not positive"}}
 	}
 	rows := append([]Allocation(nil), allocations...)
 	sort.SliceStable(rows, func(i, j int) bool {
@@ -237,16 +249,16 @@ func allocateProportionally(total Amounts, denominator int64, allocations []Allo
 		return rows[i].SourceID < rows[j].SourceID
 	})
 	var result []proportionalAllocation
-	var problems []string
+	var problems []allocationProblem
 	var cumulative, previousGross, previousNet, previousGST int64
 	for _, allocation := range rows {
 		if allocation.AmountCents <= 0 {
-			problems = append(problems, fmt.Sprintf("allocation %q has non-positive amount", allocation.SourceID))
+			problems = append(problems, allocationProblem{date: allocation.Date, message: fmt.Sprintf("allocation %q has non-positive amount", allocation.SourceID)})
 			continue
 		}
 		cumulative += allocation.AmountCents
 		if cumulative > denominator {
-			problems = append(problems, fmt.Sprintf("allocations exceed source gross amount by %.2f", float64(cumulative-denominator)/100))
+			problems = append(problems, allocationProblem{date: allocation.Date, message: fmt.Sprintf("allocations exceed source gross amount by %.2f", float64(cumulative-denominator)/100)})
 			cumulative = denominator
 		}
 		gross := proportionalCents(total.GrossCents, cumulative, denominator)
@@ -257,16 +269,13 @@ func allocateProportionally(total Amounts, denominator int64, allocations []Allo
 		if part.GrossCents != 0 || part.NetCents != 0 || part.GSTCents != 0 {
 			result = append(result, proportionalAllocation{allocation: allocation, amounts: part})
 		}
-		if cumulative == denominator {
-			break
-		}
 	}
 	return result, problems
 }
 
-func appendAllocationProblems(exceptions []Exception, sourceType, sourceID, date string, problems []string) []Exception {
+func appendAllocationProblems(exceptions []Exception, sourceType, sourceID string, problems []allocationProblem) []Exception {
 	for _, problem := range problems {
-		exceptions = append(exceptions, Exception{Severity: SeverityError, SourceType: sourceType, SourceID: sourceID, Date: date, Message: problem})
+		exceptions = append(exceptions, Exception{Severity: SeverityError, SourceType: sourceType, SourceID: sourceID, Date: problem.date, Message: problem.message})
 	}
 	return exceptions
 }
