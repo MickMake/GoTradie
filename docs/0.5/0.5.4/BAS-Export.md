@@ -76,8 +76,7 @@ Selection uses only:
 
 ```text
 current date
-configured reporting period
-ATO BAS period and due-date rules
+configured reporting period boundaries
 explicit --fy
 explicit --period
 ```
@@ -107,11 +106,11 @@ FY2027 = 1 July 2026 to 30 June 2027
 
 ## Default BAS period
 
-If `--period` is omitted and no historical FY is explicitly selected, use the current date together with the configured reporting period and ATO due-date rules to select the natural BAS period.
+If both `--fy` and `--period` are omitted, select the most recently completed configured reporting period.
 
-A completed BAS period remains the natural period through its ATO lodgement due date.
+A reporting period is complete on its configured period end date. BAS lodgement status and submission-window dates do not affect completion.
 
-If that due date has passed and the next BAS period has not yet completed, continue to select the most recently completed BAS period.
+The selected period may therefore belong to the previous financial year when no period in the current financial year has completed yet.
 
 This is purely date-driven. GoTradie does not attempt to infer whether the BAS has already been lodged.
 
@@ -140,7 +139,7 @@ For quarterly reporting this means all 4 periods.
 
 For yearly reporting this means the single FY2025 reporting year.
 
-If `--fy` selects the current financial year and `--period` is omitted, use the natural date-driven BAS period.
+If `--fy` selects the current financial year and `--period` is omitted, use the most recently completed period in that FY. If none has completed, the explicit FY takes precedence and selects the current in-progress period.
 
 If both `--fy` and `--period` are supplied, produce only the selected BAS period.
 
@@ -181,10 +180,10 @@ Do not add fuzzy month parsing or non-standard aliases.
 
 ```text
 GoTradie ninja export bas
-    -> current FY + natural date-driven BAS period
+    -> most recently completed BAS period, including the previous FY at a boundary
 
 GoTradie ninja export bas --fy CURRENT
-    -> current FY + natural date-driven BAS period
+    -> current FY + most recently completed period in that FY, or its current period if none is complete
 
 GoTradie ninja export bas --fy HISTORIC
     -> all BAS periods in that FY
@@ -208,9 +207,9 @@ BAS does not support:
 
 Arbitrary date-range export belongs to the Financial export.
 
-## ATO due dates
+## Submission windows
 
-The no-flag/default BAS workflow depends on ATO BAS lodgement due-date rules.
+Configured submission windows are validated configuration data. They do not change report completion or default selection, which depends only on period end dates.
 
 ## Output
 

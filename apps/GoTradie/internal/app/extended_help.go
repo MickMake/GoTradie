@@ -42,7 +42,7 @@ Top-level commands
         GoTradie version
 
       Example output:
-        v0.5.3
+        v0.5.4
 
 Bunnings commands
 
@@ -185,10 +185,10 @@ Sync commands
 
 Invoice Ninja export commands
 
-  ninja export products <file|-> [--commit]
+  ninja export products <file|-> [--force]
       Export active Invoice Ninja products as CSV.
       Writes to a new file by default, or stdout when the path is -.
-      Refuses to overwrite an existing file unless --commit is supplied.
+      Refuses to overwrite an existing file unless --force is supplied.
 
       Example:
         GoTradie ninja export products products.csv
@@ -197,16 +197,16 @@ Invoice Ninja export commands
         GoTradie ninja export products -
 
       Example overwrite:
-        GoTradie ninja export products products.csv --commit
+        GoTradie ninja export products products.csv --force
 
       Example output:
         ID,Product,Description,Price,Default Quantity,Max Quantity,Image URL
         abc123,BUNNINGS-0123456,90 x 19mm Merbau Decking,7.45,1,,https://...
 
-  ninja export clients <file|-> [--commit]
+  ninja export clients <file|-> [--force]
       Export active Invoice Ninja clients and contacts as CSV.
       Contact columns expand to match the maximum contact count found.
-      Refuses to overwrite an existing file unless --commit is supplied.
+      Refuses to overwrite an existing file unless --force is supplied.
 
       Example:
         GoTradie ninja export clients clients.csv
@@ -215,10 +215,10 @@ Invoice Ninja export commands
         ID,Name,Address,Contact 1 First Name,Contact 1 Last Name,Contact 1 Email,Contact 1 Phone
         abc123,Example Client,"1 Sample St",Ada,Lovelace,ada@example.com,0400000000
 
-  ninja export quotes <file|-> [--commit]
+  ninja export quotes <file|-> [--force]
       Export active Invoice Ninja quotes as CSV.
       Export only; quote imports are not supported.
-      Refuses to overwrite an existing file unless --commit is supplied.
+      Refuses to overwrite an existing file unless --force is supplied.
 
       Example:
         GoTradie ninja export quotes quotes.csv
@@ -227,10 +227,10 @@ Invoice Ninja export commands
         ID,Number,Client ID,Client Name,Status,Date,Valid Until,Subtotal,Discount,Tax,Total,Balance,Public Notes,Private Notes
         q123,QU-0001,c123,Example Client,sent,2026-05-19,2026-06-18,100.00,0.00,10.00,110.00,110.00,,
 
-  ninja export invoices <file|-> [--commit]
+  ninja export invoices <file|-> [--force]
       Export active Invoice Ninja invoices as CSV.
       Export only; invoice imports are not supported.
-      Refuses to overwrite an existing file unless --commit is supplied.
+      Refuses to overwrite an existing file unless --force is supplied.
 
       Example:
         GoTradie ninja export invoices invoices.csv
@@ -239,10 +239,10 @@ Invoice Ninja export commands
         ID,Number,Client ID,Client Name,Status,Date,Due Date,Subtotal,Discount,Tax,Total,Balance,Paid To Date,Public Notes,Private Notes
         i123,INV-0001,c123,Example Client,sent,2026-05-19,2026-06-02,100.00,0.00,10.00,110.00,110.00,0.00,,
 
-  ninja export payments <file|-> [--commit]
+  ninja export payments <file|-> [--force]
       Export active Invoice Ninja payments as CSV.
       Export only; payment imports are not supported.
-      Refuses to overwrite an existing file unless --commit is supplied.
+      Refuses to overwrite an existing file unless --force is supplied.
 
       Example:
         GoTradie ninja export payments payments.csv
@@ -250,6 +250,19 @@ Invoice Ninja export commands
       Example output:
         ID,Client ID,Client Name,Invoice ID,Invoice Number,Date,Amount,Applied,Refunded,Transaction Reference,Payment Type,Status,Private Notes
         p123,c123,Example Client,i123,INV-0001,2026-05-19,110.00,110.00,0.00,TXN-123,bank_transfer,completed,
+
+  ninja export bas [--fy YYYY] [--period VALUE] [--force]
+      Generate a BAS-oriented XLSX workbook from Invoice Ninja accounting data.
+      With no selection flags, uses the most recently completed reporting
+      period, including the previous FY at a boundary.
+      Explicit --fy or --period selections take precedence.
+      Output uses exports.directory when configured, otherwise the current
+      directory, and refuses to overwrite without --force.
+
+      Examples:
+        GoTradie ninja export bas
+        GoTradie ninja export bas --fy 2025
+        GoTradie ninja export bas --fy 2027 --period 1 --force
 
 Invoice Ninja import commands
 

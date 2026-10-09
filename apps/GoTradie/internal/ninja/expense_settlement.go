@@ -380,7 +380,38 @@ func allocateAccountPayments(state *expenseImportState, rows []*preparedExpenseI
 	if err := blockPaymentsWithUnmarkedLegacyExpenses(state, representedExpenses, payments); err != nil {
 		return nil, err
 	}
+	allocateSettlementRecords(purchases, payments)
 
+	var actions []expenseSettlementAction
+	for _, purchase := range purchases {
+		if purchase.grossCents < 0 {
+			if purchase.row != nil {
+				purchase.row.remainingCents = 0
+			}
+			continue
+		}
+		desiredDate, desiredTypeID := finalSettlementState(purchase)
+		if purchase.row != nil {
+			purchase.row.remainingCents = purchase.remainingCents
+			purchase.row.allocations = append([]ExpensePaymentAllocation(nil), purchase.allocations...)
+			purchase.row.desiredPaymentDate = desiredDate
+			purchase.row.desiredPaymentTypeID = desiredTypeID
+			continue
+		}
+		if purchase.expense != nil {
+			actions = append(actions, expenseSettlementAction{
+				expense:       *purchase.expense,
+				sourceID:      purchase.sourceID,
+				desiredDate:   desiredDate,
+				desiredTypeID: desiredTypeID,
+				allocations:   append([]ExpensePaymentAllocation(nil), purchase.allocations...),
+			})
+		}
+	}
+	return actions, nil
+}
+
+func allocateSettlementRecords(purchases []*settlementPurchase, payments []*settlementPayment) {
 	sort.Slice(purchases, func(i, j int) bool {
 		if purchases[i].date == purchases[j].date {
 			return purchases[i].sourceID < purchases[j].sourceID
@@ -482,34 +513,6 @@ func allocateAccountPayments(state *expenseImportState, rows []*preparedExpenseI
 		processPurchase(purchases[purchaseIndex])
 		purchaseIndex++
 	}
-
-	var actions []expenseSettlementAction
-	for _, purchase := range purchases {
-		if purchase.grossCents < 0 {
-			if purchase.row != nil {
-				purchase.row.remainingCents = 0
-			}
-			continue
-		}
-		desiredDate, desiredTypeID := finalSettlementState(purchase)
-		if purchase.row != nil {
-			purchase.row.remainingCents = purchase.remainingCents
-			purchase.row.allocations = append([]ExpensePaymentAllocation(nil), purchase.allocations...)
-			purchase.row.desiredPaymentDate = desiredDate
-			purchase.row.desiredPaymentTypeID = desiredTypeID
-			continue
-		}
-		if purchase.expense != nil {
-			actions = append(actions, expenseSettlementAction{
-				expense:       *purchase.expense,
-				sourceID:      purchase.sourceID,
-				desiredDate:   desiredDate,
-				desiredTypeID: desiredTypeID,
-				allocations:   append([]ExpensePaymentAllocation(nil), purchase.allocations...),
-			})
-		}
-	}
-	return actions, nil
 }
 
 func resetSettlementRows(rows []*preparedExpenseImportRow) {

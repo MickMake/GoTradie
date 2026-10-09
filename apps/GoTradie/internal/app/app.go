@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/MickMake/GoTradie/internal/bunnings"
 	"github.com/MickMake/GoTradie/internal/config"
@@ -18,7 +19,7 @@ import (
 	"github.com/MickMake/GoTradie/internal/syncer"
 )
 
-const version = "v0.5.3"
+const version = "v0.5.4"
 
 var errExpenseImportStopped = errors.New("expense import stopped by operator")
 
@@ -26,6 +27,7 @@ type App struct {
 	In  io.Reader
 	Out io.Writer
 	Err io.Writer
+	Now func() time.Time
 }
 
 func (a App) Run(ctx context.Context, args []string) int {
@@ -109,7 +111,7 @@ func (a App) Run(ctx context.Context, args []string) int {
 			fmt.Fprintln(a.Err, "invoice ninja client error:", err)
 			return 2
 		}
-		return a.runNinja(ctx, nj, args[1:])
+		return a.runNinja(ctx, nj, cfg, args[1:])
 	case "ninja-products-export", "ninja-products-import", "ninja-clients-export", "ninja-clients-import":
 		fmt.Fprintln(a.Err, "this command form has been replaced; use `GoTradie ninja export ...` or `GoTradie ninja import ...`")
 		return 2
@@ -316,14 +318,14 @@ func (a App) runBunnings(ctx context.Context, svc *bunnings.Service, args []stri
 	}
 }
 
-func (a App) runNinja(ctx context.Context, svc *ninja.Service, args []string) int {
+func (a App) runNinja(ctx context.Context, svc *ninja.Service, cfg config.Config, args []string) int {
 	if len(args) < 1 {
 		fmt.Fprintln(a.Err, "usage: GoTradie ninja <export|import> ...")
 		return 2
 	}
 	switch args[0] {
 	case "export":
-		return a.runNinjaExport(ctx, svc, args[1:])
+		return a.runNinjaExport(ctx, svc, cfg, args[1:])
 	case "import":
 		return a.runNinjaImport(ctx, svc, args[1:])
 	default:
@@ -333,14 +335,17 @@ func (a App) runNinja(ctx context.Context, svc *ninja.Service, args []string) in
 	}
 }
 
-func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, args []string) int {
+func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, cfg config.Config, args []string) int {
 	if len(args) < 1 {
-		fmt.Fprintln(a.Err, "usage: GoTradie ninja export <products|clients|quotes|invoices|payments> <file|-> [--force]")
+		fmt.Fprintln(a.Err, "usage: GoTradie ninja export <products|clients|quotes|invoices|payments|bas> ...")
 		return 2
 	}
 	kind := args[0]
 	if kind == "tax" {
 		return a.runNinjaTaxExport(ctx, svc, args[1:])
+	}
+	if kind == "bas" {
+		return a.runNinjaBASExport(ctx, svc, cfg, args[1:])
 	}
 
 	outPath, force, err := parseExportArgs(args[1:])
@@ -798,7 +803,7 @@ func exitCode(results []syncer.Result) int {
 func (a App) usage() {
 	fmt.Fprint(a.Out, `GoTradie syncs Bunnings products into Invoice Ninja.
 
-Version: v0.5.3
+Version: v0.5.4
 
 Configuration:
   ~/.GoTradie/config.yaml is mandatory for operational commands.
@@ -820,6 +825,8 @@ Commands:
   ninja export quotes <file|->          Export Invoice Ninja quotes as CSV; use --force to overwrite.
   ninja export invoices <file|->        Export Invoice Ninja invoices as CSV; use --force to overwrite.
   ninja export payments <file|->        Export Invoice Ninja payments as CSV; use --force to overwrite.
+  ninja export bas [--fy YYYY] [--period VALUE]
+                                         Generate a BAS XLSX workbook; use --force to overwrite.
   commands                              Show extended command help with output examples.
   version                               Print version.
 
@@ -845,5 +852,7 @@ Examples:
   GoTradie ninja export quotes quotes.csv
   GoTradie ninja export invoices invoices.csv
   GoTradie ninja export payments payments.csv
+  GoTradie ninja export bas
+  GoTradie ninja export bas --fy 2025
 `)
 }
