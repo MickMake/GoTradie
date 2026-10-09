@@ -38,6 +38,13 @@ type Allocation struct {
 	ArchivedOrDeleted bool
 }
 
+type PaymentStatus string
+
+const (
+	PaymentStatusUnpaid PaymentStatus = "unpaid"
+	PaymentStatusPaid   PaymentStatus = "paid"
+)
+
 type Sale struct {
 	SourceID          string
 	Number            string
@@ -52,13 +59,16 @@ type Sale struct {
 }
 
 type Purchase struct {
-	SourceID            string
-	Number              string
-	VendorID            string
-	VendorName          string
-	CurrencyID          string
-	Date                string
-	PaymentDate         string
+	SourceID    string
+	Number      string
+	VendorID    string
+	VendorName  string
+	CurrencyID  string
+	Date        string
+	PaymentDate string
+	// PaymentStatus is the source-derived state used to distinguish a genuine
+	// unpaid purchase from a paid purchase whose recognition date is missing.
+	PaymentStatus       PaymentStatus
 	Amounts             Amounts
 	SettlementBaseCents int64
 	BusinessUsePercent  *float64
@@ -136,6 +146,14 @@ func (d Dataset) GSTEvents(basis string) ([]GSTEvent, []Exception) {
 		}
 
 		if !purchase.SupplierAccount {
+			switch purchase.PaymentStatus {
+			case PaymentStatusUnpaid:
+				continue
+			case PaymentStatusPaid:
+			default:
+				exceptions = append(exceptions, Exception{Severity: SeverityError, SourceType: "expense", SourceID: purchase.SourceID, Message: "missing payment status required for cash-basis GST calculation"})
+				continue
+			}
 			if strings.TrimSpace(purchase.PaymentDate) == "" && purchase.Amounts.GrossCents != 0 {
 				exceptions = append(exceptions, Exception{Severity: SeverityError, SourceType: "expense", SourceID: purchase.SourceID, Message: "missing payment date required for cash-basis GST calculation"})
 				continue

@@ -338,6 +338,8 @@ For cash GST accounting, ordinary immediately-paid Expenses use:
 Expense payment date + Expense GST attributes = BAS contribution
 ```
 
+An ordinary Expense that Invoice Ninja records as unpaid has no cash-basis GST event and is not an error. A paid Expense with a missing payment date remains an accounting error; unpaid state must be established from Invoice Ninja payment-state fields rather than inferred from the missing date alone.
+
 For supplier-account purchases:
 
 ```text

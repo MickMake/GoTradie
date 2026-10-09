@@ -1,6 +1,9 @@
 package accounting
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestCashAllocationRoundingPreservesSourceTotals(t *testing.T) {
 	dataset := Dataset{Sales: []Sale{{
@@ -38,5 +41,43 @@ func TestCashAllocationOverSourceIsIncomplete(t *testing.T) {
 	_, exceptions := dataset.GSTEvents("cash")
 	if len(exceptions) != 1 || exceptions[0].Severity != SeverityError {
 		t.Fatalf("exceptions = %#v", exceptions)
+	}
+}
+
+func TestCashOrdinaryUnpaidPurchaseHasNoEventOrError(t *testing.T) {
+	dataset := Dataset{Purchases: []Purchase{{
+		SourceID: "expense-historical-unpaid", Date: "2021-03-14", PaymentStatus: PaymentStatusUnpaid,
+		TaxKnown: true, Amounts: Amounts{GrossCents: 11000, NetCents: 10000, GSTCents: 1000},
+	}}}
+	events, exceptions := dataset.GSTEvents("cash")
+	if len(events) != 0 || len(exceptions) != 0 {
+		t.Fatalf("events=%#v exceptions=%#v", events, exceptions)
+	}
+}
+
+func TestCashPaidOrdinaryPurchaseStillRequiresPaymentDate(t *testing.T) {
+	dataset := Dataset{Purchases: []Purchase{{
+		SourceID: "expense-paid", Date: "2026-07-01", PaymentStatus: PaymentStatusPaid,
+		TaxKnown: true, Amounts: Amounts{GrossCents: 11000, NetCents: 10000, GSTCents: 1000},
+	}}}
+	events, exceptions := dataset.GSTEvents("cash")
+	if len(events) != 0 || len(exceptions) != 1 || !strings.Contains(exceptions[0].Message, "missing payment date") {
+		t.Fatalf("events=%#v exceptions=%#v", events, exceptions)
+	}
+}
+
+func TestCashPartiallySettledPurchaseStillRequiresSettlementDate(t *testing.T) {
+	dataset := Dataset{Purchases: []Purchase{{
+		SourceID: "expense-partial", Date: "2026-07-01", SupplierAccount: true,
+		SettlementBaseCents: 11000, TaxKnown: true,
+		Amounts:     Amounts{GrossCents: 11000, NetCents: 10000, GSTCents: 1000},
+		Settlements: []Allocation{{SourceType: "bank_transaction", SourceID: "transaction-1", AmountCents: 5500}},
+	}}}
+	events, exceptions := dataset.GSTEvents("cash")
+	if len(events) != 1 || events[0].Amounts.GrossCents != 5500 {
+		t.Fatalf("events=%#v", events)
+	}
+	if len(exceptions) != 1 || !strings.Contains(exceptions[0].Message, "missing accounting date") {
+		t.Fatalf("exceptions=%#v", exceptions)
 	}
 }

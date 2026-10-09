@@ -161,6 +161,7 @@ func buildPurchaseFacts(expenses []invoiceninja.Expense, transactions []invoicen
 		supplierMarker := supplierAccountMarkerFromText(expense.PrivateNotes)
 		purchaseMarker := settlementPurchaseMarkerFromText(expense.PrivateNotes)
 		supplierAccount := supplierMarker != "" || purchaseMarker != ""
+		paymentStatus := expensePaymentStatus(expense)
 		vendorName := ""
 		if expense.Vendor != nil {
 			vendorName = firstText(expense.Vendor.DisplayName, expense.Vendor.Name)
@@ -172,7 +173,7 @@ func buildPurchaseFacts(expenses []invoiceninja.Expense, transactions []invoicen
 		purchase := accounting.Purchase{
 			SourceID: expense.ID, Number: firstText(expense.Number, expense.TransactionReference),
 			VendorID: expense.VendorID, VendorName: vendorName, CurrencyID: expense.CurrencyID,
-			Date: expense.Date, PaymentDate: expense.PaymentDate,
+			Date: expense.Date, PaymentDate: expense.PaymentDate, PaymentStatus: paymentStatus,
 			Amounts:            accounting.Amounts{GrossCents: gross, NetCents: gross - gst, GSTCents: gst},
 			BusinessUsePercent: businessUse, TaxKnown: expenseTaxKnown(expense), SupplierAccount: supplierAccount,
 			ArchivedOrDeleted: expense.IsDeleted || expense.ArchivedAt != 0,
@@ -205,7 +206,7 @@ func buildPurchaseFacts(expenses []invoiceninja.Expense, transactions []invoicen
 			purchaseIndex[record] = index
 			continue
 		}
-		if sourceMarkerFromNotes(expense.PrivateNotes) != "" && expense.PaymentDate == "" && !expense.IsDeleted && expense.ArchivedAt == 0 {
+		if sourceMarkerFromNotes(expense.PrivateNotes) != "" && paymentStatus == accounting.PaymentStatusUnpaid && !expense.IsDeleted && expense.ArchivedAt == 0 {
 			legacyUnpaid = append(legacyUnpaid, struct {
 				expenseID string
 				supplier  string
@@ -304,6 +305,13 @@ func buildPurchaseFacts(expenses []invoiceninja.Expense, transactions []invoicen
 		return purchases[i].SourceID < purchases[j].SourceID
 	})
 	return purchases, exceptions
+}
+
+func expensePaymentStatus(expense invoiceninja.Expense) accounting.PaymentStatus {
+	if strings.TrimSpace(expense.PaymentDate) != "" || strings.TrimSpace(expense.PaymentTypeID) != "" || strings.TrimSpace(expense.TransactionID) != "" {
+		return accounting.PaymentStatusPaid
+	}
+	return accounting.PaymentStatusUnpaid
 }
 
 func expenseTaxKnown(expense invoiceninja.Expense) bool {

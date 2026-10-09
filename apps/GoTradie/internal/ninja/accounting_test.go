@@ -2,6 +2,7 @@ package ninja
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	invoiceninja "github.com/MickMake/GoInvoiceNinja"
@@ -87,6 +88,19 @@ func TestBuildPurchaseFactsReportsUnappliedSettlement(t *testing.T) {
 	}
 }
 
+func TestBuildPurchaseFactsReportsMissingPartialSettlementDate(t *testing.T) {
+	supplier := supplierAccountMarker("Bunnings")
+	expense := accountExpense("expense-1", "purchase-1", supplier, "2026-07-01", 80, 8, 100)
+	transaction := invoiceninja.BankTransaction{
+		Entity: invoiceninja.Entity{ID: "transaction-1"}, Amount: 50, BaseType: "DEBIT",
+		Description: supplier + "\n[GoTradie import-id:v1:payment-1]",
+	}
+	_, exceptions := buildPurchaseFacts([]invoiceninja.Expense{expense}, []invoiceninja.BankTransaction{transaction}, nil)
+	if len(exceptions) != 1 || exceptions[0].SourceID != "transaction-1" || !strings.Contains(exceptions[0].Message, "date is empty") {
+		t.Fatalf("exceptions = %#v", exceptions)
+	}
+}
+
 func TestBuildPurchaseFactsReportsAmbiguousAndArchivedSettlementEvidence(t *testing.T) {
 	supplier := supplierAccountMarker("Bunnings")
 	first := accountExpense("expense-1", "purchase-1", supplier, "2026-07-01", 80, 8, 100)
@@ -101,6 +115,57 @@ func TestBuildPurchaseFactsReportsAmbiguousAndArchivedSettlementEvidence(t *test
 		if exception.Severity != accounting.SeverityError || exception.Date != "" {
 			t.Fatalf("settlement exception should be globally blocking: %#v", exception)
 		}
+	}
+}
+
+func TestBuildPurchaseFactsTreatsHistoricalOrdinaryExpenseAsUnpaid(t *testing.T) {
+	expense := invoiceninja.Expense{
+		Entity: invoiceninja.Entity{ID: "expense-historical-unpaid"}, VendorID: "vendor-1",
+		Date: "2021-03-14", Amount: 110, TaxAmount1: 10, TaxName1: "GST", CurrencyID: "1",
+		PrivateNotes: "[GoTradie import-id:v1:historical-unpaid]",
+	}
+	purchases, exceptions := buildPurchaseFacts([]invoiceninja.Expense{expense}, nil, nil)
+	if len(exceptions) != 0 || len(purchases) != 1 {
+		t.Fatalf("purchases=%#v exceptions=%#v", purchases, exceptions)
+	}
+	if purchases[0].PaymentStatus != accounting.PaymentStatusUnpaid {
+		t.Fatalf("payment status = %q", purchases[0].PaymentStatus)
+	}
+	events, eventExceptions := (accounting.Dataset{Purchases: purchases}).GSTEvents("cash")
+	if len(events) != 0 || len(eventExceptions) != 0 {
+		t.Fatalf("events=%#v exceptions=%#v", events, eventExceptions)
+	}
+}
+
+func TestBuildPurchaseFactsPreservesPaidEvidenceWhenPaymentDateIsMissing(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		expense invoiceninja.Expense
+	}{
+		{name: "payment type", expense: invoiceninja.Expense{PaymentTypeID: "5"}},
+		{name: "bank transaction", expense: invoiceninja.Expense{TransactionID: "transaction-1"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			expense := test.expense
+			expense.Entity = invoiceninja.Entity{ID: "expense-paid"}
+			expense.VendorID = "vendor-1"
+			expense.Date = "2026-07-01"
+			expense.Amount = 110
+			expense.TaxAmount1 = 10
+			expense.TaxName1 = "GST"
+			expense.CurrencyID = "1"
+			purchases, exceptions := buildPurchaseFacts([]invoiceninja.Expense{expense}, nil, nil)
+			if len(exceptions) != 0 || len(purchases) != 1 {
+				t.Fatalf("purchases=%#v exceptions=%#v", purchases, exceptions)
+			}
+			if purchases[0].PaymentStatus != accounting.PaymentStatusPaid {
+				t.Fatalf("payment status = %q", purchases[0].PaymentStatus)
+			}
+			events, eventExceptions := (accounting.Dataset{Purchases: purchases}).GSTEvents("cash")
+			if len(events) != 0 || len(eventExceptions) != 1 || eventExceptions[0].Message != "missing payment date required for cash-basis GST calculation" {
+				t.Fatalf("events=%#v exceptions=%#v", events, eventExceptions)
+			}
+		})
 	}
 }
 

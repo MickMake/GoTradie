@@ -21,7 +21,7 @@ func TestBuildCashBASUsesPartialCustomerAndSupplierAllocations(t *testing.T) {
 			},
 		}},
 		Purchases: []accounting.Purchase{
-			{SourceID: "expense-ordinary", Date: "2026-09-01", PaymentDate: "2026-09-01", TaxKnown: true, Amounts: accounting.Amounts{GrossCents: 2200, NetCents: 2000, GSTCents: 200}},
+			{SourceID: "expense-ordinary", Date: "2026-09-01", PaymentDate: "2026-09-01", PaymentStatus: accounting.PaymentStatusPaid, TaxKnown: true, Amounts: accounting.Amounts{GrossCents: 2200, NetCents: 2000, GSTCents: 200}},
 			{SourceID: "expense-account", Date: "2026-08-01", TaxKnown: true, SupplierAccount: true, SettlementBaseCents: 11000, Amounts: accounting.Amounts{GrossCents: 8800, NetCents: 8000, GSTCents: 800}, Settlements: []accounting.Allocation{
 				{SourceType: "bank_transaction", SourceID: "transaction-1", Date: "2026-09-30", AmountCents: 5500},
 				{SourceType: "bank_transaction", SourceID: "transaction-2", Date: "2026-10-01", AmountCents: 5500},
