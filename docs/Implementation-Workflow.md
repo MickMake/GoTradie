@@ -18,7 +18,45 @@ This workflow applies to every implementation slice. Slice-specific prompts must
 
 ## 2. Implementation
 
-1. After approval, create the agreed branch from the latest `origin/main`. If `main` has advanced materially since preflight, reassess the plan before proceeding.
+## 2. Implementation
+
+1. After approval, fetch the latest `origin/main`. If `main` has advanced materially since preflight, reassess the plan before proceeding.
+
+   Create the agreed feature branch explicitly without inheriting upstream tracking:
+
+   ```bash
+   git fetch origin main
+   git switch --no-track -c <branch-name> origin/main
+   ```
+
+   Record the current remote `main` commit before publishing:
+
+   ```bash
+   git ls-remote --heads origin main
+   ```
+
+   Publish the feature branch using an explicit destination:
+
+   ```bash
+   git push -u origin HEAD:refs/heads/<branch-name>
+   ```
+
+   Verify that:
+   - The current branch is `<branch-name>`.
+   - Its upstream is `origin/<branch-name>`, NEVER `origin/main`.
+   - The remote feature branch exists.
+   - The remote `main` commit remains unchanged.
+
+   Use `git branch -vv` and `git ls-remote --heads origin` to verify these conditions.
+
+   **Git safety rules:**
+   - NEVER push implementation commits directly to `main`.
+   - NEVER rely on implicit push destinations. Always specify the feature branch destination explicitly.
+   - NEVER configure a feature branch to track `origin/main`.
+   - NEVER force-push or rewrite `main`.
+   - All implementation changes must reach `main` through a reviewed PR with explicit user approval.
+   - If authentication, branch tracking, push destinations, or remote state are unexpected, STOP and report the issue before proceeding.
+
 2. Implement only the approved slice and its necessary tests and documentation changes.
 3. Prefer existing facilities. Do not introduce speculative infrastructure or build later slices early.
 4. Any unapproved substantial change to architecture, persistence, external dependencies, or scope requires another approval checkpoint. Do not silently expand the work.
