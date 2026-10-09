@@ -28,15 +28,15 @@ func TestParseBASExportArgs(t *testing.T) {
 	}
 }
 
-func TestWriteBASFileHonoursForce(t *testing.T) {
+func TestWriteGeneratedReportFileHonoursForce(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "FY2027-BAS-Q1.xlsx")
-	if err := writeBASFile(path, []byte("first"), false); err != nil {
+	if err := writeGeneratedReportFile(path, []byte("first"), false); err != nil {
 		t.Fatal(err)
 	}
-	if err := writeBASFile(path, []byte("second"), false); err == nil {
+	if err := writeGeneratedReportFile(path, []byte("second"), false); err == nil {
 		t.Fatal("expected overwrite refusal")
 	}
-	if err := writeBASFile(path, []byte("second"), true); err != nil {
+	if err := writeGeneratedReportFile(path, []byte("second"), true); err != nil {
 		t.Fatal(err)
 	}
 	got, err := os.ReadFile(path)

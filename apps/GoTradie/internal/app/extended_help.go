@@ -42,7 +42,7 @@ Top-level commands
         GoTradie version
 
       Example output:
-        v0.5.4
+        v0.5.5
 
 Bunnings commands
 
@@ -263,6 +263,18 @@ Invoice Ninja export commands
         GoTradie ninja export bas
         GoTradie ninja export bas --fy 2025
         GoTradie ninja export bas --fy 2027 --period 1 --force
+
+  ninja export eofy [--fy YYYY] [--force]
+      Generate an EOFY business tax-preparation XLSX workbook from the shared
+      Invoice Ninja accounting dataset. With no --fy, uses the most recently
+      completed financial year. The configured EOFY accounting basis is
+      independent of the BAS GST basis.
+      Output uses exports.directory when configured, otherwise the current
+      directory, and refuses to overwrite without --force.
+
+      Examples:
+        GoTradie ninja export eofy
+        GoTradie ninja export eofy --fy 2027 --force
 
 Invoice Ninja import commands
 

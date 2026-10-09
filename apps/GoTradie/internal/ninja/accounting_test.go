@@ -179,6 +179,30 @@ func TestBuildPurchaseFactsPreservesPaidEvidenceWhenPaymentDateIsMissing(t *test
 	}
 }
 
+func TestBuildPurchaseFactsPreservesEOFYCategoryAndAssetEvidence(t *testing.T) {
+	expense := invoiceninja.Expense{
+		Entity: invoiceninja.Entity{ID: "expense-asset"}, VendorID: "vendor-1", CategoryID: "category-1",
+		Date: "2026-07-01", Amount: 880, TaxAmount1: 80, TaxName1: "GST", CustomValue3: "80", CurrencyID: "1",
+		PrivateNotes: "Capital check: Review >$300\nItem description: Cordless drill\nSource GST: $100.00\nSource total inc GST: $1,100.00",
+		Vendor:       &invoiceninja.Vendor{Name: "Tool Shop"},
+		Category:     &invoiceninja.ExpenseCategory{Name: "Tools"},
+	}
+	purchases, exceptions := buildPurchaseFacts([]invoiceninja.Expense{expense}, nil, nil)
+	if len(exceptions) != 0 || len(purchases) != 1 {
+		t.Fatalf("purchases=%#v exceptions=%#v", purchases, exceptions)
+	}
+	purchase := purchases[0]
+	if purchase.CategoryID != "category-1" || purchase.CategoryName != "Tools" || purchase.Description != "Cordless drill" || purchase.CapitalCheck != "Review >$300" {
+		t.Fatalf("purchase = %#v", purchase)
+	}
+	if purchase.SourceGrossCents == nil || *purchase.SourceGrossCents != 110000 || purchase.SourceGSTCents == nil || *purchase.SourceGSTCents != 10000 {
+		t.Fatalf("source evidence = %#v", purchase)
+	}
+	if purchase.BusinessUsePercent == nil || *purchase.BusinessUsePercent != 80 {
+		t.Fatalf("business use = %#v", purchase.BusinessUsePercent)
+	}
+}
+
 func accountExpense(id, purchaseID, supplier, date string, amount, gst, sourceTotal float64) invoiceninja.Expense {
 	return invoiceninja.Expense{
 		Entity: invoiceninja.Entity{ID: id}, VendorID: "vendor-1", Date: date, Amount: amount,

@@ -60,13 +60,20 @@ type Sale struct {
 }
 
 type Purchase struct {
-	SourceID    string
-	Number      string
-	VendorID    string
-	VendorName  string
-	CurrencyID  string
-	Date        string
-	PaymentDate string
+	SourceID            string
+	Number              string
+	VendorID            string
+	VendorName          string
+	CategoryID          string
+	CategoryName        string
+	Description         string
+	CapitalCheck        string
+	SourceGrossCents    *int64
+	SourceGSTCents      *int64
+	SourceEvidenceError string
+	CurrencyID          string
+	Date                string
+	PaymentDate         string
 	// PaymentStatus is the source-derived state used to distinguish a genuine
 	// unpaid purchase from a paid purchase whose recognition date is missing.
 	PaymentStatus       PaymentStatus
@@ -96,12 +103,23 @@ type GSTEvent struct {
 	Number             string
 	PartyID            string
 	PartyName          string
+	CategoryID         string
+	CategoryName       string
+	Description        string
+	CapitalCheck       string
+	SourceDate         string
 	Date               string
 	Amounts            Amounts
 	BusinessUsePercent *float64
 }
 
 func (d Dataset) GSTEvents(basis string) ([]GSTEvent, []Exception) {
+	return d.AccountingEvents(basis)
+}
+
+// AccountingEvents applies the shared cash/accrual recognition and allocation
+// rules used by generated accounting reports.
+func (d Dataset) AccountingEvents(basis string) ([]GSTEvent, []Exception) {
 	exceptions := make([]Exception, 0, len(d.Exceptions))
 	for _, exception := range d.Exceptions {
 		if basis == "accrual" && exception.CashBasisOnly {
@@ -119,7 +137,7 @@ func (d Dataset) GSTEvents(basis string) ([]GSTEvent, []Exception) {
 			event := GSTEvent{
 				Kind: "sale", SourceType: "invoice", SourceID: sale.SourceID,
 				Number: sale.Number, PartyID: sale.CustomerID, PartyName: sale.CustomerName,
-				Date: sale.Date, Amounts: sale.Amounts,
+				SourceDate: sale.Date, Date: sale.Date, Amounts: sale.Amounts,
 			}
 			events = append(events, event)
 			exceptions = appendRecognitionExceptions(exceptions, d.CompanyCurrencyID, sale.CurrencyID, sale.TaxKnown, sale.ArchivedOrDeleted, event)
@@ -132,7 +150,7 @@ func (d Dataset) GSTEvents(basis string) ([]GSTEvent, []Exception) {
 				Kind: "sale", SourceType: "invoice", SourceID: sale.SourceID,
 				RelatedSourceType: allocation.allocation.SourceType, RelatedSourceID: allocation.allocation.SourceID,
 				Number: sale.Number, PartyID: sale.CustomerID, PartyName: sale.CustomerName,
-				Date: allocation.allocation.Date, Amounts: allocation.amounts,
+				SourceDate: sale.Date, Date: allocation.allocation.Date, Amounts: allocation.amounts,
 			}
 			events = append(events, event)
 			exceptions = appendRecognitionExceptions(exceptions, d.CompanyCurrencyID, firstNonEmpty(allocation.allocation.CurrencyID, sale.CurrencyID), sale.TaxKnown, sale.ArchivedOrDeleted || allocation.allocation.ArchivedOrDeleted, event)
@@ -204,7 +222,8 @@ func purchaseEvent(purchase Purchase, date string, amounts Amounts, allocation A
 		Kind: "purchase", SourceType: "expense", SourceID: purchase.SourceID,
 		RelatedSourceType: allocation.SourceType, RelatedSourceID: allocation.SourceID,
 		Number: purchase.Number, PartyID: purchase.VendorID, PartyName: purchase.VendorName,
-		Date: date, Amounts: amounts, BusinessUsePercent: purchase.BusinessUsePercent,
+		CategoryID: purchase.CategoryID, CategoryName: purchase.CategoryName, Description: purchase.Description, CapitalCheck: purchase.CapitalCheck,
+		SourceDate: purchase.Date, Date: date, Amounts: amounts, BusinessUsePercent: purchase.BusinessUsePercent,
 	}
 }
 
