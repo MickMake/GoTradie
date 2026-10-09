@@ -19,7 +19,7 @@ import (
 	"github.com/MickMake/GoTradie/internal/syncer"
 )
 
-const version = "v0.5.4"
+const version = "v0.5.5"
 
 var errExpenseImportStopped = errors.New("expense import stopped by operator")
 
@@ -337,7 +337,7 @@ func (a App) runNinja(ctx context.Context, svc *ninja.Service, cfg config.Config
 
 func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, cfg config.Config, args []string) int {
 	if len(args) < 1 {
-		fmt.Fprintln(a.Err, "usage: GoTradie ninja export <products|clients|quotes|invoices|payments|bas> ...")
+		fmt.Fprintln(a.Err, "usage: GoTradie ninja export <products|clients|quotes|invoices|payments|bas|eofy> ...")
 		return 2
 	}
 	kind := args[0]
@@ -346,6 +346,9 @@ func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, cfg config.
 	}
 	if kind == "bas" {
 		return a.runNinjaBASExport(ctx, svc, cfg, args[1:])
+	}
+	if kind == "eofy" {
+		return a.runNinjaEOFYExport(ctx, svc, cfg, args[1:])
 	}
 
 	outPath, force, err := parseExportArgs(args[1:])
@@ -803,7 +806,7 @@ func exitCode(results []syncer.Result) int {
 func (a App) usage() {
 	fmt.Fprint(a.Out, `GoTradie syncs Bunnings products into Invoice Ninja.
 
-Version: v0.5.4
+Version: v0.5.5
 
 Configuration:
   ~/.GoTradie/config.yaml is mandatory for operational commands.
@@ -827,6 +830,7 @@ Commands:
   ninja export payments <file|->        Export Invoice Ninja payments as CSV; use --force to overwrite.
   ninja export bas [--fy YYYY] [--period VALUE]
                                          Generate a BAS XLSX workbook; use --force to overwrite.
+  ninja export eofy [--fy YYYY]          Generate an EOFY XLSX workbook; use --force to overwrite.
   commands                              Show extended command help with output examples.
   version                               Print version.
 
@@ -854,5 +858,7 @@ Examples:
   GoTradie ninja export payments payments.csv
   GoTradie ninja export bas
   GoTradie ninja export bas --fy 2025
+  GoTradie ninja export eofy
+  GoTradie ninja export eofy --fy 2027
 `)
 }

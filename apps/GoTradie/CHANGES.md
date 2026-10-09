@@ -3,6 +3,21 @@
 
 ## Unreleased
 
+## v0.5.5
+
+- Added `ninja export eofy` with explicit or most-recently-completed financial
+  year selection, deterministic filenames and `--force` overwrite safety.
+- Reused the shared Accounting Dataset for independent cash/accrual EOFY
+  recognition and source/category traceability.
+- Added accountant-review XLSX sheets for income, expenses, capital assets,
+  GST reconciliation, exceptions and supporting detail.
+- Preserved `Capital Check` classifications and used Expense purchase date as
+  the explicit first-used date assumption. Asset threshold testing removes only
+  claimable GST before applying business use, and exact-threshold items remain
+  capital/depreciation review items.
+- Missing evidence that can alter EOFY figures or asset classification produces
+  an `INCOMPLETE` diagnostic workbook and exit 1.
+
 ## v0.5.4
 
 - Added `ninja export bas` with monthly, quarterly and yearly financial-year

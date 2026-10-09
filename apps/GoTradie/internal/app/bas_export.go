@@ -68,7 +68,7 @@ func (a App) runNinjaBASExport(ctx context.Context, svc *ninja.Service, cfg conf
 		fmt.Fprintln(a.Err, "BAS workbook error:", err)
 		return 1
 	}
-	if err := writeBASFile(path, workbook, force); err != nil {
+	if err := writeGeneratedReportFile(path, workbook, force); err != nil {
 		fmt.Fprintln(a.Err, "BAS export error:", err)
 		return 1
 	}
@@ -116,9 +116,9 @@ func generatedExportDirectory(cfg config.ExportsConfig) (string, error) {
 	return directory, nil
 }
 
-func writeBASFile(path string, data []byte, force bool) error {
+func writeGeneratedReportFile(path string, data []byte, force bool) error {
 	if force {
-		temporary, err := os.CreateTemp(filepath.Dir(path), ".gotradie-bas-*.xlsx")
+		temporary, err := os.CreateTemp(filepath.Dir(path), ".gotradie-report-*.xlsx")
 		if err != nil {
 			return err
 		}

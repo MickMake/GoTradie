@@ -158,6 +158,7 @@ func buildPurchaseFacts(expenses []invoiceninja.Expense, transactions []invoicen
 	for _, expense := range expenses {
 		gst := moneyCents(expense.TaxAmount1 + expense.TaxAmount2 + expense.TaxAmount3)
 		gross := moneyCents(expense.Amount)
+		notes := privateNoteValues(expense.PrivateNotes)
 		supplierMarker := supplierAccountMarkerFromText(expense.PrivateNotes)
 		purchaseMarker := settlementPurchaseMarkerFromText(expense.PrivateNotes)
 		supplierAccount := supplierMarker != "" || purchaseMarker != ""
@@ -166,14 +167,31 @@ func buildPurchaseFacts(expenses []invoiceninja.Expense, transactions []invoicen
 		if expense.Vendor != nil {
 			vendorName = firstText(expense.Vendor.DisplayName, expense.Vendor.Name)
 		}
+		categoryName := ""
+		if expense.Category != nil {
+			categoryName = strings.TrimSpace(expense.Category.Name)
+		}
+		sourceGross, sourceGrossErr := optionalExpenseMoneyCents(notes["Source total inc GST"])
+		sourceGST, sourceGSTErr := optionalExpenseMoneyCents(notes["Source GST"])
+		var sourceEvidenceErrors []string
+		if sourceGrossErr != nil {
+			sourceEvidenceErrors = append(sourceEvidenceErrors, "invalid Source total inc GST: "+sourceGrossErr.Error())
+		}
+		if sourceGSTErr != nil {
+			sourceEvidenceErrors = append(sourceEvidenceErrors, "invalid Source GST: "+sourceGSTErr.Error())
+		}
 		businessUse, businessUseErr := parseBusinessUse(expense.CustomValue3)
 		if businessUseErr != nil {
 			exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "expense", SourceID: expense.ID, Date: expense.Date, Message: businessUseErr.Error()})
 		}
 		purchase := accounting.Purchase{
 			SourceID: expense.ID, Number: firstText(expense.Number, expense.TransactionReference),
-			VendorID: expense.VendorID, VendorName: vendorName, CurrencyID: expense.CurrencyID,
-			Date: expense.Date, PaymentDate: expense.PaymentDate, PaymentStatus: paymentStatus,
+			VendorID: expense.VendorID, VendorName: vendorName,
+			CategoryID: expense.CategoryID, CategoryName: categoryName,
+			Description: firstText(notes["Item description"], expense.PublicNotes), CapitalCheck: notes["Capital check"],
+			SourceGrossCents: sourceGross, SourceGSTCents: sourceGST, SourceEvidenceError: strings.Join(sourceEvidenceErrors, "; "),
+			CurrencyID: expense.CurrencyID,
+			Date:       expense.Date, PaymentDate: expense.PaymentDate, PaymentStatus: paymentStatus,
 			Amounts:            accounting.Amounts{GrossCents: gross, NetCents: gross - gst, GSTCents: gst},
 			BusinessUsePercent: businessUse, TaxKnown: expenseTaxKnown(expense), SupplierAccount: supplierAccount,
 			ArchivedOrDeleted: expense.IsDeleted || expense.ArchivedAt != 0,
@@ -190,7 +208,7 @@ func buildPurchaseFacts(expenses []invoiceninja.Expense, transactions []invoicen
 				exceptions = append(exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "expense", SourceID: expense.ID, Message: "supplier-account expense is missing a durable supplier or purchase marker", CashBasisOnly: true})
 				continue
 			}
-			total, parseErr := parseExpenseMoney(privateNoteValues(expense.PrivateNotes)["Source total inc GST"])
+			total, parseErr := parseExpenseMoney(notes["Source total inc GST"])
 			settlementGross := moneyCents(total)
 			purchases[index].SettlementBaseCents = settlementGross
 			if parseErr != nil || settlementGross == 0 {
@@ -330,6 +348,18 @@ func parseBusinessUse(value string) (*float64, error) {
 		return nil, fmt.Errorf("invalid business-use percentage %q", value)
 	}
 	return &percentage, nil
+}
+
+func optionalExpenseMoneyCents(value string) (*int64, error) {
+	if strings.TrimSpace(value) == "" {
+		return nil, nil
+	}
+	amount, err := parseExpenseMoney(value)
+	if err != nil {
+		return nil, err
+	}
+	cents := moneyCents(amount)
+	return &cents, nil
 }
 
 func firstText(values ...string) string {
