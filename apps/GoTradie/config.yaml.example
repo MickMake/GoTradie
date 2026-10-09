@@ -1,0 +1,63 @@
+# Copy this file to ~/.GoTradie/config.yaml.
+# Unknown fields are rejected. Keep accounting settings explicit.
+
+invoice_ninja:
+  url: https://your.invoice-ninja.example
+  token: ""
+
+tax:
+  name: GST
+  rate: 10
+
+bas:
+  reporting_period: quarterly
+  gst_basis: cash
+  periods:
+    Q1:
+      bas_begin: "07-01"
+      bas_end: "09-30"
+      submit_begin: "10-01"
+      submit_end: "10-28"
+    Q2:
+      bas_begin: "10-01"
+      bas_end: "12-31"
+      submit_begin: "01-01"
+      submit_end: "02-28"
+    Q3:
+      bas_begin: "01-01"
+      bas_end: "03-31"
+      submit_begin: "04-01"
+      submit_end: "04-28"
+    Q4:
+      bas_begin: "04-01"
+      bas_end: "06-30"
+      submit_begin: "07-01"
+      submit_end: "07-28"
+
+eofy:
+  accounting_basis: cash
+  instant_asset_writeoff_threshold: 20000
+
+# Optional. Generated reports use the current directory when omitted.
+exports:
+  directory: ~/Documents/GoTradie
+
+product_sync:
+  custom_fields:
+    bunnings_in: 1
+    image_url: 2
+
+providers:
+  bunnings:
+    name: Bunnings
+    type: api
+    aliases:
+      - Bunnings
+      - Bunnings Warehouse
+      - Bunnings Trade
+    environment: live
+    client_id: ""
+    client_secret: ""
+    scopes: []
+    country: AU
+    location: ""

@@ -3,6 +3,21 @@
 
 ## Unreleased
 
+## v0.5.3
+
+- Replaced optional flat configuration with mandatory strict YAML at
+  `~/.GoTradie/config.yaml`; removed `--config`, `GOTRADIE_CONFIG` and generic
+  environment overrides while retaining only the two supported secret overrides.
+- Added hierarchical Bunnings, Product Sync, BAS, EOFY and export settings with
+  complete monthly, quarterly and yearly BAS cadence validation.
+- Preserved existing `BUNNINGS-` Product keys, lookup, synchronisation, import,
+  `bunnings_in` and `image_url` behaviour through a temporary internal constant.
+- Added deterministic Provider alias resolution and kept Store as separate
+  Expense metadata rather than part of Vendor identity.
+- Retired the ERPNext migration exporter and its configuration, tests and docs.
+
+## v0.5.2
+
 - Implemented the v0.5.2 Expense-import UX with required durable `Import ID`
   identity, named-file-only input and complete local preflight before remote
   reads or writes.

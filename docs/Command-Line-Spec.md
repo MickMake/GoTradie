@@ -77,7 +77,6 @@ GoTradie ninja export clients clients.csv --force
 GoTradie ninja export quotes quotes.csv --force
 GoTradie ninja export invoices invoices.csv --force
 GoTradie ninja export payments payments.csv --force
-GoTradie ninja export erpnext ./erpnext-export --force
 GoTradie ninja export tax ./tax-export --force
 ```
 

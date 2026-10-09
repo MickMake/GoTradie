@@ -41,7 +41,7 @@ func (s *Service) ExportProductsCSV(ctx context.Context, w io.Writer) error {
 		return err
 	}
 	for _, p := range products {
-		row := []string{p.ID, p.ProductKey, p.Notes, formatFloat(p.Price), formatFloat(p.Quantity), "", s.CustomValue(p, s.cfg.ImageURLCustom)}
+		row := []string{p.ID, p.ProductKey, p.Notes, formatFloat(p.Price), formatFloat(p.Quantity), "", s.CustomValue(p, s.cfg.ProductSync.CustomFields.ImageURL)}
 		if err := cw.Write(row); err != nil {
 			return err
 		}
@@ -114,8 +114,8 @@ func (s *Service) ImportProductsCSV(ctx context.Context, r io.Reader, dryRun boo
 			CustomValue3: existing.CustomValue3,
 			CustomValue4: existing.CustomValue4,
 		})
-		setProductCustom(&payload, s.cfg.ImageURLCustom, cell(rec, idx, "Image URL"))
-		changes := diffProductCSV(*existing, payload, s.cfg.ImageURLCustom)
+		setProductCustom(&payload, s.cfg.ProductSync.CustomFields.ImageURL, cell(rec, idx, "Image URL"))
+		changes := diffProductCSV(*existing, payload, s.cfg.ProductSync.CustomFields.ImageURL)
 		res.Changes = changes
 		if len(changes) == 0 {
 			res.Action = "unchanged"

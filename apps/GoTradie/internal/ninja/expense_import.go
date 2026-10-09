@@ -59,6 +59,7 @@ type ExpensePaymentAllocation struct {
 }
 
 type expenseImportState struct {
+	canonicalProviderName       func(string) string
 	vendors                     map[string]invoiceninja.Vendor
 	vendorByID                  map[string]invoiceninja.Vendor
 	categories                  map[string]invoiceninja.ExpenseCategory
@@ -346,6 +347,7 @@ func (s *Service) loadExpenseImportState(ctx context.Context, settlementEnabled 
 	}
 
 	state := &expenseImportState{
+		canonicalProviderName:       s.cfg.CanonicalProviderName,
 		vendors:                     make(map[string]invoiceninja.Vendor, len(vendors)),
 		vendorByID:                  make(map[string]invoiceninja.Vendor, len(vendors)),
 		categories:                  make(map[string]invoiceninja.ExpenseCategory, len(categories)),
@@ -534,6 +536,9 @@ func sourceRowFromNotes(notes string) int {
 func prepareExpenseImportRow(state *expenseImportState, receipts receiptIndex, idx map[string]int, rec []string, rowNo int) *preparedExpenseImportRow {
 	importID := strings.TrimSpace(cell(rec, idx, "Import ID"))
 	supplier := cell(rec, idx, "Supplier")
+	if state.canonicalProviderName != nil {
+		supplier = state.canonicalProviderName(supplier)
+	}
 	store := cell(rec, idx, "Store")
 	vendorName := expenseVendorName(supplier, store)
 	description := cell(rec, idx, "Item Description")
@@ -1183,12 +1188,7 @@ func shouldDeriveBusinessAmount(businessAmount string, businessPct float64) bool
 }
 
 func expenseVendorName(supplier, store string) string {
-	supplier = strings.TrimSpace(supplier)
-	store = strings.TrimSpace(store)
-	if store == "" {
-		return supplier
-	}
-	return supplier + " - " + store
+	return strings.TrimSpace(supplier)
 }
 
 func deriveBASTreatment(taxTreatment string, businessPct, businessGST float64) string {

@@ -4,6 +4,12 @@
 
 **Planned — implementation-ready design**
 
+## v0.5.3 transition constraint
+
+v0.5.3 deliberately does not implement this Product identity or custom-field transition. It retains existing `BUNNINGS-<item number>` keys plus the existing `bunnings_in` and `image_url` custom-field mappings through a temporary internal `BUNNINGS-` constant.
+
+Invoice Ninja provides four Product custom fields. This design currently proposes `Supplier`, `Store`, `Last Sync Date` and `Not Available`, while the retained Bunnings mappings already consume two fields. Six concepts cannot occupy four fields. Before implementing v0.5.7, decide which concepts use native Product fields, which mappings are retired or migrated, and how existing records transition. Do not silently reassign fields or reject legacy Products in an earlier slice.
+
 ## Core rule
 
 > Sync known Invoice Ninja Products first. Then look for products that are missing.

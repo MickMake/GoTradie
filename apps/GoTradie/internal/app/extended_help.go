@@ -10,21 +10,11 @@ Use --commit to make persistent changes.
 
 The normal help is intentionally short. This command is the longer field guide: more plumage, more footprints, fewer surprises.
 
-Global options
+Configuration
 
-  --config <path>
-      Use a specific key=value configuration file.
-
-      Config is loaded in this order:
-        1. --config <path>
-        2. GOTRADIE_CONFIG
-        3. ./gotradie.conf, if present
-
-      Config file values override environment variables.
-      This option does not imply --commit.
-
-      Example:
-        GoTradie --config ./gotradie.conf ninja export products products.csv
+  Operational commands require ~/.GoTradie/config.yaml.
+  The file uses strict hierarchical YAML; unknown fields are rejected.
+  Only INVOICE_NINJA_TOKEN and BUNNINGS_CLIENT_SECRET may override YAML.
 
 Top-level commands
 
@@ -52,7 +42,7 @@ Top-level commands
         GoTradie version
 
       Example output:
-        v0.5
+        v0.5.3
 
 Bunnings commands
 
@@ -261,28 +251,6 @@ Invoice Ninja export commands
         ID,Client ID,Client Name,Invoice ID,Invoice Number,Date,Amount,Applied,Refunded,Transaction Reference,Payment Type,Status,Private Notes
         p123,c123,Example Client,i123,INV-0001,2026-05-19,110.00,110.00,0.00,TXN-123,bank_transfer,completed,
 
-  ninja export erpnext <directory> [--commit]
-      Export one-off ERPNext Data Import CSVs for customers, addresses,
-      contacts, items, quotations, sales invoices and payment entries.
-      Child rows are embedded in the relevant parent CSV. Archived and deleted
-      source records are inspected; unsafe accounting rows are listed in
-      Migration Report.csv instead of being silently posted.
-      Existing files are not overwritten unless --commit is supplied.
-
-      Example:
-        GoTradie ninja export erpnext ./erpnext-export
-
-      Import in this order:
-        Customer.csv
-        Address.csv
-        Contact.csv
-        Item.csv
-        Quotation.csv
-        Sales Invoice.csv
-        Payment Entry.csv
-
-      Required ERPNext settings are documented in gotradie.conf.example.
-
 Invoice Ninja import commands
 
   ninja import products <file|-> [--commit]
@@ -374,22 +342,10 @@ Deprecated or rejected command forms
 
 Configuration summary
 
-  Required for ninja commands:
+  Read ~/.GoTradie/config.yaml for Invoice Ninja, tax, BAS, EOFY,
+  Product Sync and Provider settings.
+
+  Supported secret overrides:
     INVOICE_NINJA_TOKEN
-
-  Additional required for Bunnings and sync commands:
-    BUNNINGS_CLIENT_ID
-    BUNNINGS_CLIENT_SECRET
-
-  Useful optional configuration:
-    INVOICE_NINJA_URL
-    BUNNINGS_ENV
-    BUNNINGS_COUNTRY
-    BUNNINGS_LOCATION
-    BUNNINGS_SCOPES
-    PRODUCT_PREFIX
-    BUNNINGS_IN_CUSTOM_FIELD
-    BUNNINGS_IMAGE_CUSTOM_FIELD
-    TAX_NAME
-    TAX_RATE`)
+    BUNNINGS_CLIENT_SECRET`)
 }

@@ -348,7 +348,7 @@ func TestSupplierSettlementNotificationPreflightFailsBeforeWrites(t *testing.T) 
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/vendors":
-			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings - Dural"}],"meta":{"pagination":{"total_pages":1}}}`))
+			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings"}],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expense_categories":
 			_, _ = w.Write([]byte(`{"data":[{"id":"category1","name":"Materials"}],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/projects" || r.URL.Path == "/api/v1/expenses" || r.URL.Path == "/api/v1/quotes"):
@@ -388,7 +388,7 @@ func TestSettlementCommitStopsBeforePaymentWhenPurchaseWriteFails(t *testing.T) 
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/vendors":
-			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings - Dural"}],"meta":{"pagination":{"total_pages":1}}}`))
+			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings"}],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expense_categories":
 			_, _ = w.Write([]byte(`{"data":[{"id":"category1","name":"Materials"}],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/projects" || r.URL.Path == "/api/v1/expenses" || r.URL.Path == "/api/v1/quotes"):

@@ -1,101 +1,223 @@
 package config
 
 import (
-	"bufio"
-	"errors"
 	"fmt"
+	"io"
+	"math"
+	"net/url"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
-	gobunnings "github.com/MickMake/GoBunnings"
+	"go.yaml.in/yaml/v3"
 )
 
-const DefaultConfigPath = "gotradie.conf"
+const (
+	configDirectory = ".GoTradie"
+	configFilename  = "config.yaml"
+)
 
 type Config struct {
-	InvoiceNinjaURL          string
-	InvoiceNinjaToken        string
-	BunningsEnv              gobunnings.Env
-	BunningsClientID         string
-	BunningsSecret           string
-	BunningsScopes           []string
-	Country                  gobunnings.CountryCode
-	LocationCode             string
-	ProductPrefix            string
-	BunningsCustom           int
-	ImageURLCustom           int
-	TaxName                  string
-	TaxRate                  float64
-	ERPNextCompany           string
-	ERPNextCustomerGroup     string
-	ERPNextTerritory         string
-	ERPNextItemGroup         string
-	ERPNextUOM               string
-	ERPNextSellingPriceList  string
-	ERPNextCurrency          string
-	ERPNextCountry           string
-	ERPNextIncomeAccount     string
-	ERPNextReceivableAccount string
-	ERPNextBankAccount       string
-	ERPNextModeOfPayment     string
-	ERPNextTaxTemplate       string
+	InvoiceNinja InvoiceNinjaConfig        `yaml:"invoice_ninja"`
+	Tax          TaxConfig                 `yaml:"tax"`
+	BAS          BASConfig                 `yaml:"bas"`
+	EOFY         EOFYConfig                `yaml:"eofy"`
+	Exports      ExportsConfig             `yaml:"exports"`
+	ProductSync  ProductSyncConfig         `yaml:"product_sync"`
+	Providers    map[string]ProviderConfig `yaml:"providers"`
 }
 
-func FromEnv() (Config, error) {
-	cfg := defaultsFromEnv()
-	return cfg, nil
+type InvoiceNinjaConfig struct {
+	URL   string `yaml:"url"`
+	Token string `yaml:"token"`
 }
 
-func FromEnvAndFile(path string) (Config, error) {
-	cfg := defaultsFromEnv()
-	if path == "" {
-		path = strings.TrimSpace(os.Getenv("GOTRADIE_CONFIG"))
+type TaxConfig struct {
+	Name string  `yaml:"name"`
+	Rate float64 `yaml:"rate"`
+}
+
+type BASConfig struct {
+	ReportingPeriod string               `yaml:"reporting_period"`
+	GSTBasis        string               `yaml:"gst_basis"`
+	Periods         map[string]BASPeriod `yaml:"periods"`
+}
+
+type BASPeriod struct {
+	BASBegin    string `yaml:"bas_begin"`
+	BASEnd      string `yaml:"bas_end"`
+	SubmitBegin string `yaml:"submit_begin"`
+	SubmitEnd   string `yaml:"submit_end"`
+}
+
+type EOFYConfig struct {
+	AccountingBasis               string  `yaml:"accounting_basis"`
+	InstantAssetWriteoffThreshold float64 `yaml:"instant_asset_writeoff_threshold"`
+}
+
+type ExportsConfig struct {
+	Directory *string `yaml:"directory"`
+}
+
+type ProductSyncConfig struct {
+	CustomFields ProductCustomFields `yaml:"custom_fields"`
+}
+
+type ProductCustomFields struct {
+	BunningsIN int `yaml:"bunnings_in"`
+	ImageURL   int `yaml:"image_url"`
+}
+
+type ProviderConfig struct {
+	Name         string         `yaml:"name"`
+	Type         string         `yaml:"type"`
+	Aliases      []string       `yaml:"aliases"`
+	Environment  string         `yaml:"environment"`
+	ClientID     string         `yaml:"client_id"`
+	ClientSecret string         `yaml:"client_secret"`
+	Scopes       []string       `yaml:"scopes"`
+	Country      string         `yaml:"country"`
+	Location     string         `yaml:"location"`
+	URL          string         `yaml:"url"`
+	Fields       ProviderFields `yaml:"fields"`
+}
+
+type ProviderFields struct {
+	Product     string `yaml:"product"`
+	Description string `yaml:"description"`
+	Cost        string `yaml:"cost"`
+	Price       string `yaml:"price"`
+	Quantity    string `yaml:"quantity"`
+	ImageURL    string `yaml:"image_url"`
+}
+
+func DefaultPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve home directory: %w", err)
 	}
-	if path == "" {
-		if _, err := os.Stat(DefaultConfigPath); err == nil {
-			path = DefaultConfigPath
-		}
+	if strings.TrimSpace(home) == "" {
+		return "", fmt.Errorf("resolve home directory: empty path")
 	}
-	if path == "" {
-		return cfg, nil
-	}
-	if err := applyFile(&cfg, path); err != nil {
+	return filepath.Join(home, configDirectory, configFilename), nil
+}
+
+func Load() (Config, error) {
+	path, err := DefaultPath()
+	if err != nil {
 		return Config{}, err
 	}
+	return loadFile(path, os.Getenv)
+}
+
+func loadFile(path string, getenv func(string) string) (Config, error) {
+	cfg := defaultConfig()
+	file, err := os.Open(path)
+	if err != nil {
+		return Config{}, fmt.Errorf("open mandatory config %s: %w", path, err)
+	}
+	defer file.Close()
+
+	decoder := yaml.NewDecoder(file)
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&cfg); err != nil {
+		if err == io.EOF {
+			return Config{}, fmt.Errorf("decode config %s: file is empty", path)
+		}
+		return Config{}, fmt.Errorf("decode config %s: %w", path, err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return Config{}, fmt.Errorf("decode config %s: multiple YAML documents are not supported", path)
+		}
+		return Config{}, fmt.Errorf("decode config %s: %w", path, err)
+	}
+
+	applyProviderDefaults(&cfg)
+	applySecretOverrides(&cfg, getenv)
+	if err := cfg.ValidateConfiguration(); err != nil {
+		return Config{}, fmt.Errorf("validate config %s: %w", path, err)
+	}
 	return cfg, nil
 }
 
-func defaultsFromEnv() Config {
+func defaultConfig() Config {
 	return Config{
-		InvoiceNinjaURL:          getenv("INVOICE_NINJA_URL", ""),
-		InvoiceNinjaToken:        getenv("INVOICE_NINJA_TOKEN", ""),
-		BunningsEnv:              gobunnings.Env(getenv("BUNNINGS_ENV", "live")),
-		BunningsClientID:         getenv("BUNNINGS_CLIENT_ID", ""),
-		BunningsSecret:           getenv("BUNNINGS_CLIENT_SECRET", ""),
-		BunningsScopes:           fields(getenv("BUNNINGS_SCOPES", "")),
-		Country:                  gobunnings.CountryCode(getenv("BUNNINGS_COUNTRY", "AU")),
-		LocationCode:             getenv("BUNNINGS_LOCATION", ""),
-		ProductPrefix:            getenv("PRODUCT_PREFIX", "BUNNINGS-"),
-		BunningsCustom:           getenvInt("BUNNINGS_IN_CUSTOM_FIELD", 1),
-		ImageURLCustom:           getenvInt("BUNNINGS_IMAGE_CUSTOM_FIELD", 2),
-		TaxName:                  getenv("TAX_NAME", "GST"),
-		TaxRate:                  getenvFloat("TAX_RATE", 10),
-		ERPNextCompany:           getenv("ERPNEXT_COMPANY", ""),
-		ERPNextCustomerGroup:     getenv("ERPNEXT_CUSTOMER_GROUP", ""),
-		ERPNextTerritory:         getenv("ERPNEXT_TERRITORY", ""),
-		ERPNextItemGroup:         getenv("ERPNEXT_ITEM_GROUP", ""),
-		ERPNextUOM:               getenv("ERPNEXT_UOM", "Nos"),
-		ERPNextSellingPriceList:  getenv("ERPNEXT_SELLING_PRICE_LIST", "Standard Selling"),
-		ERPNextCurrency:          getenv("ERPNEXT_CURRENCY", ""),
-		ERPNextCountry:           getenv("ERPNEXT_COUNTRY", ""),
-		ERPNextIncomeAccount:     getenv("ERPNEXT_INCOME_ACCOUNT", ""),
-		ERPNextReceivableAccount: getenv("ERPNEXT_RECEIVABLE_ACCOUNT", ""),
-		ERPNextBankAccount:       getenv("ERPNEXT_BANK_ACCOUNT", ""),
-		ERPNextModeOfPayment:     getenv("ERPNEXT_MODE_OF_PAYMENT", ""),
-		ERPNextTaxTemplate:       getenv("ERPNEXT_TAX_TEMPLATE", ""),
+		Tax: TaxConfig{Name: "GST", Rate: 10},
+		ProductSync: ProductSyncConfig{CustomFields: ProductCustomFields{
+			BunningsIN: 1,
+			ImageURL:   2,
+		}},
+		Providers: make(map[string]ProviderConfig),
 	}
+}
+
+func applyProviderDefaults(cfg *Config) {
+	if cfg.Providers == nil {
+		cfg.Providers = make(map[string]ProviderConfig)
+	}
+	bunnings, ok := cfg.Providers["bunnings"]
+	if !ok {
+		return
+	}
+	if strings.TrimSpace(bunnings.Environment) == "" {
+		bunnings.Environment = "live"
+	}
+	if strings.TrimSpace(bunnings.Country) == "" {
+		bunnings.Country = "AU"
+	}
+	cfg.Providers["bunnings"] = bunnings
+}
+
+func applySecretOverrides(cfg *Config, getenv func(string) string) {
+	if value := strings.TrimSpace(getenv("INVOICE_NINJA_TOKEN")); value != "" {
+		cfg.InvoiceNinja.Token = value
+	}
+	if value := strings.TrimSpace(getenv("BUNNINGS_CLIENT_SECRET")); value != "" {
+		bunnings, ok := cfg.Providers["bunnings"]
+		if ok {
+			bunnings.ClientSecret = value
+			cfg.Providers["bunnings"] = bunnings
+		}
+	}
+}
+
+func (c Config) ValidateConfiguration() error {
+	if err := validateHTTPURL("invoice_ninja.url", c.InvoiceNinja.URL, false); err != nil {
+		return err
+	}
+	if strings.TrimSpace(c.Tax.Name) == "" {
+		return fmt.Errorf("tax.name must not be blank")
+	}
+	if math.IsNaN(c.Tax.Rate) || math.IsInf(c.Tax.Rate, 0) || c.Tax.Rate < 0 {
+		return fmt.Errorf("tax.rate must be a finite non-negative number")
+	}
+	if err := validateBAS(c.BAS); err != nil {
+		return err
+	}
+	switch c.EOFY.AccountingBasis {
+	case "cash", "accrual":
+	default:
+		if strings.TrimSpace(c.EOFY.AccountingBasis) == "" {
+			return fmt.Errorf("eofy.accounting_basis is required")
+		}
+		return fmt.Errorf("eofy.accounting_basis must be cash or accrual")
+	}
+	threshold := c.EOFY.InstantAssetWriteoffThreshold
+	if math.IsNaN(threshold) || math.IsInf(threshold, 0) || threshold <= 0 {
+		return fmt.Errorf("eofy.instant_asset_writeoff_threshold must be a finite number greater than zero")
+	}
+	if c.Exports.Directory != nil && strings.TrimSpace(*c.Exports.Directory) == "" {
+		return fmt.Errorf("exports.directory must not be blank when present")
+	}
+	if err := validateProductSync(c.ProductSync); err != nil {
+		return err
+	}
+	return validateProviders(c.Providers)
 }
 
 func (c Config) Validate() error {
@@ -105,36 +227,24 @@ func (c Config) Validate() error {
 	return c.ValidateBunnings()
 }
 
-func (c Config) ValidateBunnings() error {
-	var missing []string
-	if c.BunningsClientID == "" {
-		missing = append(missing, "BUNNINGS_CLIENT_ID")
-	}
-	if c.BunningsSecret == "" {
-		missing = append(missing, "BUNNINGS_CLIENT_SECRET")
-	}
-	if c.BunningsEnv != gobunnings.EnvLive && c.BunningsEnv != gobunnings.EnvTest && c.BunningsEnv != gobunnings.EnvSandbox {
-		return fmt.Errorf("BUNNINGS_ENV must be live, test, or sandbox")
-	}
-	if c.Country != gobunnings.CountryAU && c.Country != gobunnings.CountryNZ {
-		return fmt.Errorf("BUNNINGS_COUNTRY must be AU or NZ")
-	}
-	if len(missing) > 0 {
-		return fmt.Errorf("missing required configuration: %s", strings.Join(missing, ", "))
-	}
-	return nil
-}
-
 func (c Config) ValidateInvoiceNinja() error {
+	if strings.TrimSpace(c.InvoiceNinja.Token) == "" {
+		return fmt.Errorf("missing required configuration: invoice_ninja.token or INVOICE_NINJA_TOKEN")
+	}
+	return nil
+}
+
+func (c Config) ValidateBunnings() error {
+	provider, ok := c.Providers["bunnings"]
+	if !ok {
+		return fmt.Errorf("missing required configuration: providers.bunnings")
+	}
 	var missing []string
-	if c.InvoiceNinjaToken == "" {
-		missing = append(missing, "INVOICE_NINJA_TOKEN")
+	if strings.TrimSpace(provider.ClientID) == "" {
+		missing = append(missing, "providers.bunnings.client_id")
 	}
-	if c.BunningsCustom < 1 || c.BunningsCustom > 4 || c.ImageURLCustom < 1 || c.ImageURLCustom > 4 {
-		return errors.New("custom field indexes must be between 1 and 4")
-	}
-	if c.BunningsCustom == c.ImageURLCustom {
-		return errors.New("BUNNINGS_IN_CUSTOM_FIELD and BUNNINGS_IMAGE_CUSTOM_FIELD must be different")
+	if strings.TrimSpace(provider.ClientSecret) == "" {
+		missing = append(missing, "providers.bunnings.client_secret or BUNNINGS_CLIENT_SECRET")
 	}
 	if len(missing) > 0 {
 		return fmt.Errorf("missing required configuration: %s", strings.Join(missing, ", "))
@@ -142,179 +252,332 @@ func (c Config) ValidateInvoiceNinja() error {
 	return nil
 }
 
-func (c Config) ValidateERPNextExport() error {
-	required := map[string]string{
-		"ERPNEXT_COMPANY":            c.ERPNextCompany,
-		"ERPNEXT_CUSTOMER_GROUP":     c.ERPNextCustomerGroup,
-		"ERPNEXT_TERRITORY":          c.ERPNextTerritory,
-		"ERPNEXT_ITEM_GROUP":         c.ERPNextItemGroup,
-		"ERPNEXT_CURRENCY":           c.ERPNextCurrency,
-		"ERPNEXT_COUNTRY":            c.ERPNextCountry,
-		"ERPNEXT_INCOME_ACCOUNT":     c.ERPNextIncomeAccount,
-		"ERPNEXT_RECEIVABLE_ACCOUNT": c.ERPNextReceivableAccount,
-		"ERPNEXT_BANK_ACCOUNT":       c.ERPNextBankAccount,
-		"ERPNEXT_MODE_OF_PAYMENT":    c.ERPNextModeOfPayment,
+func (c Config) CanonicalProviderName(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
 	}
-	var missing []string
-	for key, value := range required {
-		if strings.TrimSpace(value) == "" {
-			missing = append(missing, key)
+	match := strings.ToLower(value)
+	for _, provider := range c.Providers {
+		name := strings.TrimSpace(provider.Name)
+		if strings.ToLower(name) == match {
+			return name
+		}
+		for _, alias := range provider.Aliases {
+			if strings.ToLower(strings.TrimSpace(alias)) == match {
+				return name
+			}
 		}
 	}
-	sort.Strings(missing)
-	if len(missing) > 0 {
-		return fmt.Errorf("missing required ERPNext export configuration: %s", strings.Join(missing, ", "))
+	return value
+}
+
+func validateProductSync(sync ProductSyncConfig) error {
+	indexes := map[string]int{
+		"product_sync.custom_fields.bunnings_in": sync.CustomFields.BunningsIN,
+		"product_sync.custom_fields.image_url":   sync.CustomFields.ImageURL,
 	}
-	if strings.TrimSpace(c.ERPNextUOM) == "" {
-		return errors.New("ERPNEXT_UOM must not be blank")
-	}
-	if strings.TrimSpace(c.ERPNextSellingPriceList) == "" {
-		return errors.New("ERPNEXT_SELLING_PRICE_LIST must not be blank")
+	seen := make(map[int]string, len(indexes))
+	for name, index := range indexes {
+		if index < 1 || index > 4 {
+			return fmt.Errorf("%s must be between 1 and 4", name)
+		}
+		if previous, exists := seen[index]; exists {
+			return fmt.Errorf("%s and %s must use different custom fields", previous, name)
+		}
+		seen[index] = name
 	}
 	return nil
 }
 
-func applyFile(cfg *Config, path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return fmt.Errorf("open config %s: %w", path, err)
+func validateProviders(providers map[string]ProviderConfig) error {
+	aliases := make(map[string]string)
+	ids := make([]string, 0, len(providers))
+	for id := range providers {
+		ids = append(ids, id)
 	}
-	defer f.Close()
-	s := bufio.NewScanner(f)
-	lineNo := 0
-	for s.Scan() {
-		lineNo++
-		line := strings.TrimSpace(s.Text())
-		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
-			continue
+	sort.Strings(ids)
+
+	for _, id := range ids {
+		provider := providers[id]
+		if strings.TrimSpace(id) == "" {
+			return fmt.Errorf("provider identifier must not be blank")
 		}
-		key, value, ok := strings.Cut(line, "=")
-		if !ok {
-			return fmt.Errorf("config %s:%d: expected key=value", path, lineNo)
+		name := strings.TrimSpace(provider.Name)
+		if name == "" {
+			return fmt.Errorf("providers.%s.name is required", id)
 		}
-		key = normalizeKey(key)
-		value = strings.TrimSpace(value)
-		value = strings.Trim(value, "\"'")
-		if err := set(cfg, key, value); err != nil {
-			return fmt.Errorf("config %s:%d: %w", path, lineNo, err)
+		switch provider.Type {
+		case "api", "csv":
+		default:
+			if strings.TrimSpace(provider.Type) == "" {
+				return fmt.Errorf("providers.%s.type is required", id)
+			}
+			return fmt.Errorf("providers.%s.type must be api or csv", id)
 		}
-	}
-	if err := s.Err(); err != nil {
-		return fmt.Errorf("read config %s: %w", path, err)
+		if id == "bunnings" {
+			if provider.Type != "api" {
+				return fmt.Errorf("providers.bunnings.type must be api")
+			}
+			switch provider.Environment {
+			case "live", "test", "sandbox":
+			default:
+				return fmt.Errorf("providers.bunnings.environment must be live, test, or sandbox")
+			}
+			switch provider.Country {
+			case "AU", "NZ":
+			default:
+				return fmt.Errorf("providers.bunnings.country must be AU or NZ")
+			}
+		} else if strings.TrimSpace(provider.Fields.Product) == "" {
+			return fmt.Errorf("providers.%s.fields.product is required for a configurable syncing provider", id)
+		}
+		if provider.Type == "csv" {
+			if err := validateHTTPURL("providers."+id+".url", provider.URL, true); err != nil {
+				return err
+			}
+		} else if err := validateHTTPURL("providers."+id+".url", provider.URL, false); err != nil {
+			return err
+		}
+
+		for _, alias := range append([]string{name}, provider.Aliases...) {
+			alias = strings.TrimSpace(alias)
+			if alias == "" {
+				return fmt.Errorf("providers.%s.aliases must not contain blank values", id)
+			}
+			key := strings.ToLower(alias)
+			if owner, exists := aliases[key]; exists && owner != id {
+				return fmt.Errorf("provider name or alias %q is ambiguous between %q and %q", alias, owner, id)
+			}
+			aliases[key] = id
+		}
 	}
 	return nil
 }
 
-func normalizeKey(k string) string {
-	k = strings.TrimSpace(k)
-	k = strings.ReplaceAll(k, "-", "_")
-	k = strings.ReplaceAll(k, ".", "_")
-	return strings.ToUpper(k)
+func validateHTTPURL(name, value string, required bool) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		if required {
+			return fmt.Errorf("%s is required", name)
+		}
+		return nil
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+		return fmt.Errorf("%s must be an absolute http or https URL", name)
+	}
+	return nil
 }
 
-func set(cfg *Config, key, value string) error {
-	switch key {
-	case "INVOICE_NINJA_URL":
-		cfg.InvoiceNinjaURL = value
-	case "INVOICE_NINJA_TOKEN":
-		cfg.InvoiceNinjaToken = value
-	case "BUNNINGS_ENV":
-		cfg.BunningsEnv = gobunnings.Env(value)
-	case "BUNNINGS_CLIENT_ID":
-		cfg.BunningsClientID = value
-	case "BUNNINGS_CLIENT_SECRET":
-		cfg.BunningsSecret = value
-	case "BUNNINGS_SCOPES":
-		cfg.BunningsScopes = fields(value)
-	case "BUNNINGS_COUNTRY":
-		cfg.Country = gobunnings.CountryCode(value)
-	case "BUNNINGS_LOCATION":
-		cfg.LocationCode = value
-	case "PRODUCT_PREFIX":
-		cfg.ProductPrefix = value
-	case "BUNNINGS_IN_CUSTOM_FIELD":
-		n, err := strconv.Atoi(value)
-		if err != nil {
-			return err
-		}
-		cfg.BunningsCustom = n
-	case "BUNNINGS_IMAGE_CUSTOM_FIELD":
-		n, err := strconv.Atoi(value)
-		if err != nil {
-			return err
-		}
-		cfg.ImageURLCustom = n
-	case "TAX_NAME":
-		cfg.TaxName = value
-	case "TAX_RATE":
-		n, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			return err
-		}
-		cfg.TaxRate = n
-	case "ERPNEXT_COMPANY":
-		cfg.ERPNextCompany = value
-	case "ERPNEXT_CUSTOMER_GROUP":
-		cfg.ERPNextCustomerGroup = value
-	case "ERPNEXT_TERRITORY":
-		cfg.ERPNextTerritory = value
-	case "ERPNEXT_ITEM_GROUP":
-		cfg.ERPNextItemGroup = value
-	case "ERPNEXT_UOM":
-		cfg.ERPNextUOM = value
-	case "ERPNEXT_SELLING_PRICE_LIST":
-		cfg.ERPNextSellingPriceList = value
-	case "ERPNEXT_CURRENCY":
-		cfg.ERPNextCurrency = value
-	case "ERPNEXT_COUNTRY":
-		cfg.ERPNextCountry = value
-	case "ERPNEXT_INCOME_ACCOUNT":
-		cfg.ERPNextIncomeAccount = value
-	case "ERPNEXT_RECEIVABLE_ACCOUNT":
-		cfg.ERPNextReceivableAccount = value
-	case "ERPNEXT_BANK_ACCOUNT":
-		cfg.ERPNextBankAccount = value
-	case "ERPNEXT_MODE_OF_PAYMENT":
-		cfg.ERPNextModeOfPayment = value
-	case "ERPNEXT_TAX_TEMPLATE":
-		cfg.ERPNextTaxTemplate = value
+type cadenceDefinition struct {
+	names  []string
+	ranges map[string][2]string
+}
+
+func validateBAS(cfg BASConfig) error {
+	var definition cadenceDefinition
+	switch cfg.ReportingPeriod {
+	case "monthly":
+		definition = monthlyCadence()
+	case "quarterly":
+		definition = quarterlyCadence()
+	case "yearly":
+		definition = yearlyCadence()
 	default:
-		return fmt.Errorf("unknown key %q", key)
+		if strings.TrimSpace(cfg.ReportingPeriod) == "" {
+			return fmt.Errorf("bas.reporting_period is required")
+		}
+		return fmt.Errorf("bas.reporting_period must be monthly, quarterly, or yearly")
+	}
+	switch cfg.GSTBasis {
+	case "cash", "accrual":
+	default:
+		if strings.TrimSpace(cfg.GSTBasis) == "" {
+			return fmt.Errorf("bas.gst_basis is required")
+		}
+		return fmt.Errorf("bas.gst_basis must be cash or accrual")
+	}
+	if len(cfg.Periods) == 0 {
+		return fmt.Errorf("bas.periods is required for %s reporting", cfg.ReportingPeriod)
+	}
+	if len(cfg.Periods) != len(definition.names) {
+		return fmt.Errorf("bas.periods for %s reporting must contain exactly %s", cfg.ReportingPeriod, strings.Join(definition.names, ", "))
+	}
+	for name := range cfg.Periods {
+		if _, ok := definition.ranges[name]; !ok {
+			return fmt.Errorf("bas.periods contains unexpected %s period %q", cfg.ReportingPeriod, name)
+		}
+	}
+
+	var previousEnd time.Time
+	for i, name := range definition.names {
+		period, ok := cfg.Periods[name]
+		if !ok {
+			return fmt.Errorf("bas.periods.%s is required for %s reporting", name, cfg.ReportingPeriod)
+		}
+		expected := definition.ranges[name]
+		if period.BASBegin != expected[0] || period.BASEnd != expected[1] {
+			return fmt.Errorf("bas.periods.%s must cover %s through %s for %s reporting", name, expected[0], expected[1], cfg.ReportingPeriod)
+		}
+		start, err := financialYearDate(period.BASBegin, false)
+		if err != nil {
+			return fmt.Errorf("bas.periods.%s.bas_begin: %w", name, err)
+		}
+		end, err := financialYearDate(period.BASEnd, true)
+		if err != nil {
+			return fmt.Errorf("bas.periods.%s.bas_end: %w", name, err)
+		}
+		if end.Before(start) {
+			return fmt.Errorf("bas.periods.%s reporting range ends before it begins", name)
+		}
+		if i == 0 {
+			if start.Month() != time.July || start.Day() != 1 {
+				return fmt.Errorf("bas.periods must begin on 07-01")
+			}
+		} else if !start.Equal(previousEnd.AddDate(0, 0, 1)) {
+			return fmt.Errorf("bas.periods.%s is not contiguous with the preceding period", name)
+		}
+		previousEnd = end
+
+		submitBegin, err := dateAfter(period.SubmitBegin, end)
+		if err != nil {
+			return fmt.Errorf("bas.periods.%s.submit_begin: %w", name, err)
+		}
+		submitEnd, err := dateOnOrAfter(period.SubmitEnd, submitBegin)
+		if err != nil {
+			return fmt.Errorf("bas.periods.%s.submit_end: %w", name, err)
+		}
+		if !submitBegin.Equal(end.AddDate(0, 0, 1)) {
+			return fmt.Errorf("bas.periods.%s submission window must begin on the day after the reporting period", name)
+		}
+		if submitEnd.Before(submitBegin) {
+			return fmt.Errorf("bas.periods.%s submission window ends before it begins", name)
+		}
+	}
+	if previousEnd.Month() != time.June || previousEnd.Day() != 30 {
+		return fmt.Errorf("bas.periods must end on 06-30")
 	}
 	return nil
 }
 
-func getenv(k, def string) string {
-	if v := strings.TrimSpace(os.Getenv(k)); v != "" {
-		return v
+func quarterlyCadence() cadenceDefinition {
+	return cadenceDefinition{
+		names: []string{"Q1", "Q2", "Q3", "Q4"},
+		ranges: map[string][2]string{
+			"Q1": {"07-01", "09-30"},
+			"Q2": {"10-01", "12-31"},
+			"Q3": {"01-01", "03-31"},
+			"Q4": {"04-01", "06-30"},
+		},
 	}
-	return def
 }
 
-func getenvInt(k string, def int) int {
-	v := strings.TrimSpace(os.Getenv(k))
-	if v == "" {
-		return def
+func monthlyCadence() cadenceDefinition {
+	names := []string{"Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar", "Apr", "May", "Jun"}
+	ranges := make(map[string][2]string, len(names))
+	for i, name := range names {
+		month := ((i + 6) % 12) + 1
+		ranges[name] = [2]string{fmt.Sprintf("%02d-01", month), fmt.Sprintf("%02d-last", month)}
 	}
-	n, err := strconv.Atoi(v)
+	return cadenceDefinition{names: names, ranges: ranges}
+}
+
+func yearlyCadence() cadenceDefinition {
+	return cadenceDefinition{
+		names:  []string{"FY"},
+		ranges: map[string][2]string{"FY": {"07-01", "06-30"}},
+	}
+}
+
+func financialYearDate(value string, allowLast bool) (time.Time, error) {
+	month, day, last, err := parseMonthDay(value, allowLast)
 	if err != nil {
-		return def
+		return time.Time{}, err
 	}
-	return n
+	year := 2001
+	if month >= int(time.July) {
+		year = 2000
+	}
+	if last {
+		day = time.Date(year, time.Month(month)+1, 0, 0, 0, 0, 0, time.UTC).Day()
+	}
+	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC), nil
 }
 
-func getenvFloat(k string, def float64) float64 {
-	v := strings.TrimSpace(os.Getenv(k))
-	if v == "" {
-		return def
-	}
-	n, err := strconv.ParseFloat(v, 64)
+func dateAfter(value string, after time.Time) (time.Time, error) {
+	date, err := templateDate(value, after.Year())
 	if err != nil {
-		return def
+		return time.Time{}, err
 	}
-	return n
+	if !date.After(after) {
+		date, err = templateDate(value, after.Year()+1)
+		if err != nil {
+			return time.Time{}, err
+		}
+	}
+	return date, nil
 }
 
-func fields(v string) []string {
-	return strings.Fields(strings.ReplaceAll(v, ",", " "))
+func dateOnOrAfter(value string, start time.Time) (time.Time, error) {
+	date, err := templateDate(value, start.Year())
+	if err != nil {
+		return time.Time{}, err
+	}
+	if date.Before(start) {
+		date, err = templateDate(value, start.Year()+1)
+		if err != nil {
+			return time.Time{}, err
+		}
+	}
+	return date, nil
+}
+
+func templateDate(value string, year int) (time.Time, error) {
+	month, day, _, err := parseMonthDay(value, false)
+	if err != nil {
+		return time.Time{}, err
+	}
+	date := time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+	if int(date.Month()) != month || date.Day() != day {
+		return time.Time{}, fmt.Errorf("must be a valid MM-DD calendar date")
+	}
+	return date, nil
+}
+
+func parseMonthDay(value string, allowLast bool) (month, day int, last bool, err error) {
+	value = strings.TrimSpace(value)
+	if len(value) < 5 || len(value) > 7 || value[2] != '-' {
+		return 0, 0, false, fmt.Errorf("must use MM-DD%s", lastSuffix(allowLast))
+	}
+	month, err = strconv.Atoi(value[:2])
+	if err != nil || month < 1 || month > 12 {
+		return 0, 0, false, fmt.Errorf("must use a valid month in MM-DD%s", lastSuffix(allowLast))
+	}
+	dayText := value[3:]
+	if dayText == "last" {
+		if !allowLast {
+			return 0, 0, false, fmt.Errorf("MM-last is only allowed for bas_end")
+		}
+		return month, 0, true, nil
+	}
+	if len(dayText) != 2 {
+		return 0, 0, false, fmt.Errorf("must use MM-DD%s", lastSuffix(allowLast))
+	}
+	day, err = strconv.Atoi(dayText)
+	if err != nil || day < 1 {
+		return 0, 0, false, fmt.Errorf("must use a valid day in MM-DD%s", lastSuffix(allowLast))
+	}
+	date := time.Date(2001, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+	if int(date.Month()) != month || date.Day() != day {
+		return 0, 0, false, fmt.Errorf("must be a valid MM-DD calendar date")
+	}
+	return month, day, false, nil
+}
+
+func lastSuffix(allow bool) string {
+	if allow {
+		return " or MM-last"
+	}
+	return ""
 }

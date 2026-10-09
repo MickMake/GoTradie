@@ -356,14 +356,36 @@ func TestExpenseVendorName(t *testing.T) {
 		store    string
 		want     string
 	}{
-		{"Bunnings", "Dural", "Bunnings - Dural"},
-		{"DigitalOcean", "Online", "DigitalOcean - Online"},
+		{"Bunnings", "Dural", "Bunnings"},
+		{"DigitalOcean", "Online", "DigitalOcean"},
 		{"Acme", "", "Acme"},
 	}
 	for _, tt := range tests {
 		if got := expenseVendorName(tt.supplier, tt.store); got != tt.want {
 			t.Fatalf("expenseVendorName(%q, %q) = %q; want %q", tt.supplier, tt.store, got, tt.want)
 		}
+	}
+}
+
+func TestPrepareExpenseImportRowUsesCanonicalProviderWithoutStoreInVendor(t *testing.T) {
+	idx := headerIndex(strings.Split("Import ID,Date,Supplier,Store,Document Type,Payment Type,Tax Treatment,Category,Option,Total Inc GST,Business %,Business Amount,Business GST", ","))
+	state := &expenseImportState{
+		canonicalProviderName: func(value string) string {
+			if strings.EqualFold(strings.TrimSpace(value), "Bunnings Warehouse") {
+				return "Bunnings"
+			}
+			return strings.TrimSpace(value)
+		},
+	}
+	rec := strings.Split("EXP-1,1/10/2026,Bunnings Warehouse,Dural,Invoice,,GST,Materials,Consumables,110,100,110,10", ",")
+
+	row := prepareExpenseImportRow(state, nil, idx, rec, 2)
+
+	if row.err != nil {
+		t.Fatal(row.err)
+	}
+	if row.supplier != "Bunnings" || row.vendorName != "Bunnings" {
+		t.Fatalf("supplier=%q vendor=%q; want canonical Bunnings", row.supplier, row.vendorName)
 	}
 }
 
@@ -778,7 +800,7 @@ func TestImportExpenseCreatesProjectFromNumericMasterQuote(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/vendors":
-			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings - Dural"}],"meta":{"pagination":{"total_pages":1}}}`))
+			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings"}],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expense_categories":
 			_, _ = w.Write([]byte(`{"data":[{"id":"category1","name":"Materials"}],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects":
@@ -912,7 +934,7 @@ func TestImportExistingUnpaidPurchaseClearsLegacyPaidState(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/vendors":
-			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings - Dural"}],"meta":{"pagination":{"total_pages":1}}}`))
+			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings"}],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expense_categories":
 			_, _ = w.Write([]byte(`{"data":[{"id":"category1","name":"Materials"}],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects":
@@ -1048,7 +1070,7 @@ func TestNegativeSupplierReturnCreatesExpenseWithoutBankTransaction(t *testing.T
 		w.Header().Set("Content-Type", "application/json")
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/vendors":
-			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings - Dural"}],"meta":{"pagination":{"total_pages":1}}}`))
+			_, _ = w.Write([]byte(`{"data":[{"id":"vendor1","name":"Bunnings"}],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/expense_categories":
 			_, _ = w.Write([]byte(`{"data":[{"id":"category1","name":"Materials"}],"meta":{"pagination":{"total_pages":1}}}`))
 		case r.Method == http.MethodGet && (r.URL.Path == "/api/v1/projects" || r.URL.Path == "/api/v1/expenses" || r.URL.Path == "/api/v1/quotes"):
@@ -1119,7 +1141,7 @@ func TestExpensePreviewTracksPlannedDependencies(t *testing.T) {
 	secondRow := prepareExpenseImportRow(state, nil, idx, row("INV-2"), 3)
 	first := service.importExpenseRow(context.Background(), state, idx, firstRow, true, false)
 	second := service.importExpenseRow(context.Background(), state, idx, secondRow, true, false)
-	for _, want := range []string{"vendor:create:Bunnings - Dural", "category:create:Materials", "project:create:1234"} {
+	for _, want := range []string{"vendor:create:Bunnings", "category:create:Materials", "project:create:1234"} {
 		if !containsChange(first.Changes, want) {
 			t.Fatalf("first preview changes %v do not contain %q", first.Changes, want)
 		}

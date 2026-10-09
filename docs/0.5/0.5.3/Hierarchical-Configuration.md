@@ -2,177 +2,47 @@
 
 ## Status
 
-**Planned — implementation-ready design**
+**Implemented on `v0.5.3-hierarchical-config` — pending review and merge**
 
 ## Purpose
 
-Replace the current flat `key=value` configuration with structured hierarchical YAML.
+Replace the flat `key=value` configuration with one strict hierarchical YAML file while preserving current Invoice Ninja and Bunnings behaviour. This is a configuration migration, not the v0.5.7 Product identity migration.
 
-The implementation should remain deliberately small.
+## Configuration source and precedence
 
-## Goals
-
-- Move configuration to YAML.
-- Use a single mandatory configuration file at `~/.GoTradie/config.yaml`.
-- Allow environment-variable overrides only for explicitly supported secrets.
-- Represent related settings hierarchically.
-- Provide clean homes for BAS, EOFY, Product Sync and provider configuration.
-- Keep configuration declarative.
-- Avoid creating a programmable configuration language.
-- Do not preserve legacy flat configuration compatibility.
-
-## Configuration precedence
-
-From v0.5.3 onward:
+Operational commands read:
 
 ```text
-defaults
+~/.GoTradie/config.yaml
+```
+
+The file is mandatory. Precedence is:
+
+```text
+documented defaults
   ↓
 ~/.GoTradie/config.yaml
   ↓
 explicitly supported secret environment variables
 ```
 
-The configuration file is mandatory.
-
-If `~/.GoTradie/config.yaml` is missing, configuration loading fails.
-
-Environment-variable support is opt-in per secret field. There is no generic hierarchical environment-variable mapping.
-
-Environment variables must not override structural configuration such as BAS reporting period, GST basis, provider mappings, URLs, filenames, or field mappings.
-
-## Required BAS/GST configuration
-
-BAS reporting period and GST basis materially affect accounting output and must always be explicit in the configuration file.
-
-Required shape:
-
-```yaml
-bas:
-  reporting_period: quarterly
-  gst_basis: cash
-
-  periods:
-    Q1:
-      bas_begin: "07-01"
-      bas_end: "09-30"
-      submit_begin: "10-01"
-      submit_end: "10-28"
-
-    Q2:
-      bas_begin: "10-01"
-      bas_end: "12-31"
-      submit_begin: "01-01"
-      submit_end: "02-28"
-
-    Q3:
-      bas_begin: "01-01"
-      bas_end: "03-31"
-      submit_begin: "04-01"
-      submit_end: "04-28"
-
-    Q4:
-      bas_begin: "04-01"
-      bas_end: "06-30"
-      submit_begin: "07-01"
-      submit_end: "07-28"
-```
-
-Supported BAS reporting period values:
+The only supported environment overrides are:
 
 ```text
-monthly
-quarterly
-yearly
+INVOICE_NINJA_TOKEN
+BUNNINGS_CLIENT_SECRET
 ```
 
-Supported GST basis values:
+Legacy flat configuration, `--config`, `GOTRADIE_CONFIG`, automatic `./gotradie.conf` discovery and generic environment overrides are removed. There is no compatibility framework.
 
-```text
-cash
-accrual
-```
+YAML is decoded with `go.yaml.in/yaml/v3` and strict unknown-field validation. Malformed YAML, duplicate fields, unknown fields, empty files and multiple YAML documents fail explicitly.
 
-## Required EOFY accounting basis
-
-EOFY income/expense recognition is configured independently of BAS GST timing.
-
-Required shape:
-
-```yaml
-eofy:
-  accounting_basis: cash
-  instant_asset_writeoff_threshold: 20000
-```
-
-Supported `accounting_basis` values:
-
-```text
-cash
-accrual
-```
-
-`eofy.accounting_basis` is the sole EOFY recognition-basis setting.
-
-It must not be inferred from, copied from, or otherwise coupled to:
-
-```text
-bas.gst_basis
-```
-
-The two settings answer different questions:
-
-```text
-bas.gst_basis
-    -> GST timing for BAS
-
-eofy.accounting_basis
-    -> income/expense recognition for EOFY
-```
-
-EOFY recognition must be deterministic from `eofy.accounting_basis`.
-
-`eofy.instant_asset_writeoff_threshold` is the instant asset write-off threshold to apply for the selected EOFY reporting year.
-
-The threshold is year-dependent tax data. Do not treat the configured number as a timeless universal threshold or hard-code one into reporting logic.
-
-For threshold testing, use the asset's relevant cost reduced only by GST input tax credits the business is entitled to claim. Do not reduce the threshold-test cost by private/non-business use.
-
-Business-use percentage affects the deductible/review amount after the threshold test; it does not reduce the asset cost used to determine whether the asset is below the threshold.
-
-Missing or unsupported accounting-significant values are configuration errors. GoTradie must not silently fall back to another BAS reporting period, GST basis, EOFY accounting basis, or asset threshold.
-
-## Optional export directory
-
-Generated report exports may use an optional default directory:
-
-```yaml
-exports:
-  directory: ~/Documents/GoTradie
-```
-
-`exports.directory` is optional.
-
-If it is not configured, generated BAS, EOFY and Financial exports are written to the current working directory.
-
-The global output-resolution order is:
-
-```text
-explicit output path, if supported by the command
-    ↓
-exports.directory, if configured
-    ↓
-current working directory
-```
-
-Do not make an export directory mandatory.
-
-## Proposed structure
+## Authoritative schema
 
 ```yaml
 invoice_ninja:
-  url: ...
-  token: ...
+  url: https://your.invoice-ninja.example
+  token: ""
 
 tax:
   name: GST
@@ -181,6 +51,27 @@ tax:
 bas:
   reporting_period: quarterly
   gst_basis: cash
+  periods:
+    Q1:
+      bas_begin: "07-01"
+      bas_end: "09-30"
+      submit_begin: "10-01"
+      submit_end: "10-28"
+    Q2:
+      bas_begin: "10-01"
+      bas_end: "12-31"
+      submit_begin: "01-01"
+      submit_end: "02-28"
+    Q3:
+      bas_begin: "01-01"
+      bas_end: "03-31"
+      submit_begin: "04-01"
+      submit_end: "04-28"
+    Q4:
+      bas_begin: "04-01"
+      bas_end: "06-30"
+      submit_begin: "07-01"
+      submit_end: "07-28"
 
 eofy:
   accounting_basis: cash
@@ -188,6 +79,11 @@ eofy:
 
 exports:
   directory: ~/Documents/GoTradie
+
+product_sync:
+  custom_fields:
+    bunnings_in: 1
+    image_url: 2
 
 providers:
   bunnings:
@@ -197,6 +93,12 @@ providers:
       - Bunnings
       - Bunnings Warehouse
       - Bunnings Trade
+    environment: live
+    client_id: ""
+    client_secret: ""
+    scopes: []
+    country: AU
+    location: ""
 
   nst:
     name: North Shore Timber
@@ -209,103 +111,143 @@ providers:
       product: PartNo
       description: Description
       cost: TradePrice
-      price: Price
+      price: RetailPrice
       quantity: PackQuantity
       image_url: ImageURL
 ```
 
-## BAS ATO due-date verification
+`exports.directory` is optional. Generated reports use an explicit command path first, then `exports.directory`, then the current working directory.
 
-The BAS default-selection workflow is date-driven and depends on ATO BAS period and lodgement due-date rules.
+`invoice_ninja.url` is optional and retains the Invoice Ninja client default when absent. Tokens and Bunnings credentials are command-specific requirements, so unrelated commands do not require every integration credential.
 
-## Secrets
-
-Secrets may exist in YAML, but explicitly supported environment variables may override them.
-
-Examples:
+Defaults retained from existing behaviour are:
 
 ```text
-INVOICE_NINJA_TOKEN
-BUNNINGS_CLIENT_SECRET
+tax.name                                      GST
+tax.rate                                      10
+product_sync.custom_fields.bunnings_in        1
+product_sync.custom_fields.image_url          2
+providers.bunnings.environment                live
+providers.bunnings.country                    AU
 ```
 
-Environment overrides are for secret/security-sensitive values only.
+## Old-to-new field mapping
 
-Do not add general environment overrides for ordinary configuration values such as URLs, BAS reporting period, GST basis, EOFY accounting basis, provider mappings, filenames, or field mappings.
+| Legacy field/environment variable | v0.5.3 YAML field | Secret override |
+|---|---|---|
+| `INVOICE_NINJA_URL` | `invoice_ninja.url` | none |
+| `INVOICE_NINJA_TOKEN` | `invoice_ninja.token` | `INVOICE_NINJA_TOKEN` |
+| `BUNNINGS_ENV` | `providers.bunnings.environment` | none |
+| `BUNNINGS_CLIENT_ID` | `providers.bunnings.client_id` | none |
+| `BUNNINGS_CLIENT_SECRET` | `providers.bunnings.client_secret` | `BUNNINGS_CLIENT_SECRET` |
+| `BUNNINGS_SCOPES` | `providers.bunnings.scopes` | none |
+| `BUNNINGS_COUNTRY` | `providers.bunnings.country` | none |
+| `BUNNINGS_LOCATION` | `providers.bunnings.location` | none |
+| `BUNNINGS_IN_CUSTOM_FIELD` | `product_sync.custom_fields.bunnings_in` | none |
+| `BUNNINGS_IMAGE_CUSTOM_FIELD` | `product_sync.custom_fields.image_url` | none |
+| `TAX_NAME` | `tax.name` | none |
+| `TAX_RATE` | `tax.rate` | none |
+| `PRODUCT_PREFIX` | no configuration replacement | none |
+| `ERPNEXT_*` | removed with the retired ERPNext exporter | none |
 
-## Validation
+`providers.bunnings.scopes` changes from comma/space-delimited text to a YAML sequence.
 
-Configuration should fail clearly for:
+The old configurable Product prefix is deliberately not retained. v0.5.3 uses a temporary internal `BUNNINGS-` constant so existing Product keys, lookup, refresh, import and Image URL behaviour remain unchanged. The constant is a transition constraint for v0.5.7, not a new public setting.
 
-- missing `~/.GoTradie/config.yaml`;
-- malformed YAML;
-- unknown configuration fields;
-- missing required BAS reporting period;
-- missing required GST basis;
-- missing required EOFY accounting basis;
-- missing required EOFY instant asset write-off threshold;
-- unsupported BAS reporting period;
-- unsupported GST basis;
-- unsupported EOFY accounting basis;
-- invalid EOFY instant asset write-off threshold;
-- invalid `exports.directory` value when present;
-- invalid values that cannot be interpreted safely.
+## BAS requirements
 
-Silent fallback is not acceptable for accounting-significant configuration.
+`bas.reporting_period`, `bas.gst_basis` and `bas.periods` are mandatory. Supported values are:
 
-## Provider configuration
+```text
+reporting_period: monthly | quarterly | yearly
+gst_basis: cash | accrual
+```
 
-Each Provider has one canonical `name`.
+The selected cadence must define exactly its complete financial year. Period keys, reporting boundaries and submission-window consistency are validated. Reporting periods must be contiguous from `07-01` through `06-30`, and each submission window must start the day after its reporting period ends.
 
-That canonical name is the official supplier name and is the Vendor identity used when an incoming supplier resolves to the Provider.
+`MM-last` is accepted only for `bas_end`, allowing monthly configuration to remain correct for month length and leap years.
 
-`aliases` are recognition inputs only. They may resolve incoming supplier names to the Provider, but they do not create alternate Vendor identities.
+### Quarterly
 
-Provider alias matching should initially be deterministic:
+Quarterly reporting retains the existing `Q1`–`Q4` structure shown in the authoritative schema.
 
-- trim surrounding whitespace;
-- compare case-insensitively;
-- no fuzzy matching;
-- no automatic alias learning.
+### Monthly
 
-Store/location does not belong in the Provider or Vendor name.
-
-Store/location is separate Expense metadata used for business analytics.
-
-## Generic CSV provider
-
-For configurable file/web Providers, field mappings should mirror Invoice Ninja Product concepts rather than supplier-specific terminology.
-
-Example:
+The minimum monthly schema uses `Jul` through `Jun`:
 
 ```yaml
-fields:
-  product: PartNo
-  description: Description
-  cost: TradePrice
-  price: RetailPrice
-  quantity: PackQuantity
-  image_url: ImageURL
+bas:
+  reporting_period: monthly
+  gst_basis: cash
+  periods:
+    Jul: {bas_begin: "07-01", bas_end: "07-last", submit_begin: "08-01", submit_end: "08-21"}
+    Aug: {bas_begin: "08-01", bas_end: "08-last", submit_begin: "09-01", submit_end: "09-21"}
+    Sep: {bas_begin: "09-01", bas_end: "09-last", submit_begin: "10-01", submit_end: "10-21"}
+    Oct: {bas_begin: "10-01", bas_end: "10-last", submit_begin: "11-01", submit_end: "11-21"}
+    Nov: {bas_begin: "11-01", bas_end: "11-last", submit_begin: "12-01", submit_end: "12-21"}
+    Dec: {bas_begin: "12-01", bas_end: "12-last", submit_begin: "01-01", submit_end: "01-21"}
+    Jan: {bas_begin: "01-01", bas_end: "01-last", submit_begin: "02-01", submit_end: "02-21"}
+    Feb: {bas_begin: "02-01", bas_end: "02-last", submit_begin: "03-01", submit_end: "03-21"}
+    Mar: {bas_begin: "03-01", bas_end: "03-last", submit_begin: "04-01", submit_end: "04-21"}
+    Apr: {bas_begin: "04-01", bas_end: "04-last", submit_begin: "05-01", submit_end: "05-21"}
+    May: {bas_begin: "05-01", bas_end: "05-last", submit_begin: "06-01", submit_end: "06-21"}
+    Jun: {bas_begin: "06-01", bas_end: "06-last", submit_begin: "07-01", submit_end: "07-21"}
 ```
 
-`product` is mandatory for a configurable syncing Provider and means the supplier's own product identifier, regardless of whether that supplier calls it SKU, I/N, PartNo, Item Code, Stock Code, or something else.
+### Yearly
 
-Built-in Providers such as Bunnings may define their source-to-Product mapping in code instead of YAML.
+The minimum yearly schema uses one financial-year period. The submission window remains explicit because annual lodgement dates can depend on circumstances.
 
-## Compatibility and migration
+```yaml
+bas:
+  reporting_period: yearly
+  gst_basis: cash
+  periods:
+    FY:
+      bas_begin: "07-01"
+      bas_end: "06-30"
+      submit_begin: "07-01"
+      submit_end: "10-31"
+```
 
-v0.5.3 is an intentional configuration break.
+The BAS default-selection workflow is date-driven and depends on ATO reporting-period and lodgement rules. A later BAS implementation must verify applicable dates rather than treating one example submission window as universal tax advice.
 
-1. YAML is the supported configuration format from v0.5.3 onward.
-2. The configuration file lives at `~/.GoTradie/config.yaml`.
-3. Legacy flat configuration is not supported.
-4. Environment variables override only explicitly supported secret fields.
-5. No generic migration or compatibility framework is required.
+## EOFY accounting basis
+
+`eofy.accounting_basis` and `eofy.instant_asset_writeoff_threshold` are mandatory. The EOFY basis is independent of `bas.gst_basis`; neither is inferred from the other. The threshold must be a finite number greater than zero and remains year-dependent configured tax data.
+
+For threshold testing, use the asset's relevant cost reduced only by GST input tax credits the business is entitled to claim. Private/non-business use affects the deductible or review amount after the threshold test; it does not reduce the asset cost used for that test.
+
+Missing or unsupported accounting-significant values are configuration errors. GoTradie must not silently select another BAS cadence, GST basis, EOFY accounting basis or asset threshold.
+
+## Provider identity and mappings
+
+Each Provider has one canonical `name`. Aliases are recognition inputs only: trim surrounding whitespace, compare case-insensitively, and do not fuzzy-match or learn aliases. Alias/name collisions across Providers are invalid.
+
+When an incoming supplier resolves to a Provider, its canonical name is the Vendor identity. Store/location remains separate Expense metadata and is not appended to Vendor identity.
+
+For configurable CSV Providers, `fields.product` is mandatory and represents the supplier's product identifier. Built-in Bunnings source mappings remain in code.
+
+## Product compatibility boundary
+
+v0.5.3 preserves the existing Product contract:
+
+```text
+Product key              BUNNINGS-<item number>
+bunnings_in mapping      configured existing custom-field index
+image_url mapping        configured existing custom-field index
+```
+
+It does not implement the v0.5.7 `(Supplier, Product)` identity, reject legacy Products, reassign Product custom fields, or add Supplier/Store/Last Sync Date/Not Available metadata.
+
+Invoice Ninja exposes four Product custom fields. The current `bunnings_in` and `image_url` fields already consume two, while the v0.5.7 design proposes four more concepts. That allocation cannot fit literally and must be resolved as part of v0.5.7 before its Product identity/custom-field transition is implemented.
+
+## ERPNext retirement
+
+The ERPNext migration exporter is retired in v0.5.3. Its command dispatch, implementation, tests, configuration, help and README material are removed. No ERPNext fields exist in the YAML schema.
 
 ## Scope guardrail
 
-Do not implement BAS, EOFY, Financial, Product Sync, provider fetching, or catalogue logic in this slice.
-
-## Design rule
+This slice changes configuration loading and the minimum consumers needed to use it. It does not implement BAS, EOFY, Financial or v0.5.7 Product Sync features; add persistence or caches; or introduce a compatibility framework.
 
 > Hierarchical where the data is hierarchical; boring everywhere else.

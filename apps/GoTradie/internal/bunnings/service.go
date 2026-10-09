@@ -28,15 +28,22 @@ type Service struct {
 }
 
 func New(cfg config.Config) (*Service, error) {
-	ts, err := gobunnings.NewClientCredentialsTokenSource(cfg.BunningsEnv, cfg.BunningsClientID, cfg.BunningsSecret, cfg.BunningsScopes)
+	provider := cfg.Providers["bunnings"]
+	environment := gobunnings.Env(provider.Environment)
+	ts, err := gobunnings.NewClientCredentialsTokenSource(environment, provider.ClientID, provider.ClientSecret, provider.Scopes)
 	if err != nil {
 		return nil, err
 	}
-	client, err := gobunnings.New(cfg.BunningsEnv, ts, gobunnings.WithUserAgent("GoTradie/v0.3"))
+	client, err := gobunnings.New(environment, ts, gobunnings.WithUserAgent("GoTradie/v0.5.3"))
 	if err != nil {
 		return nil, err
 	}
-	return &Service{client: client, website: gobunnings.NewWebsiteService(client.HTTP), country: cfg.Country, location: cfg.LocationCode}, nil
+	return &Service{
+		client:   client,
+		website:  gobunnings.NewWebsiteService(client.HTTP),
+		country:  gobunnings.CountryCode(provider.Country),
+		location: provider.Location,
+	}, nil
 }
 
 func (s *Service) WithWeb(enabled bool) *Service {

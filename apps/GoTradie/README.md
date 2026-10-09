@@ -2,13 +2,13 @@
 
 `GoTradie` is a small CLI client that connects the local `GoBunnings` and `GoInvoiceNinja` packages.
 
-Version: `v0.5.2`
+Version: `v0.5.3`
 
 The goal is deliberately modest: refresh Invoice Ninja products from Bunnings product data, add selected Bunnings products safely, and export/import selected Invoice Ninja CSV data without turning the accounts into a surprised octopus.
 
 ## Requirements
 
-- Go `1.25`
+- Go `1.22`
 - Local checkout of `GoBunnings`
 - Local checkout of `GoInvoiceNinja` v0.5 or later
 
@@ -46,34 +46,22 @@ go build ./cmd/GoTradie
 
 ## Configuration
 
-Configuration is loaded from environment variables first, then from a config file. Config file values override environment variables.
+Operational commands load one mandatory, strict YAML file:
 
-Config lookup order:
-
-1. `--config <path>`
-2. `GOTRADIE_CONFIG`
-3. `./gotradie.conf`, if present
-
-Example:
-
-```bash
-GoTradie --config ./gotradie.conf ninja export products products.csv
+```text
+~/.GoTradie/config.yaml
 ```
 
-Required for Invoice Ninja commands:
+Copy `config.yaml.example` there and supply the settings required by the commands you use. Unknown YAML fields are rejected. BAS cadence, GST basis, EOFY basis and the asset threshold must be explicit.
+
+Only these secret environment variables may override YAML:
 
 ```text
 INVOICE_NINJA_TOKEN
-```
-
-Required for API-backed Bunnings sync/search commands:
-
-```text
-BUNNINGS_CLIENT_ID
 BUNNINGS_CLIENT_SECRET
 ```
 
-See `gotradie.conf.example`.
+Legacy flat configuration, `--config`, `GOTRADIE_CONFIG` and generic environment overrides are not supported from v0.5.3 onward.
 
 ## Commands
 
@@ -179,7 +167,6 @@ clients
 quotes
 invoices
 payments
-erpnext
 ```
 
 Available import targets:
@@ -211,27 +198,6 @@ Any file containing Account Payment rows uses settlement-safe whole-file
 execution so batching cannot change supplier FIFO settlement.
 
 Quote, invoice, and payment commands are export-only.
-
-### ERPNext migration export
-
-```bash
-GoTradie ninja export erpnext ./erpnext-export
-```
-
-This creates ERPNext Data Import CSVs for Customer, Address, Contact, Item,
-Quotation, Sales Invoice and Payment Entry, plus `Migration Report.csv` for
-records that need manual attention. Parent and child records are combined in
-the Quotation, Sales Invoice and Payment Entry files.
-
-The migration exporter requests active, archived and deleted source records.
-Deleted customers and products are emitted as disabled. Deleted, cancelled,
-reversed, refunded, credit-applied or ambiguous accounting records are not
-silently posted; they are recorded in the migration report.
-
-Set the `ERPNEXT_*` values in `gotradie.conf` first. Names for companies,
-groups, accounts, modes, currencies and price lists must exactly match the
-records in the target ERPNext instance. Import the generated files in the
-order printed in the extended command help.
 
 ## CSV columns
 

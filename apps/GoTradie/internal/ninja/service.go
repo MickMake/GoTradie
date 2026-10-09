@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/MickMake/GoTradie/internal/config"
 	invoiceninja "github.com/MickMake/GoInvoiceNinja"
+	"github.com/MickMake/GoTradie/internal/config"
 )
 
 type Service struct {
@@ -15,12 +15,16 @@ type Service struct {
 	cfg    config.Config
 }
 
+// bunningsProductPrefix preserves the established Product identity until the
+// v0.5.7 Product identity and four-custom-field design is implemented.
+const bunningsProductPrefix = "BUNNINGS-"
+
 func New(cfg config.Config) (*Service, error) {
-	opts := []invoiceninja.Option{invoiceninja.WithUserAgent("GoTradie/v0.3")}
-	if cfg.InvoiceNinjaURL != "" {
-		opts = append(opts, invoiceninja.WithBaseURL(cfg.InvoiceNinjaURL))
+	opts := []invoiceninja.Option{invoiceninja.WithUserAgent("GoTradie/v0.5.3")}
+	if cfg.InvoiceNinja.URL != "" {
+		opts = append(opts, invoiceninja.WithBaseURL(cfg.InvoiceNinja.URL))
 	}
-	c, err := invoiceninja.New(cfg.InvoiceNinjaToken, opts...)
+	c, err := invoiceninja.New(cfg.InvoiceNinja.Token, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +52,7 @@ func (s *Service) FindByBunningsIN(ctx context.Context, itemNumber string) (*inv
 		return nil, err
 	}
 	for i := range products {
-		if s.CustomValue(products[i], s.cfg.BunningsCustom) == itemNumber {
+		if s.CustomValue(products[i], s.cfg.ProductSync.CustomFields.BunningsIN) == itemNumber {
 			return &products[i], nil
 		}
 	}
@@ -69,11 +73,11 @@ func (s *Service) UpsertProduct(ctx context.Context, itemNumber, notes, imageURL
 		Notes:      notes,
 		Price:      price,
 		Quantity:   1,
-		TaxName1:   s.cfg.TaxName,
-		TaxRate1:   s.cfg.TaxRate,
+		TaxName1:   s.cfg.Tax.Name,
+		TaxRate1:   s.cfg.Tax.Rate,
 	}
-	s.SetCustomCreate(&payload, s.cfg.BunningsCustom, itemNumber)
-	s.SetCustomCreate(&payload, s.cfg.ImageURLCustom, imageURL)
+	s.SetCustomCreate(&payload, s.cfg.ProductSync.CustomFields.BunningsIN, itemNumber)
+	s.SetCustomCreate(&payload, s.cfg.ProductSync.CustomFields.ImageURL, imageURL)
 	if errors.Is(err, invoiceninja.ErrNotFound) {
 		created, err := s.client.Products.Create(ctx, payload)
 		if err != nil {
@@ -81,7 +85,7 @@ func (s *Service) UpsertProduct(ctx context.Context, itemNumber, notes, imageURL
 		}
 		return *created, true, []string{"created"}, nil
 	}
-	changes := diffProduct(*existing, payload, s.cfg.BunningsCustom, s.cfg.ImageURLCustom)
+	changes := diffProduct(*existing, payload, s.cfg.ProductSync.CustomFields.BunningsIN, s.cfg.ProductSync.CustomFields.ImageURL)
 	if len(changes) == 0 {
 		return *existing, false, nil, nil
 	}
@@ -93,7 +97,7 @@ func (s *Service) UpsertProduct(ctx context.Context, itemNumber, notes, imageURL
 }
 
 func (s *Service) ProductKey(itemNumber string) string {
-	return s.cfg.ProductPrefix + strings.TrimSpace(itemNumber)
+	return bunningsProductPrefix + strings.TrimSpace(itemNumber)
 }
 
 func (s *Service) CustomValue(p invoiceninja.Product, idx int) string {

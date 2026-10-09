@@ -18,7 +18,7 @@ import (
 	"github.com/MickMake/GoTradie/internal/syncer"
 )
 
-const version = "v0.5.2"
+const version = "v0.5.3"
 
 var errExpenseImportStopped = errors.New("expense import stopped by operator")
 
@@ -26,10 +26,6 @@ type App struct {
 	In  io.Reader
 	Out io.Writer
 	Err io.Writer
-}
-
-type globalOptions struct {
-	ConfigPath string
 }
 
 func (a App) Run(ctx context.Context, args []string) int {
@@ -54,20 +50,11 @@ func (a App) Run(ctx context.Context, args []string) int {
 		fmt.Fprintln(a.Out, version)
 		return 0
 	}
-	globals, args, err := parseGlobals(args)
-	if err != nil {
-		fmt.Fprintln(a.Err, err)
+	if hasLegacyConfigFlag(args) {
+		fmt.Fprintln(a.Err, "--config was removed in v0.5.3; use ~/.GoTradie/config.yaml")
 		return 2
 	}
-	if len(args) == 0 {
-		a.usage()
-		return 0
-	}
-	if args[0] == "commands" || args[0] == "extended-help" || args[0] == "manual" {
-		a.extendedUsage()
-		return 0
-	}
-	cfg, err := config.FromEnvAndFile(globals.ConfigPath)
+	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintln(a.Err, "config error:", err)
 		return 2
@@ -88,7 +75,7 @@ func (a App) Run(ctx context.Context, args []string) int {
 			fmt.Fprintln(a.Err, "invoice ninja client error:", err)
 			return 2
 		}
-		svc := syncer.Service{Bunnings: bn, Ninja: nj, BunningsCustom: cfg.BunningsCustom}
+		svc := syncer.Service{Bunnings: bn, Ninja: nj, BunningsCustom: cfg.ProductSync.CustomFields.BunningsIN}
 		switch args[0] {
 		case "sync":
 			return a.runSyncNamespace(ctx, svc, args[1:])
@@ -134,25 +121,13 @@ func (a App) Run(ctx context.Context, args []string) int {
 	return 2
 }
 
-func parseGlobals(args []string) (globalOptions, []string, error) {
-	var opts globalOptions
-	var rest []string
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		switch {
-		case a == "--config" || a == "-config":
-			if i+1 >= len(args) {
-				return opts, nil, fmt.Errorf("--config requires a path")
-			}
-			i++
-			opts.ConfigPath = args[i]
-		case strings.HasPrefix(a, "--config="):
-			opts.ConfigPath = strings.TrimPrefix(a, "--config=")
-		default:
-			rest = append(rest, a)
+func hasLegacyConfigFlag(args []string) bool {
+	for _, arg := range args {
+		if arg == "--config" || arg == "-config" || strings.HasPrefix(arg, "--config=") {
+			return true
 		}
 	}
-	return opts, rest, nil
+	return false
 }
 
 func (a App) runSyncNamespace(ctx context.Context, svc syncer.Service, args []string) int {
@@ -360,16 +335,12 @@ func (a App) runNinja(ctx context.Context, svc *ninja.Service, args []string) in
 
 func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, args []string) int {
 	if len(args) < 1 {
-		fmt.Fprintln(a.Err, "usage: GoTradie ninja export <products|clients|quotes|invoices|payments|erpnext> <file|directory|-> [--force]")
+		fmt.Fprintln(a.Err, "usage: GoTradie ninja export <products|clients|quotes|invoices|payments> <file|-> [--force]")
 		return 2
 	}
 	kind := args[0]
 	if kind == "tax" {
 		return a.runNinjaTaxExport(ctx, svc, args[1:])
-	}
-
-	if kind == "erpnext" {
-		return a.runNinjaERPNextExport(ctx, svc, args[1:])
 	}
 
 	outPath, force, err := parseExportArgs(args[1:])
@@ -825,13 +796,13 @@ func exitCode(results []syncer.Result) int {
 }
 
 func (a App) usage() {
-	fmt.Fprintln(a.Out, `GoTradie syncs Bunnings products into Invoice Ninja.
+	fmt.Fprint(a.Out, `GoTradie syncs Bunnings products into Invoice Ninja.
 
-Version: v0.5.2
+Version: v0.5.3
 
-Global options:
-  --config <path>       Optional key=value config file. File values override environment variables.
-                        If omitted, GOTRADIE_CONFIG is used, then ./gotradie.conf if present.
+Configuration:
+  ~/.GoTradie/config.yaml is mandatory for operational commands.
+  INVOICE_NINJA_TOKEN and BUNNINGS_CLIENT_SECRET may override YAML secrets.
 
 Commands:
   bunnings find <query>                 Fuzzy Bunnings discovery (CSV output).
@@ -849,7 +820,6 @@ Commands:
   ninja export quotes <file|->          Export Invoice Ninja quotes as CSV; use --force to overwrite.
   ninja export invoices <file|->        Export Invoice Ninja invoices as CSV; use --force to overwrite.
   ninja export payments <file|->        Export Invoice Ninja payments as CSV; use --force to overwrite.
-  ninja export erpnext <directory>      Export ERPNext import CSVs; use --force to overwrite.
   commands                              Show extended command help with output examples.
   version                               Print version.
 
@@ -875,24 +845,5 @@ Examples:
   GoTradie ninja export quotes quotes.csv
   GoTradie ninja export invoices invoices.csv
   GoTradie ninja export payments payments.csv
-  GoTradie ninja export erpnext erpnext-export
-
-Required configuration for ninja commands:
-  INVOICE_NINJA_TOKEN
-
-Additional required configuration for Bunnings and sync commands:
-  BUNNINGS_CLIENT_ID
-  BUNNINGS_CLIENT_SECRET
-
-Useful optional configuration:
-  INVOICE_NINJA_URL              default empty; uses GoInvoiceNinja default
-  BUNNINGS_ENV                   live, test, sandbox; default live
-  BUNNINGS_COUNTRY               AU or NZ; default AU
-  BUNNINGS_LOCATION              location code; required for price refresh
-  BUNNINGS_SCOPES                optional scopes, space or comma separated
-  PRODUCT_PREFIX                 default BUNNINGS-
-  BUNNINGS_IN_CUSTOM_FIELD       default 1
-  BUNNINGS_IMAGE_CUSTOM_FIELD    default 2
-  TAX_NAME                       default GST
-  TAX_RATE                       default 10`)
+`)
 }
