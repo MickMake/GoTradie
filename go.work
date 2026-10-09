@@ -1,0 +1,7 @@
+go 1.25
+
+use (
+    ./apps/GoTradie
+    ./apps/GoBunnings
+    ./apps/GoInvoiceNinja
+)
