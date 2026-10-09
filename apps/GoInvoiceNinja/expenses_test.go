@@ -107,7 +107,7 @@ func TestVendorProjectAndCategoryQueries(t *testing.T) {
 
 func TestExpenseDecodesExpenseCategoryID(t *testing.T) {
 	var expense Expense
-	if err := json.Unmarshal([]byte(`{"id":"expense1","category_id":"category1","payment_type_id":"5"}`), &expense); err != nil {
+	if err := json.Unmarshal([]byte(`{"id":"expense1","category_id":"category1","payment_type_id":"5","transaction_id":"transaction1"}`), &expense); err != nil {
 		t.Fatal(err)
 	}
 	if expense.CategoryID != "category1" {
@@ -115,6 +115,9 @@ func TestExpenseDecodesExpenseCategoryID(t *testing.T) {
 	}
 	if expense.PaymentTypeID != "5" {
 		t.Fatalf("payment type ID = %q", expense.PaymentTypeID)
+	}
+	if expense.TransactionID != "transaction1" {
+		t.Fatalf("transaction ID = %q", expense.TransactionID)
 	}
 }
 

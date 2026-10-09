@@ -3,6 +3,20 @@
 
 ## Unreleased
 
+## v0.5.4
+
+- Added `ninja export bas` with monthly, quarterly and yearly financial-year
+  selection, deterministic filenames and `--force` overwrite safety.
+- Added a shared in-memory Accounting Dataset with source identity, customer
+  payment allocations, supplier FIFO settlement and accounting exceptions.
+- Added cash and accrual GST recognition, proportional partial-payment
+  allocation using integer cents, and traceable Summary, Sales, Purchases and
+  Exceptions workbook sheets.
+- BAS accounting errors produce an `INCOMPLETE` diagnostic workbook and exit 1;
+  warnings remain successful.
+- The no-flag default selects the most recently completed reporting period by
+  period end date, including the previous financial year at FY boundaries.
+
 ## v0.5.3
 
 - Replaced optional flat configuration with mandatory strict YAML at

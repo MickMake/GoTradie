@@ -2,13 +2,13 @@
 
 `GoTradie` is a small CLI client that connects the local `GoBunnings` and `GoInvoiceNinja` packages.
 
-Version: `v0.5.3`
+Version: `v0.5.4`
 
 The goal is deliberately modest: refresh Invoice Ninja products from Bunnings product data, add selected Bunnings products safely, and export/import selected Invoice Ninja CSV data without turning the accounts into a surprised octopus.
 
 ## Requirements
 
-- Go `1.22`
+- Go `1.25`
 - Local checkout of `GoBunnings`
 - Local checkout of `GoInvoiceNinja` v0.5 or later
 
@@ -167,7 +167,30 @@ clients
 quotes
 invoices
 payments
+bas
 ```
+
+### BAS workbook
+
+Generate the natural, most recently completed BAS reporting period:
+
+```bash
+GoTradie ninja export bas
+```
+
+Explicit selections override the default:
+
+```bash
+GoTradie ninja export bas --fy 2025
+GoTradie ninja export bas --fy 2027 --period 1
+GoTradie ninja export bas --period September
+```
+
+The workbook is written to `exports.directory` when configured, otherwise the
+current directory. It contains `Summary`, `Sales`, `Purchases` and `Exceptions`
+sheets and refuses to replace its deterministic filename unless `--force` is
+supplied. Accounting errors still produce an `INCOMPLETE` diagnostic workbook
+when technically possible and exit with status 1.
 
 Available import targets:
 

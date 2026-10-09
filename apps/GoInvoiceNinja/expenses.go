@@ -61,6 +61,7 @@ type Expense struct {
 	Date                 string           `json:"date,omitempty"`
 	PaymentDate          string           `json:"payment_date,omitempty"`
 	PaymentTypeID        string           `json:"payment_type_id,omitempty"`
+	TransactionID        string           `json:"transaction_id,omitempty"`
 	PrivateNotes         string           `json:"private_notes,omitempty"`
 	PublicNotes          string           `json:"public_notes,omitempty"`
 	TransactionReference string           `json:"transaction_reference,omitempty"`

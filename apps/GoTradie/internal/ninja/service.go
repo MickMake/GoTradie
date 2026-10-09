@@ -20,7 +20,7 @@ type Service struct {
 const bunningsProductPrefix = "BUNNINGS-"
 
 func New(cfg config.Config) (*Service, error) {
-	opts := []invoiceninja.Option{invoiceninja.WithUserAgent("GoTradie/v0.5.3")}
+	opts := []invoiceninja.Option{invoiceninja.WithUserAgent("GoTradie/v0.5.4")}
 	if cfg.InvoiceNinja.URL != "" {
 		opts = append(opts, invoiceninja.WithBaseURL(cfg.InvoiceNinja.URL))
 	}
