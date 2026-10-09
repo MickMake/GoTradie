@@ -18,8 +18,6 @@ This workflow applies to every implementation slice. Slice-specific prompts must
 
 ## 2. Implementation
 
-## 2. Implementation
-
 1. After approval, fetch the latest `origin/main`. If `main` has advanced materially since preflight, reassess the plan before proceeding.
 
    Create the agreed feature branch explicitly without inheriting upstream tracking:
