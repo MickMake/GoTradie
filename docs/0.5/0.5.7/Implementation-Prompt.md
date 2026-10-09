@@ -17,7 +17,7 @@
 
 - Product identity is `(vendor_id, product_key)` using native Invoice Ninja Product fields; no `Supplier` custom field.
 - Product images use native `product_image`; the installed Invoice Ninja instance supports external image URLs.
-- Four Product custom fields: **Store**, **Last Sync Date**, **Not Available**, **Supply Unit** (in that order).
+- Four Product custom fields: **Store**, **Not Available**, **Supply Unit**, **Last Sync Date** (in that order).
 - `Supply Unit` is **arbitrary free-form text**. Do not propose or implement a formatting convention, validation, unit parsing or conversion.
 - Safely migrate existing `BUNNINGS-` keys, `bunnings_in` and `image_url` custom mappings, preserving existing Product records and image data. Do not create duplicate Products.
 - For CSV/XLSX Providers, persist the new successful content hash **only after 100% of required Product updates succeed**. On partial failure, leave the old successful hash and retry the entire file on the next run. No incremental per-product checkpoint is needed.

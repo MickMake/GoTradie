@@ -66,23 +66,15 @@ Use Invoice Ninja native Product fields wherever they already express the concep
 | Supplier product identifier | Native `product_key` |
 | Image URL | Native `product_image` |
 | Store | Product custom field 1 |
-| Last Sync Date | Product custom field 2 |
-| Not Available | Product custom field 3 |
-| Supply Unit | Product custom field 4 |
+| Not Available | Product custom field 2 |
+| Supply Unit | Product custom field 3 |
+| Last Sync Date | Product custom field 4 |
 
 The existing Product custom `image_url` mapping is retired in favour of native `product_image`. Preserve existing image URLs during migration. The installed Invoice Ninja instance is confirmed to support URLs in `product_image`.
 
 ### Store
 
 Optional provenance/location metadata, e.g. `Castle Hill`. Not part of Vendor identity or Product matching.
-
-### Last Sync Date
-
-The local calendar date on which that individual Invoice Ninja Product was last successfully synchronised against Provider data. It belongs to the Product, not its API request, source file, list or catalogue.
-
-- Multiple observations of the same Product resolve to the same `(Vendor, Product)` identity and one Last Sync Date.
-- Do not advance the date on an attempted or failed refresh.
-- A Provider/API/source failure does not update the date.
 
 ### Not Available
 
@@ -97,10 +89,18 @@ availability cannot be determined           -> unchanged
 
 A Product may disappear and reappear. On confirmed reappearance retain its identity, set Not Available to false and record the successful sync date. Do not delete/recreate Products because availability changed. Do not use `discontinued` as a generic state.
 
+
 ### Supply Unit
 
 A **free-form text field** for the Product's supply unit or pack description. The user will experiment with values before deciding on any convention. Preserve user-entered content; do not require a format, validate or parse units, perform conversions or add pack-size calculation logic in v0.5.7. It is metadata only and never part of Product identity.
 
+### Last Sync Date
+
+The local calendar date on which that individual Invoice Ninja Product was last successfully synchronised against Provider data. It belongs to the Product, not its API request, source file, list or catalogue.
+
+- Multiple observations of the same Product resolve to the same `(Vendor, Product)` identity and one Last Sync Date.
+- Do not advance the date on an attempted or failed refresh.
+- A Provider/API/source failure does not update the date.
 ## Existing-Product refresh ordering
 
 Invoice Ninja Products form the durable refresh queue:
