@@ -444,12 +444,12 @@ func validateBAS(cfg BASConfig) error {
 		if err != nil {
 			return fmt.Errorf("bas.periods.%s.submit_begin: %w", name, err)
 		}
-		submitEnd, err := dateAfter(period.SubmitEnd, end)
+		submitEnd, err := dateOnOrAfter(period.SubmitEnd, submitBegin)
 		if err != nil {
 			return fmt.Errorf("bas.periods.%s.submit_end: %w", name, err)
 		}
-		if !submitBegin.After(end) {
-			return fmt.Errorf("bas.periods.%s submission window must begin after the reporting period", name)
+		if !submitBegin.Equal(end.AddDate(0, 0, 1)) {
+			return fmt.Errorf("bas.periods.%s submission window must begin on the day after the reporting period", name)
 		}
 		if submitEnd.Before(submitBegin) {
 			return fmt.Errorf("bas.periods.%s submission window ends before it begins", name)
@@ -512,6 +512,20 @@ func dateAfter(value string, after time.Time) (time.Time, error) {
 	}
 	if !date.After(after) {
 		date, err = templateDate(value, after.Year()+1)
+		if err != nil {
+			return time.Time{}, err
+		}
+	}
+	return date, nil
+}
+
+func dateOnOrAfter(value string, start time.Time) (time.Time, error) {
+	date, err := templateDate(value, start.Year())
+	if err != nil {
+		return time.Time{}, err
+	}
+	if date.Before(start) {
+		date, err = templateDate(value, start.Year()+1)
 		if err != nil {
 			return time.Time{}, err
 		}

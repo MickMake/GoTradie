@@ -163,7 +163,7 @@ reporting_period: monthly | quarterly | yearly
 gst_basis: cash | accrual
 ```
 
-The selected cadence must define exactly its complete financial year. Period keys, reporting boundaries and submission-window consistency are validated. Reporting periods must be contiguous from `07-01` through `06-30`. Each submission window must start after its reporting period ends and must not end before it begins.
+The selected cadence must define exactly its complete financial year. Period keys, reporting boundaries and submission-window consistency are validated. Reporting periods must be contiguous from `07-01` through `06-30`, and each submission window must start the day after its reporting period ends.
 
 `MM-last` is accepted only for `bas_end`, allowing monthly configuration to remain correct for month length and leap years.
 

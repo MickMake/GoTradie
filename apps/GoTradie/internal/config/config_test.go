@@ -77,12 +77,9 @@ func TestLoadFileRequiresAccountingConfiguration(t *testing.T) {
 
 func TestLoadFileAcceptsCompleteBASCadences(t *testing.T) {
 	tests := map[string]string{
-		"quarterly":                       validQuarterlyYAML(),
-		"quarterly delayed submission":    strings.Replace(validQuarterlyYAML(), `submit_begin: "10-01"`, `submit_begin: "10-15"`, 1),
-		"quarterly cross-year submission": strings.NewReplacer(`submit_begin: "10-01"`, `submit_begin: "12-15"`, `submit_end: "10-28"`, `submit_end: "01-15"`).Replace(validQuarterlyYAML()),
-		"monthly":                         validMonthlyYAML(),
-		"monthly delayed submission":      strings.Replace(validMonthlyYAML(), `submit_begin: "08-01"`, `submit_begin: "08-15"`, 1),
-		"yearly":                          validYearlyYAML(),
+		"quarterly": validQuarterlyYAML(),
+		"monthly":   validMonthlyYAML(),
+		"yearly":    validYearlyYAML(),
 	}
 	for name, body := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -90,9 +87,8 @@ func TestLoadFileAcceptsCompleteBASCadences(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			wantPeriod := strings.Fields(name)[0]
-			if cfg.BAS.ReportingPeriod != wantPeriod {
-				t.Fatalf("reporting period = %q; want %q", cfg.BAS.ReportingPeriod, wantPeriod)
+			if cfg.BAS.ReportingPeriod != name {
+				t.Fatalf("reporting period = %q; want %q", cfg.BAS.ReportingPeriod, name)
 			}
 		})
 	}
@@ -139,9 +135,9 @@ eofy:
 			strings.Replace(validMonthlyYAML(), `Feb: {bas_begin: "02-01", bas_end: "02-last"`, `Feb: {bas_begin: "02-01", bas_end: "02-28"`, 1),
 			"must cover 02-01 through 02-last",
 		},
-		"submission window reversed": {
-			strings.Replace(validQuarterlyYAML(), "submit_begin: \"10-01\"", "submit_begin: \"10-29\"", 1),
-			"submission window ends before it begins",
+		"late submission start": {
+			strings.Replace(validQuarterlyYAML(), "submit_begin: \"10-01\"", "submit_begin: \"10-02\"", 1),
+			"must begin on the day after",
 		},
 		"last outside bas end": {
 			strings.Replace(validQuarterlyYAML(), "submit_end: \"10-28\"", "submit_end: \"10-last\"", 1),
