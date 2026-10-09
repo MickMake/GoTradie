@@ -1,0 +1,66 @@
+
+docker compose exec app php artisan tinker
+
+use App\Models\Expense;
+
+Expense::withTrashed()
+    ->where('is_deleted', 1)
+    ->count();
+
+Expense::withTrashed()
+    ->where('id', '>=', 64)
+    ->count();
+
+$expenses = \App\Models\Expense::withTrashed()
+    ->where('id', '>=', 64)
+    ->orderBy('id')
+    ->get();
+
+################################################################################
+
+$test = Expense::withTrashed()
+    ->where('company_id', 1)
+    ->where('id', '>', 64)
+    ->where('private_notes', 'like', '%GoTradie%')
+    ->orderBy('id')
+    ->get();
+
+$test->pluck('number')->implode(', ');
+
+
+################################################################################
+# Attachments
+$test->map(fn($e) => [
+    'id' => $e->id,
+    'number' => $e->number,
+    'files' => $e->documents()->withTrashed()->count()
+]);
+
+
+################################################################################
+# Purge
+$repo = app(\App\Repositories\DocumentRepository::class);
+
+foreach ($test as $e) {
+    if ($e->invoice_id !== null ||
+        $e->transaction_id !== null ||
+        $e->purchase_order()->exists()) continue;
+
+    if (\DB::table('bank_transactions')
+        ->where('company_id', 1)
+        ->whereRaw('FIND_IN_SET(?, expense_id)', [$e->hashed_id])
+        ->exists()) continue;
+
+    foreach ($e->documents()->withTrashed()->get() as $doc)
+        $repo->delete($doc);
+
+    $e->forceDelete();
+}
+
+
+################################################################################
+# Verify
+Expense::withTrashed()
+    ->whereIn('id', $test->pluck('id'))
+    ->pluck('number');
+

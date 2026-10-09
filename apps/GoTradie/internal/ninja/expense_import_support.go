@@ -302,10 +302,10 @@ func validatePurchaseArithmetic(addError, addWarning func(string), idx map[strin
 	if qtySet && priceSet {
 		expected := inc
 		expectedSet := incSet
-		if exSet {
-			expected = ex
-			expectedSet = true
-		}
+		//if exSet {
+		//	expected = ex
+		//	expectedSet = true
+		//}
 		if expectedSet && !moneyNear(qty*unitPrice, expected) {
 			addWarning(fmt.Sprintf("Quantity x Unit Price (%.2f) does not match source line total (%.2f)", qty*unitPrice, expected))
 		}
