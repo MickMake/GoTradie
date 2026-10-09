@@ -19,7 +19,7 @@ import (
 	"github.com/MickMake/GoTradie/internal/syncer"
 )
 
-const version = "v0.5.5"
+const version = "v0.5.6"
 
 var errExpenseImportStopped = errors.New("expense import stopped by operator")
 
@@ -337,7 +337,7 @@ func (a App) runNinja(ctx context.Context, svc *ninja.Service, cfg config.Config
 
 func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, cfg config.Config, args []string) int {
 	if len(args) < 1 {
-		fmt.Fprintln(a.Err, "usage: GoTradie ninja export <products|clients|quotes|invoices|payments|bas|eofy> ...")
+		fmt.Fprintln(a.Err, "usage: GoTradie ninja export <products|clients|quotes|invoices|payments|bas|eofy|financial> ...")
 		return 2
 	}
 	kind := args[0]
@@ -349,6 +349,9 @@ func (a App) runNinjaExport(ctx context.Context, svc *ninja.Service, cfg config.
 	}
 	if kind == "eofy" {
 		return a.runNinjaEOFYExport(ctx, svc, cfg, args[1:])
+	}
+	if kind == "financial" {
+		return a.runNinjaFinancialExport(ctx, svc, cfg, args[1:])
 	}
 
 	outPath, force, err := parseExportArgs(args[1:])
@@ -806,7 +809,7 @@ func exitCode(results []syncer.Result) int {
 func (a App) usage() {
 	fmt.Fprint(a.Out, `GoTradie syncs Bunnings products into Invoice Ninja.
 
-Version: v0.5.5
+Version: v0.5.6
 
 Configuration:
   ~/.GoTradie/config.yaml is mandatory for operational commands.
@@ -831,6 +834,7 @@ Commands:
   ninja export bas [--fy YYYY] [--period VALUE]
                                          Generate a BAS XLSX workbook; use --force to overwrite.
   ninja export eofy [--fy YYYY]          Generate an EOFY XLSX workbook; use --force to overwrite.
+  ninja export financial [selection]      Export raw financial data to XLSX; use --force to overwrite.
   commands                              Show extended command help with output examples.
   version                               Print version.
 
@@ -860,5 +864,7 @@ Examples:
   GoTradie ninja export bas --fy 2025
   GoTradie ninja export eofy
   GoTradie ninja export eofy --fy 2027
+  GoTradie ninja export financial
+  GoTradie ninja export financial --from 2026-07-01 --to 2026-09-30
 `)
 }

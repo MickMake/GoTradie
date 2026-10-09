@@ -3,6 +3,17 @@
 
 ## Unreleased
 
+## v0.5.6
+
+- Added `ninja export financial` for unrestricted, financial-year/period and
+  explicit source-date range XLSX exports.
+- Preserved raw invoice, expense, payment, supplier transaction and related
+  master-data fields while reusing the shared Accounting Dataset for calculated
+  facts and exceptions.
+- Added deterministic filenames, overwrite protection and diagnostic
+  `INCOMPLETE` workbooks when date-filtered records have missing or invalid
+  source dates.
+
 ## v0.5.5
 
 - Added `ninja export eofy` with explicit or most-recently-completed financial

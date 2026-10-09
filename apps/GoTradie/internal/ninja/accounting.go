@@ -12,46 +12,67 @@ import (
 )
 
 func (s *Service) BuildAccountingDataset(ctx context.Context) (accounting.Dataset, error) {
+	source, err := s.loadAccountingSource(ctx)
+	if err != nil {
+		return accounting.Dataset{}, err
+	}
+	return buildAccountingDataset(source), nil
+}
+
+type accountingSource struct {
+	company      invoiceninja.Company
+	invoices     []invoiceninja.Invoice
+	payments     []invoiceninja.Payment
+	expenses     []invoiceninja.Expense
+	transactions []invoiceninja.BankTransaction
+}
+
+func (s *Service) loadAccountingSource(ctx context.Context) (accountingSource, error) {
 	company, err := s.client.Companies.Current(ctx)
 	if err != nil {
-		return accounting.Dataset{}, fmt.Errorf("load Invoice Ninja company: %w", err)
+		return accountingSource{}, fmt.Errorf("load Invoice Ninja company: %w", err)
 	}
 	invoices, err := s.client.Invoices.ListAll(ctx, invoiceninja.InvoiceQuery{
 		ListOptions: invoiceninja.ListOptions{PerPage: 100, Include: []string{"client"}, Status: "active,archived,deleted"},
 		WithTrashed: true,
 	})
 	if err != nil {
-		return accounting.Dataset{}, fmt.Errorf("list Invoice Ninja invoices: %w", err)
+		return accountingSource{}, fmt.Errorf("list Invoice Ninja invoices: %w", err)
 	}
 	payments, err := s.client.Payments.ListAll(ctx, invoiceninja.PaymentQuery{
 		ListOptions: invoiceninja.ListOptions{PerPage: 100, Include: []string{"client", "invoices"}, Status: "active,archived,deleted"},
 		WithTrashed: true,
 	})
 	if err != nil {
-		return accounting.Dataset{}, fmt.Errorf("list Invoice Ninja payments: %w", err)
+		return accountingSource{}, fmt.Errorf("list Invoice Ninja payments: %w", err)
 	}
 	expenses, err := s.client.Expenses.ListAll(ctx, invoiceninja.ExpenseQuery{
-		ListOptions: invoiceninja.ListOptions{PerPage: 100, Include: []string{"vendor", "category"}, Status: "active,archived,deleted"},
+		ListOptions: invoiceninja.ListOptions{PerPage: 100, Include: []string{"vendor", "category", "project"}, Status: "active,archived,deleted"},
 		WithTrashed: true,
 	})
 	if err != nil {
-		return accounting.Dataset{}, fmt.Errorf("list Invoice Ninja expenses: %w", err)
+		return accountingSource{}, fmt.Errorf("list Invoice Ninja expenses: %w", err)
 	}
 	transactions, err := s.client.BankTransactions.ListAll(ctx, invoiceninja.BankTransactionQuery{
 		ListOptions: invoiceninja.ListOptions{PerPage: 100, Status: "active,archived,deleted"},
 		WithTrashed: true,
 	})
 	if err != nil {
-		return accounting.Dataset{}, fmt.Errorf("list Invoice Ninja bank transactions: %w", err)
+		return accountingSource{}, fmt.Errorf("list Invoice Ninja bank transactions: %w", err)
 	}
+	return accountingSource{
+		company: *company, invoices: invoices, payments: payments, expenses: expenses, transactions: transactions,
+	}, nil
+}
 
-	dataset := accounting.Dataset{Source: "Invoice Ninja", CompanyCurrencyID: strings.TrimSpace(company.Settings.CurrencyID)}
+func buildAccountingDataset(source accountingSource) accounting.Dataset {
+	dataset := accounting.Dataset{Source: "Invoice Ninja", CompanyCurrencyID: strings.TrimSpace(source.company.Settings.CurrencyID)}
 	if dataset.CompanyCurrencyID == "" {
-		dataset.Exceptions = append(dataset.Exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "company", SourceID: company.ID, Message: "Invoice Ninja company currency is missing"})
+		dataset.Exceptions = append(dataset.Exceptions, accounting.Exception{Severity: accounting.SeverityError, SourceType: "company", SourceID: source.company.ID, Message: "Invoice Ninja company currency is missing"})
 	}
-	dataset.Sales, dataset.Exceptions = buildSalesFacts(invoices, payments, dataset.Exceptions)
-	dataset.Purchases, dataset.Exceptions = buildPurchaseFacts(expenses, transactions, dataset.Exceptions)
-	return dataset, nil
+	dataset.Sales, dataset.Exceptions = buildSalesFacts(source.invoices, source.payments, dataset.Exceptions)
+	dataset.Purchases, dataset.Exceptions = buildPurchaseFacts(source.expenses, source.transactions, dataset.Exceptions)
+	return dataset
 }
 
 func buildSalesFacts(invoices []invoiceninja.Invoice, payments []invoiceninja.Payment, exceptions []accounting.Exception) ([]accounting.Sale, []accounting.Exception) {
