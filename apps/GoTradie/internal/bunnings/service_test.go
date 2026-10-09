@@ -23,7 +23,7 @@ func TestNewUsesHierarchicalBunningsSettings(t *testing.T) {
 	if service.country != "NZ" || service.location != "9473" {
 		t.Fatalf("country=%q location=%q", service.country, service.location)
 	}
-	if service.client.UserAgent != "GoTradie/v0.5.5" {
+	if service.client.UserAgent != "GoTradie/v0.5.6" {
 		t.Fatalf("user agent = %q", service.client.UserAgent)
 	}
 	if got := service.client.BaseURLs.Item; got != "https://item.stg.api.bunnings.com.au/item" {

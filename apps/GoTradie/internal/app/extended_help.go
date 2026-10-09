@@ -42,7 +42,7 @@ Top-level commands
         GoTradie version
 
       Example output:
-        v0.5.5
+        v0.5.6
 
 Bunnings commands
 
@@ -275,6 +275,20 @@ Invoice Ninja export commands
       Examples:
         GoTradie ninja export eofy
         GoTradie ninja export eofy --fy 2027 --force
+
+  ninja export financial [--fy YYYY] [--period VALUE] [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--force]
+      Export faithful Invoice Ninja source records and shared accounting facts
+      to XLSX. With no selection flags, exports all available data. BAS-style
+      FY/period selectors and explicit date bounds are mutually exclusive.
+      Transaction rows use their own source dates; customer, vendor, product
+      and project reference data remains available for context.
+      Output uses exports.directory when configured, otherwise the current
+      directory, and refuses to overwrite without --force.
+
+      Examples:
+        GoTradie ninja export financial
+        GoTradie ninja export financial --fy 2027 --period 2
+        GoTradie ninja export financial --from 2026-07-01 --to 2026-09-30 --force
 
 Invoice Ninja import commands
 

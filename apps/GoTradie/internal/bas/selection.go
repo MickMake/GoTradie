@@ -26,7 +26,7 @@ type Period struct {
 
 func ResolvePeriods(cfg config.BASConfig, options Options) ([]Period, error) {
 	today := dateOnly(options.Now)
-	currentFY := financialYear(today)
+	currentFY := FinancialYear(today)
 	selectedFY := currentFY
 	fyExplicit := strings.TrimSpace(options.FY) != ""
 	if fyExplicit {
@@ -38,7 +38,7 @@ func ResolvePeriods(cfg config.BASConfig, options Options) ([]Period, error) {
 	}
 
 	if strings.TrimSpace(options.Period) != "" {
-		periods, err := periodsForFY(cfg, selectedFY)
+		periods, err := PeriodsForFY(cfg, selectedFY)
 		if err != nil {
 			return nil, err
 		}
@@ -50,10 +50,10 @@ func ResolvePeriods(cfg config.BASConfig, options Options) ([]Period, error) {
 	}
 
 	if fyExplicit && selectedFY != currentFY {
-		return periodsForFY(cfg, selectedFY)
+		return PeriodsForFY(cfg, selectedFY)
 	}
 	if fyExplicit {
-		periods, err := periodsForFY(cfg, selectedFY)
+		periods, err := PeriodsForFY(cfg, selectedFY)
 		if err != nil {
 			return nil, err
 		}
@@ -68,11 +68,11 @@ func ResolvePeriods(cfg config.BASConfig, options Options) ([]Period, error) {
 		return nil, fmt.Errorf("FY%d has no reporting period applicable on %s", selectedFY, today.Format("2006-01-02"))
 	}
 
-	currentPeriods, err := periodsForFY(cfg, currentFY)
+	currentPeriods, err := PeriodsForFY(cfg, currentFY)
 	if err != nil {
 		return nil, err
 	}
-	previousPeriods, err := periodsForFY(cfg, currentFY-1)
+	previousPeriods, err := PeriodsForFY(cfg, currentFY-1)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,8 @@ func ResolvePeriods(cfg config.BASConfig, options Options) ([]Period, error) {
 	return []Period{completed}, nil
 }
 
-func periodsForFY(cfg config.BASConfig, fy int) ([]Period, error) {
+// PeriodsForFY resolves the configured BAS calendar for a complete financial year.
+func PeriodsForFY(cfg config.BASConfig, fy int) ([]Period, error) {
 	keys, err := periodKeys(cfg.ReportingPeriod)
 	if err != nil {
 		return nil, err
@@ -203,7 +204,9 @@ func latestCompleted(periods []Period, today time.Time) (Period, bool) {
 	return selected, found
 }
 
-func financialYear(date time.Time) int {
+// FinancialYear returns the Australian financial year ending in date's year,
+// or the following year for dates from July onward.
+func FinancialYear(date time.Time) int {
 	if date.Month() >= time.July {
 		return date.Year() + 1
 	}

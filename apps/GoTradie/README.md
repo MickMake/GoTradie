@@ -2,7 +2,7 @@
 
 `GoTradie` is a small CLI client that connects the local `GoBunnings` and `GoInvoiceNinja` packages.
 
-Version: `v0.5.5`
+Version: `v0.5.6`
 
 The goal is deliberately modest: refresh Invoice Ninja products from Bunnings product data, add selected Bunnings products safely, and export/import selected Invoice Ninja CSV data without turning the accounts into a surprised octopus.
 
@@ -169,6 +169,7 @@ invoices
 payments
 bas
 eofy
+financial
 ```
 
 ### BAS workbook
@@ -207,6 +208,29 @@ contains `Summary`, `Income`, `Expenses`, `Capital-Asset Review`,
 `GST Reconciliation`, `Exceptions` and `Supporting Detail` sheets. Capital
 review preserves the imported `Capital Check`, Expense category and source
 identity. The deterministic filename is replaced only with `--force`.
+
+### Financial data workbook
+
+Export all available raw financial data and shared calculated accounting facts:
+
+```bash
+GoTradie ninja export financial
+```
+
+Select a BAS-calendar range or an explicit inclusive source-date range:
+
+```bash
+GoTradie ninja export financial --fy 2027
+GoTradie ninja export financial --fy 2027 --period 2
+GoTradie ninja export financial --from 2026-07-01 --to 2026-09-30
+```
+
+BAS-style selectors and explicit date bounds cannot be combined. Transactional
+records are filtered by their own source dates; customer, vendor, product and
+project master data is retained for relationship context. The workbook contains
+raw Income, Expenses, Payments and Supplier Transactions plus master data,
+shared Accounting Facts, Exceptions and a Summary with `Report Status`.
+Deterministic filenames are replaced only with `--force`.
 
 Available import targets:
 
