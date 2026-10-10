@@ -111,6 +111,44 @@ func TestNumericStoreIsNotReinterpretedAsLegacyItemNumber(t *testing.T) {
 	}
 }
 
+func TestNumericStoreWithBlankSyncDateKeepsNativeIdentity(t *testing.T) {
+	ninja := &fakeNinja{
+		products: []invoiceninja.Product{{
+			Entity: invoiceninja.Entity{ID: "current"}, VendorID: "vendor-bunnings", ProductKey: "0123456",
+			CustomValue1: "9473", CustomValue2: "false",
+		}},
+		vendors: []invoiceninja.Vendor{vendor("vendor-bunnings", "Bunnings")},
+	}
+	provider := &fakeBunnings{products: map[string]bunnings.Product{"0123456": {ItemNumber: "0123456"}}}
+	service := bunningsService(ninja, provider, true)
+	service.Config.Providers["bunnings"] = config.ProviderConfig{Name: "Bunnings", Type: "api", Location: "7040"}
+
+	results, err := service.Refresh(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(provider.calls, []string{"0123456"}) || len(results) != 1 || results[0].Action != "updated" {
+		t.Fatalf("results=%#v calls=%v", results, provider.calls)
+	}
+	if len(ninja.updates) != 1 || ninja.updates[0].request.Values.ProductKey != "" || contains(results[0].Changes, "product_key") {
+		t.Fatalf("native identity changed: results=%#v updates=%#v", results, ninja.updates)
+	}
+}
+
+func TestExplicitBunningsKeysAreDeduplicatedBeforeCreate(t *testing.T) {
+	ninja := &fakeNinja{vendors: []invoiceninja.Vendor{vendor("vendor-bunnings", "Bunnings")}}
+	provider := &fakeBunnings{products: map[string]bunnings.Product{"0123456": {ItemNumber: "0123456"}}}
+	service := bunningsService(ninja, provider, true)
+
+	results, err := service.RefreshBunningsKeys(context.Background(), []string{"0123456", " 0123456 "})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Action != "created" || !reflect.DeepEqual(provider.calls, []string{"0123456"}) || len(ninja.creates) != 1 {
+		t.Fatalf("results=%#v calls=%v creates=%#v", results, provider.calls, ninja.creates)
+	}
+}
+
 func TestBunningsAvailabilityAndErrorsRemainDistinct(t *testing.T) {
 	ninja := &fakeNinja{
 		products: []invoiceninja.Product{

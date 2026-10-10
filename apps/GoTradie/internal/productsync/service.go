@@ -275,12 +275,17 @@ func (s Service) RefreshBunningsKeys(ctx context.Context, keys []string) ([]Resu
 		return nil, err
 	}
 	works := make([]productWork, 0, len(keys))
+	seen := make(map[string]struct{}, len(keys))
 	for _, key := range keys {
 		key = strings.TrimSpace(key)
 		if key == "" {
 			works = append(works, productWork{error: fmt.Errorf("Bunnings item number is required")})
 			continue
 		}
+		if _, duplicate := seen[key]; duplicate {
+			continue
+		}
+		seen[key] = struct{}{}
 		works = append(works, findBunningsWork(products, resolution, key, s.Config.ProductSync.CustomFields, provider.Location))
 	}
 	return s.processBunningsWork(ctx, provider, resolution, works), nil
@@ -513,8 +518,7 @@ func legacyBunningsDetails(product invoiceninja.Product, recognizedVendor bool, 
 		}
 	}
 	custom := strings.TrimSpace(productCustom(product, fields.BunningsIN))
-	_, dateError := time.Parse("2006-01-02", strings.TrimSpace(product.CustomValue4))
-	currentLayout := (product.CustomValue2 == "true" || product.CustomValue2 == "false") && dateError == nil
+	currentLayout := product.CustomValue2 == "true" || product.CustomValue2 == "false"
 	useCustom := hasPrefix || custom == strings.TrimSpace(product.ProductKey) ||
 		decimalDigits(custom) && (product.VendorID == "" || recognizedVendor && !currentLayout && custom != strings.TrimSpace(configuredStore))
 	if !useCustom {
