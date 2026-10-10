@@ -1,5 +1,10 @@
 package goinvoiceninja
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 // CreateClientRequest creates an Invoice Ninja client/customer.
 type CreateClientRequest struct {
 	Name         string    `json:"name,omitempty"`
@@ -56,6 +61,84 @@ type CreateProductRequest struct {
 }
 
 type UpdateProductRequest CreateProductRequest
+
+// SparseProductUpdateRequest preserves Product partial-update semantics while
+// allowing callers to deliberately send selected empty or zero values.
+type SparseProductUpdateRequest struct {
+	Values CreateProductRequest
+
+	explicitFields map[string]struct{}
+}
+
+// NewSparseProductUpdateRequest creates a sparse Product update from the
+// supplied values. Non-zero values are encoded normally.
+func NewSparseProductUpdateRequest(values CreateProductRequest) SparseProductUpdateRequest {
+	return SparseProductUpdateRequest{Values: values}
+}
+
+// WithExplicitFields returns a copy that also serializes the named JSON fields
+// when their values are empty or zero.
+func (r SparseProductUpdateRequest) WithExplicitFields(fields ...string) SparseProductUpdateRequest {
+	explicitFields := make(map[string]struct{}, len(r.explicitFields)+len(fields))
+	for field := range r.explicitFields {
+		explicitFields[field] = struct{}{}
+	}
+	for _, field := range fields {
+		explicitFields[field] = struct{}{}
+	}
+	r.explicitFields = explicitFields
+	return r
+}
+
+func (r SparseProductUpdateRequest) MarshalJSON() ([]byte, error) {
+	encoded, err := json.Marshal(r.Values)
+	if err != nil || len(r.explicitFields) == 0 {
+		return encoded, err
+	}
+
+	var payload map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &payload); err != nil {
+		return nil, err
+	}
+	values := map[string]any{
+		"assigned_user_id":             r.Values.AssignedUserID,
+		"project_id":                   r.Values.ProjectID,
+		"vendor_id":                    r.Values.VendorID,
+		"product_key":                  r.Values.ProductKey,
+		"notes":                        r.Values.Notes,
+		"cost":                         r.Values.Cost,
+		"price":                        r.Values.Price,
+		"quantity":                     r.Values.Quantity,
+		"in_stock_quantity":            r.Values.InStockQuantity,
+		"stock_notification":           r.Values.StockNotification,
+		"stock_notification_threshold": r.Values.StockNotificationThreshold,
+		"max_quantity":                 r.Values.MaxQuantity,
+		"product_image":                r.Values.ProductImage,
+		"tax_id":                       r.Values.TaxID,
+		"income_account_id":            r.Values.IncomeAccountID,
+		"tax_name1":                    r.Values.TaxName1,
+		"tax_rate1":                    r.Values.TaxRate1,
+		"tax_name2":                    r.Values.TaxName2,
+		"tax_rate2":                    r.Values.TaxRate2,
+		"tax_name3":                    r.Values.TaxName3,
+		"tax_rate3":                    r.Values.TaxRate3,
+		"custom_value1":                r.Values.CustomValue1,
+		"custom_value2":                r.Values.CustomValue2,
+		"custom_value3":                r.Values.CustomValue3,
+		"custom_value4":                r.Values.CustomValue4,
+	}
+	for field := range r.explicitFields {
+		value, ok := values[field]
+		if !ok {
+			return nil, fmt.Errorf("unknown explicit Product update field %q", field)
+		}
+		payload[field], err = json.Marshal(value)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return json.Marshal(payload)
+}
 
 // SalesDocumentRequest contains fields shared by quotes and invoices.
 type SalesDocumentRequest struct {

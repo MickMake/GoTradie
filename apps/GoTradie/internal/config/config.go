@@ -67,6 +67,8 @@ type ProductSyncConfig struct {
 }
 
 type ProductCustomFields struct {
+	// BunningsIN and ImageURL identify the pre-v0.5.7 custom fields during
+	// migration only. Product Sync uses the fixed v0.5.7 allocation thereafter.
 	BunningsIN int `yaml:"bunnings_in"`
 	ImageURL   int `yaml:"image_url"`
 }
@@ -308,12 +310,12 @@ func validateProviders(providers map[string]ProviderConfig) error {
 			return fmt.Errorf("providers.%s.name is required", id)
 		}
 		switch provider.Type {
-		case "api", "csv":
+		case "api", "csv", "xlsx":
 		default:
 			if strings.TrimSpace(provider.Type) == "" {
 				return fmt.Errorf("providers.%s.type is required", id)
 			}
-			return fmt.Errorf("providers.%s.type must be api or csv", id)
+			return fmt.Errorf("providers.%s.type must be api, csv, or xlsx", id)
 		}
 		if id == "bunnings" {
 			if provider.Type != "api" {
@@ -332,7 +334,7 @@ func validateProviders(providers map[string]ProviderConfig) error {
 		} else if strings.TrimSpace(provider.Fields.Product) == "" {
 			return fmt.Errorf("providers.%s.fields.product is required for a configurable syncing provider", id)
 		}
-		if provider.Type == "csv" {
+		if provider.Type == "csv" || provider.Type == "xlsx" {
 			if err := validateHTTPURL("providers."+id+".url", provider.URL, true); err != nil {
 				return err
 			}

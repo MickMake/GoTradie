@@ -14,7 +14,7 @@ The rest of Invoice Ninja's API remains available through `Raw`, so the public p
 
 ## Requirements
 
-- Go **1.22**
+- Go **1.25**
 - Invoice Ninja v5 API token
 
 ## Features

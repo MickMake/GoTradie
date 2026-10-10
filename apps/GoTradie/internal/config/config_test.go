@@ -217,6 +217,24 @@ func TestLoadFilePreservesDefaultsAndProviderMapping(t *testing.T) {
 	}
 }
 
+func TestLoadFileAcceptsGenericXLSXProviderWithExactMappings(t *testing.T) {
+	body := validQuarterlyYAML() + `  generic:
+    name: Generic Supplier
+    type: xlsx
+    url: https://supplier.example/catalogue.xlsx
+    fields:
+      product: SKU
+      description: Description
+`
+	cfg, err := loadYAML(t, body, emptyEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if provider := cfg.Providers["generic"]; provider.Type != "xlsx" || provider.Fields.Product != "SKU" {
+		t.Fatalf("generic provider = %#v", provider)
+	}
+}
+
 func TestLoadFileRejectsUnsafeProviderAndProductMappings(t *testing.T) {
 	tests := map[string]struct {
 		body string

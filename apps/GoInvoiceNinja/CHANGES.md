@@ -13,6 +13,8 @@
   gain durable import identity without replacement.
 - Expense updates now preserve explicit zero accounting and payment values
   instead of omitting them from JSON corrections.
+- Added opt-in sparse Product updates so callers can deliberately clear selected
+  native or custom Product fields without overwriting unrelated values.
 
 ## v0.3
 

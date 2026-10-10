@@ -2,9 +2,12 @@
 
 `GoTradie` is a small CLI client that connects the local `GoBunnings` and `GoInvoiceNinja` packages.
 
-Version: `v0.5.6`
+Version: `v0.5.7`
 
-The goal is deliberately modest: refresh Invoice Ninja products from Bunnings product data, add selected Bunnings products safely, and export/import selected Invoice Ninja CSV data without turning the accounts into a surprised octopus.
+The goal is deliberately modest: refresh Invoice Ninja products from configured
+API or file Providers, add selected Bunnings products safely, and export/import
+selected Invoice Ninja CSV data without turning the accounts into a surprised
+octopus.
 
 ## Requirements
 
@@ -84,13 +87,20 @@ GoTradie sync search "merbau decking" --web
 
 `--web` only changes the Bunnings data source. It does not imply `--commit`, does not modify Invoice Ninja by itself, and does not silently fall back to the API.
 
-### Sync existing Invoice Ninja products
+### Synchronise Invoice Ninja products
 
 ```bash
 GoTradie sync
 GoTradie sync refresh
 GoTradie sync refresh --commit
 ```
+
+`sync refresh` processes every configured Provider. API-backed Products are
+ordered by Last Sync Date; CSV/XLSX catalogues are mapped using their configured
+headers and skipped when their last fully processed content hash is unchanged.
+The Invoice Ninja identity is `(vendor_id, product_key)`. Product custom fields
+1–4 are Store, Not Available, Supply Unit and Last Sync Date respectively.
+Legacy Bunnings keys and image custom fields are migrated in place.
 
 ### Add or refresh by Bunnings IN
 

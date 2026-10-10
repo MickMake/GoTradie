@@ -43,6 +43,9 @@ exports:
   directory: ~/Documents/GoTradie
 
 product_sync:
+  # Migration-only locations used to read pre-v0.5.7 Bunnings data. Product
+  # Sync now writes Store, Not Available, Supply Unit and Last Sync Date to
+  # custom fields 1, 2, 3 and 4 respectively.
   custom_fields:
     bunnings_in: 1
     image_url: 2
@@ -61,3 +64,18 @@ providers:
     scopes: []
     country: AU
     location: ""
+
+  # Generic file Providers use exact configured column headers. Use type xlsx
+  # for XLSX workbooks; this intentionally does not guess supplier mappings.
+  # generic_catalogue:
+  #   name: Example Supplier
+  #   type: csv
+  #   aliases: []
+  #   url: https://supplier.example/catalogue.csv
+  #   fields:
+  #     product: SKU
+  #     description: Description
+  #     cost: Cost
+  #     price: Price
+  #     quantity: Quantity
+  #     image_url: ImageURL

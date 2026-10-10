@@ -6,25 +6,32 @@ import (
 
 	invoiceninja "github.com/MickMake/GoInvoiceNinja"
 	"github.com/MickMake/GoTradie/internal/bunnings"
+	"github.com/MickMake/GoTradie/internal/config"
+	"github.com/MickMake/GoTradie/internal/productsync"
 )
 
-func TestAddByINPreservesBunningsSyncInputs(t *testing.T) {
+func TestAddByINUsesV057ProductIdentity(t *testing.T) {
 	bunningsClient := &fakeBunnings{product: bunnings.Product{
-		ItemNumber: "0123456",
-		Title:      "Hammer",
-		ImageURL:   "https://images.example/hammer.jpg",
-		Price:      12.50,
+		ItemNumber: "0123456", Title: "Hammer", ImageURL: "https://images.example/hammer.jpg", Price: 12.50,
 	}}
-	ninjaClient := &fakeNinja{}
-	service := Service{Bunnings: bunningsClient, Ninja: ninjaClient}
+	ninjaClient := &fakeNinja{vendors: []invoiceninja.Vendor{{Entity: invoiceninja.Entity{ID: "vendor-1"}, Name: "Bunnings"}}}
+	productService := &productsync.Service{
+		Config: config.Config{
+			Tax:         config.TaxConfig{Name: "GST", Rate: 10},
+			ProductSync: config.ProductSyncConfig{CustomFields: config.ProductCustomFields{BunningsIN: 1, ImageURL: 2}},
+			Providers:   map[string]config.ProviderConfig{"bunnings": {Name: "Bunnings", Type: "api"}},
+		},
+		Bunnings: bunningsClient, Ninja: ninjaClient, Commit: true,
+	}
+	service := Service{Bunnings: bunningsClient, ProductSync: productService}
 
 	result := service.AddByIN(context.Background(), "0123456")
 
-	if result.Error != nil || result.Action != "created" || result.ProductKey != "BUNNINGS-0123456" {
+	if result.Error != nil || result.Action != "created" || result.ProductKey != "0123456" {
 		t.Fatalf("result = %#v", result)
 	}
-	if ninjaClient.itemNumber != "0123456" || ninjaClient.imageURL != "https://images.example/hammer.jpg" || ninjaClient.price != 12.50 {
-		t.Fatalf("upsert inputs changed: %#v", ninjaClient)
+	if ninjaClient.created.ProductKey != "0123456" || ninjaClient.created.VendorID != "vendor-1" || ninjaClient.created.ProductImage != "https://images.example/hammer.jpg" {
+		t.Fatalf("create request = %#v", ninjaClient.created)
 	}
 }
 
@@ -47,24 +54,24 @@ func (f *fakeBunnings) Hydrate(context.Context, bunnings.Product) (bunnings.Prod
 func (f *fakeBunnings) WithWeb(bool) *bunnings.Service { return nil }
 
 type fakeNinja struct {
-	itemNumber string
-	imageURL   string
-	price      float64
+	products []invoiceninja.Product
+	vendors  []invoiceninja.Vendor
+	created  invoiceninja.CreateProductRequest
 }
 
-func (f *fakeNinja) ListProducts(context.Context) ([]invoiceninja.Product, error) { return nil, nil }
-
-func (f *fakeNinja) FindByBunningsIN(context.Context, string) (*invoiceninja.Product, error) {
-	return nil, invoiceninja.ErrNotFound
+func (f *fakeNinja) ListAllProducts(context.Context) ([]invoiceninja.Product, error) {
+	return f.products, nil
 }
 
-func (f *fakeNinja) UpsertProduct(_ context.Context, itemNumber, _ string, imageURL string, price float64) (invoiceninja.Product, bool, []string, error) {
-	f.itemNumber = itemNumber
-	f.imageURL = imageURL
-	f.price = price
-	return invoiceninja.Product{ProductKey: f.ProductKey(itemNumber)}, true, []string{"created"}, nil
+func (f *fakeNinja) ListAllVendors(context.Context) ([]invoiceninja.Vendor, error) {
+	return f.vendors, nil
 }
 
-func (f *fakeNinja) ProductKey(itemNumber string) string { return "BUNNINGS-" + itemNumber }
+func (f *fakeNinja) CreateCatalogProduct(_ context.Context, request invoiceninja.CreateProductRequest) (invoiceninja.Product, error) {
+	f.created = request
+	return invoiceninja.Product{ProductKey: request.ProductKey, VendorID: request.VendorID}, nil
+}
 
-func (f *fakeNinja) CustomValue(invoiceninja.Product, int) string { return "" }
+func (f *fakeNinja) UpdateCatalogProduct(context.Context, string, invoiceninja.SparseProductUpdateRequest) (invoiceninja.Product, error) {
+	return invoiceninja.Product{}, nil
+}
