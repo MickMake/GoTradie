@@ -2,7 +2,7 @@
 
 ## Status
 
-**Planned — implementation-ready design**
+**CLOSED**
 
 ## Purpose
 

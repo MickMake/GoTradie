@@ -41,7 +41,7 @@ func (s *Service) ExportProductsCSV(ctx context.Context, w io.Writer) error {
 		return err
 	}
 	for _, p := range products {
-		row := []string{p.ID, p.ProductKey, p.Notes, formatFloat(p.Price), formatFloat(p.Quantity), "", s.CustomValue(p, s.cfg.ProductSync.CustomFields.ImageURL)}
+		row := []string{p.ID, p.ProductKey, p.Notes, formatFloat(p.Price), formatFloat(p.Quantity), "", p.ProductImage}
 		if err := cw.Write(row); err != nil {
 			return err
 		}
@@ -99,23 +99,17 @@ func (s *Service) ImportProductsCSV(ctx context.Context, r io.Reader, dryRun boo
 			results = append(results, res)
 			continue
 		}
-		payload := invoiceninja.UpdateProductRequest(invoiceninja.CreateProductRequest{
-			ProductKey:   cell(rec, idx, "Product"),
-			Notes:        cell(rec, idx, "Description"),
-			Cost:         existing.Cost,
-			Price:        price,
-			Quantity:     qty,
-			TaxName1:     existing.TaxName1,
-			TaxRate1:     existing.TaxRate1,
-			TaxName2:     existing.TaxName2,
-			TaxRate2:     existing.TaxRate2,
-			CustomValue1: existing.CustomValue1,
-			CustomValue2: existing.CustomValue2,
-			CustomValue3: existing.CustomValue3,
-			CustomValue4: existing.CustomValue4,
-		})
-		setProductCustom(&payload, s.cfg.ProductSync.CustomFields.ImageURL, cell(rec, idx, "Image URL"))
-		changes := diffProductCSV(*existing, payload, s.cfg.ProductSync.CustomFields.ImageURL)
+		payload := invoiceninja.CreateProductRequest{
+			ProductKey: cell(rec, idx, "Product"),
+			Notes:      cell(rec, idx, "Description"),
+			Price:      price,
+			Quantity:   qty,
+		}
+		_, hasImage := idx["Image URL"]
+		if hasImage {
+			payload.ProductImage = cell(rec, idx, "Image URL")
+		}
+		changes := diffProductCSV(*existing, payload, hasImage)
 		res.Changes = changes
 		if len(changes) == 0 {
 			res.Action = "unchanged"
@@ -127,7 +121,12 @@ func (s *Service) ImportProductsCSV(ctx context.Context, r io.Reader, dryRun boo
 			results = append(results, res)
 			continue
 		}
-		if _, err := s.client.Products.Update(ctx, id, payload); err != nil {
+		fields := []string{"product_key", "notes", "price", "quantity"}
+		if hasImage {
+			fields = append(fields, "product_image")
+		}
+		request := invoiceninja.NewSparseProductUpdateRequest(payload).WithExplicitFields(fields...)
+		if _, err := s.client.Products.UpdateSparse(ctx, id, request); err != nil {
 			res.Action = "error"
 			res.Error = err
 		} else {
@@ -492,21 +491,7 @@ func floatsEqual(a, b float64) bool {
 	return math.Abs(a-b) < 0.000001
 }
 
-func setProductCustom(p *invoiceninja.UpdateProductRequest, idx int, val string) {
-	switch idx {
-	case 1:
-		p.CustomValue1 = val
-	case 2:
-		p.CustomValue2 = val
-	case 3:
-		p.CustomValue3 = val
-	case 4:
-		p.CustomValue4 = val
-	}
-}
-
-func diffProductCSV(existing invoiceninja.Product, next invoiceninja.UpdateProductRequest, imageCustom int) []string {
-	n := invoiceninja.CreateProductRequest(next)
+func diffProductCSV(existing invoiceninja.Product, n invoiceninja.CreateProductRequest, hasImage bool) []string {
 	var changes []string
 	if strings.TrimSpace(existing.ProductKey) != strings.TrimSpace(n.ProductKey) {
 		changes = append(changes, "product")
@@ -520,40 +505,10 @@ func diffProductCSV(existing invoiceninja.Product, next invoiceninja.UpdateProdu
 	if !floatsEqual(existing.Quantity, n.Quantity) {
 		changes = append(changes, "default_quantity")
 	}
-	if customValueProduct(existing, imageCustom) != customValueCreate(n, imageCustom) {
+	if hasImage && existing.ProductImage != n.ProductImage {
 		changes = append(changes, "image_url")
 	}
 	return changes
-}
-
-func customValueProduct(p invoiceninja.Product, idx int) string {
-	switch idx {
-	case 1:
-		return p.CustomValue1
-	case 2:
-		return p.CustomValue2
-	case 3:
-		return p.CustomValue3
-	case 4:
-		return p.CustomValue4
-	default:
-		return ""
-	}
-}
-
-func customValueCreate(p invoiceninja.CreateProductRequest, idx int) string {
-	switch idx {
-	case 1:
-		return p.CustomValue1
-	case 2:
-		return p.CustomValue2
-	case 3:
-		return p.CustomValue3
-	case 4:
-		return p.CustomValue4
-	default:
-		return ""
-	}
 }
 
 func diffClientCSV(existing invoiceninja.ClientEntity, next invoiceninja.UpdateClientRequest) []string {

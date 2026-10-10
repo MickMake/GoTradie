@@ -15,23 +15,24 @@
 
 ## Decisions settled for this slice
 
-- Product identity is `(vendor_id, product_key)` using native Invoice Ninja Product fields; no `Supplier` custom field.
+- Product identity is `(Supplier, product_key)`, where Supplier is the canonical Provider name stored in Product `custom_value1`.
+- Native Product `vendor_id` is not used for identity, matching or persistence. Existing Invoice Ninja Vendor lookup remains a required validation step for each Provider on every invocation.
 - Product images use native `product_image`; the installed Invoice Ninja instance supports external image URLs.
-- Four Product custom fields: **Store**, **Not Available**, **Supply Unit**, **Last Sync Date** (in that order).
-- `Supply Unit` is **arbitrary free-form text**. Do not propose or implement a formatting convention, validation, unit parsing or conversion.
-- Safely migrate existing `BUNNINGS-` keys, `bunnings_in` and `image_url` custom mappings, preserving existing Product records and image data. Do not create duplicate Products.
+- Four Product custom fields: **Supplier**, **Store**, **Not Available**, **Last Sync Date** (in that order).
+- Supply Unit is removed from Product Sync. GoTradie has not previously populated Invoice Ninja Products, so no legacy Product migration is required.
 - For CSV/XLSX Providers, persist the new successful content hash **only after 100% of required Product updates succeed**. On partial failure, leave the old successful hash and retry the entire file on the next run. No incremental per-product checkpoint is needed.
+- Successful fingerprints include canonical Supplier name, configured aliases and source field mappings, but not resolved Vendor IDs.
 
 ## Slice-specific implementation work
 
 - Inspect current Product Sync, Product API read/write support, and Bunnings availability/error handling.
-- Verify the installed Invoice Ninja Product API round-trips native `vendor_id` and `product_image` correctly.
+- Preserve native `product_image` support and validate each configured Supplier against one unambiguous active Invoice Ninja Vendor without modifying Vendor records.
 - Inspect actual NST CSV/source metadata before assuming field names or parsing rules.
 - Implement Provider adapters, existing-Product refresh, evidence-based missing-Product discovery and the narrow source-fingerprint cache described in the design.
-- Preserve Provider canonical names and aliases, and keep Store separate from Vendor identity.
+- Preserve Provider canonical names and aliases, normalise recognised aliases on successful Product updates, and keep Store separate from Supplier identity.
 - Use the existing Invoice Ninja Product records as the authoritative Product state, not a second catalogue.
 - Update CLI help, tests and release documentation for the migration.
 
 ## Focused acceptance evidence
 
-Test preview versus `--commit`; all configured Providers; `(vendor_id, product_key)` identity, aliases and Store separation; legacy Bunnings Product migration without duplication; native image URL preservation; arbitrary Supply Unit text; oldest-first successful Product sync dates; available versus not available versus unknown/error; CSV/XLSX parse-once behaviour; unchanged and changed content hashes; **partial failure without hash advancement and full-file retry**; source errors and duplicate prevention.
+Test preview versus `--commit`; all configured Providers; `(Supplier, product_key)` identity; same-key/different-Supplier separation; duplicate rejection; alias recognition and canonicalisation; blank/unknown Supplier isolation; required Vendor validation, including unchanged files; final custom-field allocation; native image URL preservation; oldest-first successful Product sync dates; available versus not available versus unknown/error; CSV/XLSX parse-once behaviour; mapping/Supplier/alias fingerprint invalidation; unchanged and changed content hashes; **partial failure without hash advancement and full-file retry**; source errors and duplicate prevention.

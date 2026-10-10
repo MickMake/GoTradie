@@ -42,7 +42,7 @@ Top-level commands
         GoTradie version
 
       Example output:
-        v0.5.6
+        v0.5.7
 
 Bunnings commands
 
@@ -93,7 +93,8 @@ Bunnings commands
 Sync commands
 
   sync refresh [--web] [--commit]
-      Refresh existing Invoice Ninja products already linked to Bunnings item numbers.
+      Refresh Invoice Ninja products for every configured Provider.
+      CSV/XLSX catalogues use configured headers and a last-successful content hash.
       Also allowed as shorthand:
         GoTradie sync
 
@@ -104,17 +105,17 @@ Sync commands
         GoTradie sync refresh
 
       Example preview output:
-        IN        ProductKey        Action        Changes/Error
-        0123456   BUNNINGS-0123456  would-update  price 7.20 -> 7.45
-        0987654   BUNNINGS-0987654  unchanged
+        Provider  Product   ProductKey  Action        Changes/Error
+        Bunnings  0123456   0123456     would-update  price,custom_value4
+        Bunnings  0987654   0987654     unchanged
 
       Example commit:
         GoTradie sync refresh --commit
 
       Example commit output:
-        IN        ProductKey        Action        Changes/Error
-        0123456   BUNNINGS-0123456  updated       price 7.20 -> 7.45
-        0987654   BUNNINGS-0987654  unchanged
+        Provider  Product   ProductKey  Action   Changes/Error
+        Bunnings  0123456   0123456     updated  price,custom_value4
+        Bunnings  0987654   0987654     unchanged
 
   sync import <IN> [--web] [--commit]
       Add or refresh a single Invoice Ninja product from a known Bunnings item number.
@@ -125,15 +126,15 @@ Sync commands
         GoTradie sync import 0123456
 
       Example preview output:
-        IN        ProductKey        Action        Changes/Error
-        0123456   BUNNINGS-0123456  would-update  price 7.20 -> 7.45
+        Provider  Product  ProductKey  Action        Changes/Error
+        Bunnings  0123456  0123456     would-update  price,custom_value4
 
       Example commit:
         GoTradie sync import --commit 0123456
 
       Example commit output:
-        IN        ProductKey        Action        Changes/Error
-        0123456   BUNNINGS-0123456  updated       price 7.20 -> 7.45
+        Provider  Product  ProductKey  Action   Changes/Error
+        Bunnings  0123456  0123456     updated  price,custom_value4
 
       Legacy alias:
         GoTradie add-in 0123456
@@ -164,17 +165,17 @@ Sync commands
         GoTradie sync search "merbau decking" --create --select=0123456,0987654
 
       Example preview output:
-        IN        ProductKey        Action        Changes/Error
-        0123456   BUNNINGS-0123456  would-update  price 7.20 -> 7.45
-        0987654   BUNNINGS-0987654  would-update  description changed
+        Provider  Product  ProductKey  Action        Changes/Error
+        Bunnings  0123456  0123456     would-update  price,custom_value4
+        Bunnings  0987654  0987654     would-update  notes,custom_value4
 
       Example commit:
         GoTradie sync search "merbau decking" --create --select=0123456,0987654 --commit
 
       Example commit output:
-        IN        ProductKey        Action        Changes/Error
-        0123456   BUNNINGS-0123456  updated       price 7.20 -> 7.45
-        0987654   BUNNINGS-0987654  updated       description changed
+        Provider  Product  ProductKey  Action   Changes/Error
+        Bunnings  0123456  0123456     updated  price,custom_value4
+        Bunnings  0987654  0987654     updated  notes,custom_value4
 
   sync search <query> --create --all --yes [--commit]
       Select all returned search results, subject to the result cap.
@@ -201,7 +202,7 @@ Invoice Ninja export commands
 
       Example output:
         ID,Product,Description,Price,Default Quantity,Max Quantity,Image URL
-        abc123,BUNNINGS-0123456,90 x 19mm Merbau Decking,7.45,1,,https://...
+        abc123,0123456,90 x 19mm Merbau Decking,7.45,1,,https://...
 
   ninja export clients <file|-> [--force]
       Export active Invoice Ninja clients and contacts as CSV.
@@ -303,16 +304,16 @@ Invoice Ninja import commands
 
       Example preview output:
         ID        Name              Action        Changes/Error
-        abc123    BUNNINGS-0123456  would-update  price 7.20 -> 7.45
-        def456    BUNNINGS-0987654  unchanged
+        abc123    0123456  would-update  price
+        def456    0987654  unchanged
 
       Example commit:
         GoTradie ninja import products --commit products.csv
 
       Example commit output:
         ID        Name              Action        Changes/Error
-        abc123    BUNNINGS-0123456  updated       price 7.20 -> 7.45
-        def456    BUNNINGS-0987654  unchanged
+        abc123    0123456  updated       price
+        def456    0987654  unchanged
 
       Stdin example:
         cat products.csv | GoTradie ninja import products -

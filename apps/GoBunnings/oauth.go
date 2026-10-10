@@ -27,15 +27,15 @@ func NewClientCredentialsTokenSource(env Env, clientID, clientSecret string, sco
 	sub := ".sandbox"
 	switch env {
 	case EnvSandbox:
-		sub = ".sandbox"
+		sub = "connect.sandbox"
 	case EnvTest:
-		sub = ".stg"
+		sub = "connect.stg"
 	case EnvLive:
-		sub = ""
+		sub = "authorisation"
 	default:
 		return nil, fmt.Errorf("unknown environment %q", env)
 	}
-	return &ClientCredentialsTokenSource{HTTP: &http.Client{Timeout: 20 * time.Second}, TokenURL: fmt.Sprintf("https://connect%s.api.bunnings.com.au/connect/token", sub), ClientID: clientID, ClientSecret: clientSecret, Scopes: scopes}, nil
+	return &ClientCredentialsTokenSource{HTTP: &http.Client{Timeout: 20 * time.Second}, TokenURL: fmt.Sprintf("https://%s.api.bunnings.com.au/connect/token", sub), ClientID: clientID, ClientSecret: clientSecret, Scopes: scopes}, nil
 }
 
 func (t *ClientCredentialsTokenSource) Token(ctx context.Context) (string, error) {

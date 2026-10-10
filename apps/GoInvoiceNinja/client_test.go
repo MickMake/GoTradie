@@ -193,6 +193,74 @@ func TestProductUpdateWithBunningsINCustomField(t *testing.T) {
 	}
 }
 
+func TestSparseProductUpdateCanClearSelectedFields(t *testing.T) {
+	var payload map[string]json.RawMessage
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{"id": "p1"}})
+	}))
+	defer srv.Close()
+
+	c, err := New("secret", WithBaseURL(srv.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := NewSparseProductUpdateRequest(CreateProductRequest{
+		VendorID:     "vendor-1",
+		ProductKey:   "SKU-1",
+		Price:        0,
+		CustomValue1: "",
+	}).WithExplicitFields("price", "custom_value1")
+	if _, err := c.Products.UpdateSparse(context.Background(), "p1", req); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, field := range []string{"vendor_id", "product_key", "price", "custom_value1"} {
+		if _, ok := payload[field]; !ok {
+			t.Errorf("missing field %q in payload %#v", field, payload)
+		}
+	}
+	if _, ok := payload["quantity"]; ok {
+		t.Fatalf("unrelated zero field was serialized: %#v", payload)
+	}
+}
+
+func TestSparseProductUpdateRejectsUnknownExplicitField(t *testing.T) {
+	_, err := json.Marshal(NewSparseProductUpdateRequest(CreateProductRequest{}).WithExplicitFields("mystery"))
+	if err == nil || !strings.Contains(err.Error(), "unknown explicit Product update field") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestProductNativeVendorAndImageRoundTripFixture(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request CreateProductRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatal(err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{
+			"id": "product-1", "vendor_id": request.VendorID,
+			"product_key": request.ProductKey, "product_image": request.ProductImage,
+		}})
+	}))
+	defer srv.Close()
+	c, err := New("secret", WithBaseURL(srv.URL))
+	if err != nil {
+		t.Fatal(err)
+	}
+	product, err := c.Products.Create(context.Background(), CreateProductRequest{
+		VendorID: "vendor-1", ProductKey: "SKU-1", ProductImage: "https://example.test/SKU-1.jpg",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if product.VendorID != "vendor-1" || product.ProductKey != "SKU-1" || product.ProductImage != "https://example.test/SKU-1.jpg" {
+		t.Fatalf("Product round trip = %#v", product)
+	}
+}
+
 func TestProductListAndGetPopulateCustomFields(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

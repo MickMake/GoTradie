@@ -42,12 +42,11 @@ eofy:
 exports:
   directory: ~/Documents/GoTradie
 
-product_sync:
-  custom_fields:
-    bunnings_in: 1
-    image_url: 2
-
 providers:
+  # Product custom fields are fixed as Supplier, Store, Not Available and Last
+  # Sync Date (custom fields 1-4 respectively). Provider name supplies Supplier;
+  # aliases recognise existing Supplier text and Invoice Ninja Vendors. Location
+  # supplies Store when it is blank.
   bunnings:
     name: Bunnings
     type: api
@@ -61,3 +60,18 @@ providers:
     scopes: []
     country: AU
     location: ""
+
+  # Generic file Providers use exact configured column headers. Use type xlsx
+  # for XLSX workbooks; this intentionally does not guess supplier mappings.
+  # generic_catalogue:
+  #   name: Example Supplier
+  #   type: csv
+  #   aliases: []
+  #   url: https://supplier.example/catalogue.csv
+  #   fields:
+  #     product: SKU
+  #     description: Description
+  #     cost: Cost
+  #     price: Price
+  #     quantity: Quantity
+  #     image_url: ImageURL
