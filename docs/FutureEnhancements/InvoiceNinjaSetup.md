@@ -21,7 +21,7 @@ Ensure Invoice Ninja remains correctly configured for GoTradie, particularly for
 | Product custom field 2 | **Store** (text) | Error |
 | Product custom field 3 | **Not Available** (boolean) | Error |
 | Product custom field 4 | **Last Sync Date** (date) | Error |
-| Supplier Vendor validation | Each configured Supplier resolves unambiguously to one active Invoice Ninja Vendor using its canonical name or configured aliases | Error |
+| Supplier Vendor validation | Each configured Supplier resolves unambiguously to one active Invoice Ninja Vendor using its canonical name | Error |
 
 Product identity remains **(Supplier custom_value1, native product_key)**. Vendor lookup is validation only; do not depend on Product `vendor_id`.
 
