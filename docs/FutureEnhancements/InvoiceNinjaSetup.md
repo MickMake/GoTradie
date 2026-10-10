@@ -1,7 +1,5 @@
 # Future Feature: Invoice Ninja Setup & Configuration Checks
 
-**Target:** GoTradie v0.5.8 or later. **Not part of PR #11.**
-
 ## Purpose
 
 Ensure Invoice Ninja remains correctly configured for GoTradie, particularly for supplier-managed Products. Detect settings changes before they cause incorrect synchronisation.
