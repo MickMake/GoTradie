@@ -4,12 +4,18 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/MickMake/GoTradie/internal/config"
 )
 
 func TestFileFingerprintStoreRoundTripsPrivateAtomicCache(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "fingerprints.json")
 	store := FileFingerprintStore{Path: path}
-	want := Fingerprint{Provider: "generic", Source: "https://example.test/catalogue.csv", Hash: "abc123", ETag: `"v1"`, LastSuccessfulCheck: "2026-10-10T12:00:00+11:00"}
+	want := Fingerprint{
+		Provider: "generic", Source: "https://example.test/catalogue.csv", Hash: "abc123",
+		Fields: config.ProviderFields{Product: "SKU", Price: "RetailPrice"},
+		ETag:   `"v1"`, LastSuccessfulCheck: "2026-10-10T12:00:00+11:00",
+	}
 	if err := store.Put(want); err != nil {
 		t.Fatal(err)
 	}

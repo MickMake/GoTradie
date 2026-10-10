@@ -7,15 +7,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/MickMake/GoTradie/internal/config"
 )
 
 type Fingerprint struct {
-	Provider            string `json:"provider"`
-	Source              string `json:"source"`
-	Hash                string `json:"hash"`
-	ETag                string `json:"etag,omitempty"`
-	LastModified        string `json:"last_modified,omitempty"`
-	LastSuccessfulCheck string `json:"last_successful_check"`
+	Provider            string                `json:"provider"`
+	Source              string                `json:"source"`
+	Hash                string                `json:"hash"`
+	Fields              config.ProviderFields `json:"fields"`
+	ETag                string                `json:"etag,omitempty"`
+	LastModified        string                `json:"last_modified,omitempty"`
+	LastSuccessfulCheck string                `json:"last_successful_check"`
 }
 
 type FingerprintStore interface {

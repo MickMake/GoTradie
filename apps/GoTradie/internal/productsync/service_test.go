@@ -61,17 +61,17 @@ func TestLegacyBunningsProductMigratesInPlace(t *testing.T) {
 	}
 }
 
-func TestLegacyCustomIdentifierAndAliasVendorResolveToCanonicalVendor(t *testing.T) {
+func TestRecognizedAliasVendorWithBlankAvailabilityKeepsNativeProductKey(t *testing.T) {
 	ninja := &fakeNinja{
 		products: []invoiceninja.Product{{
-			Entity: invoiceninja.Entity{ID: "legacy-custom"}, VendorID: "alias-vendor",
+			Entity: invoiceninja.Entity{ID: "native-alias"}, VendorID: "alias-vendor",
 			ProductKey: "old-key", CustomValue1: "7654321",
 		}},
 		vendors: []invoiceninja.Vendor{
 			vendor("canonical-vendor", "Bunnings"), vendor("alias-vendor", "Bunnings Warehouse"),
 		},
 	}
-	provider := &fakeBunnings{products: map[string]bunnings.Product{"7654321": {ItemNumber: "7654321"}}}
+	provider := &fakeBunnings{products: map[string]bunnings.Product{"old-key": {ItemNumber: "old-key"}}}
 	service := bunningsService(ninja, provider, true)
 	service.Config.Providers["bunnings"] = config.ProviderConfig{
 		Name: "Bunnings", Type: "api", Aliases: []string{"Bunnings Warehouse"}, Location: "Dural",
@@ -85,8 +85,8 @@ func TestLegacyCustomIdentifierAndAliasVendorResolveToCanonicalVendor(t *testing
 		t.Fatalf("results=%#v updates=%#v", results, ninja.updates)
 	}
 	request := ninja.updates[0].request.Values
-	if request.VendorID != "canonical-vendor" || request.ProductKey != "7654321" || request.CustomValue1 != "Dural" {
-		t.Fatalf("canonical migration = %#v", request)
+	if !reflect.DeepEqual(provider.calls, []string{"old-key"}) || request.VendorID != "canonical-vendor" || request.ProductKey != "" || contains(results[0].Changes, "custom_value1") {
+		t.Fatalf("native identity update = %#v; calls=%v", request, provider.calls)
 	}
 }
 
@@ -111,11 +111,11 @@ func TestNumericStoreIsNotReinterpretedAsLegacyItemNumber(t *testing.T) {
 	}
 }
 
-func TestNumericStoreWithBlankSyncDateKeepsNativeIdentity(t *testing.T) {
+func TestNumericStoreWithBlankAvailabilityKeepsNativeIdentity(t *testing.T) {
 	ninja := &fakeNinja{
 		products: []invoiceninja.Product{{
 			Entity: invoiceninja.Entity{ID: "current"}, VendorID: "vendor-bunnings", ProductKey: "0123456",
-			CustomValue1: "9473", CustomValue2: "false",
+			CustomValue1: "9473",
 		}},
 		vendors: []invoiceninja.Vendor{vendor("vendor-bunnings", "Bunnings")},
 	}
@@ -424,7 +424,8 @@ func TestUnchangedFileHashSkipsParsingAndProductWrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cache := &memoryCache{entries: map[string]Fingerprint{"generic": {Provider: "generic", Source: server.URL, Hash: downloaded.Hash}}}
+	fields := config.ProviderFields{Product: "SKU", Description: "Description", Cost: "Cost", Price: "Price", Quantity: "Quantity", ImageURL: "Image"}
+	cache := &memoryCache{entries: map[string]Fingerprint{"generic": {Provider: "generic", Source: server.URL, Hash: downloaded.Hash, Fields: fields}}}
 	ninja := &fakeNinja{vendors: []invoiceninja.Vendor{vendor("v1", "Generic Supplier")}}
 	service := fileService(ninja, cache, server.URL, "csv")
 	service.HTTPClient = server.Client()
@@ -435,6 +436,38 @@ func TestUnchangedFileHashSkipsParsingAndProductWrites(t *testing.T) {
 	}
 	if len(results) != 1 || results[0].Action != "source-unchanged" || len(ninja.updates) != 0 || len(ninja.creates) != 0 {
 		t.Fatalf("results=%#v updates=%d creates=%d", results, len(ninja.updates), len(ninja.creates))
+	}
+}
+
+func TestFileFieldMappingChangeInvalidatesUnchangedContentHash(t *testing.T) {
+	data := []byte("SKU,Description,Cost,Price,Quantity,Image\nA,Alpha,1,25,,\n")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write(data) }))
+	defer server.Close()
+	downloaded, err := downloadCatalogue(context.Background(), server.Client(), config.ProviderConfig{URL: server.URL})
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldFields := config.ProviderFields{Product: "SKU", Description: "Description", Cost: "Cost", Price: "Cost", Quantity: "Quantity", ImageURL: "Image"}
+	cache := &memoryCache{entries: map[string]Fingerprint{"generic": {
+		Provider: "generic", Source: server.URL, Hash: downloaded.Hash, Fields: oldFields,
+	}}}
+	ninja := &fakeNinja{
+		products: []invoiceninja.Product{{Entity: invoiceninja.Entity{ID: "A"}, VendorID: "vendor-generic", ProductKey: "A", Price: 1}},
+		vendors:  []invoiceninja.Vendor{vendor("vendor-generic", "Generic Supplier")},
+	}
+	service := fileService(ninja, cache, server.URL, "csv")
+	service.HTTPClient = server.Client()
+
+	results, err := service.Refresh(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Action != "updated" || len(ninja.updates) != 1 || ninja.updates[0].request.Values.Price != 25 {
+		t.Fatalf("results=%#v updates=%#v", results, ninja.updates)
+	}
+	wantFields := service.Config.Providers["generic"].Fields
+	if cache.puts != 1 || cache.entries["generic"].Fields != wantFields {
+		t.Fatalf("fingerprint=%#v puts=%d; want fields %#v", cache.entries["generic"], cache.puts, wantFields)
 	}
 }
 

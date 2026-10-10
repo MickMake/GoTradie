@@ -211,7 +211,8 @@ func (s Service) Refresh(ctx context.Context) ([]Result, error) {
 		}
 		fingerprint := Fingerprint{
 			Provider: state.id, Source: state.provider.URL, Hash: state.file.downloaded.Hash,
-			ETag: state.file.downloaded.ETag, LastModified: state.file.downloaded.LastModified,
+			Fields: state.provider.Fields,
+			ETag:   state.file.downloaded.ETag, LastModified: state.file.downloaded.LastModified,
 			LastSuccessfulCheck: s.now().Format(time.RFC3339),
 		}
 		if err := state.file.cache.Put(fingerprint); err != nil {
@@ -238,7 +239,7 @@ func (s Service) prepareFileProvider(ctx context.Context, providerID string, pro
 	if err != nil {
 		return nil, &Result{Provider: provider.Name, Action: "error", Error: err}
 	}
-	if found && previous.Source == provider.URL && previous.Hash == downloaded.Hash {
+	if found && previous.Source == provider.URL && previous.Hash == downloaded.Hash && previous.Fields == provider.Fields {
 		return nil, &Result{Provider: provider.Name, Action: "source-unchanged"}
 	}
 	rows, err := parseCatalogue(downloaded.Data, provider)
@@ -518,9 +519,9 @@ func legacyBunningsDetails(product invoiceninja.Product, recognizedVendor bool, 
 		}
 	}
 	custom := strings.TrimSpace(productCustom(product, fields.BunningsIN))
-	currentLayout := product.CustomValue2 == "true" || product.CustomValue2 == "false"
-	useCustom := hasPrefix || custom == strings.TrimSpace(product.ProductKey) ||
-		decimalDigits(custom) && (product.VendorID == "" || recognizedVendor && !currentLayout && custom != strings.TrimSpace(configuredStore))
+	nativeIdentity := recognizedVendor && !hasPrefix && strings.TrimSpace(product.ProductKey) != ""
+	useCustom := !nativeIdentity && (hasPrefix || custom == strings.TrimSpace(product.ProductKey) ||
+		decimalDigits(custom) && (product.VendorID == "" || recognizedVendor && custom != strings.TrimSpace(configuredStore)))
 	if !useCustom {
 		custom = ""
 	}
