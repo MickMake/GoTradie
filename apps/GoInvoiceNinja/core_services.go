@@ -107,6 +107,12 @@ func (s *ProductService) Update(ctx context.Context, id string, req UpdateProduc
 	return s.Service.Update(ctx, id, req)
 }
 
+// UpdateSparse updates selected Product fields without sending unrelated zero
+// values. Use WithExplicitFields when clearing a field is intentional.
+func (s *ProductService) UpdateSparse(ctx context.Context, id string, req SparseProductUpdateRequest) (*Product, error) {
+	return s.Service.Update(ctx, id, req)
+}
+
 func (s *ProductService) FindByKey(ctx context.Context, key string) (*Product, error) {
 	result, err := s.List(ctx, ProductQuery{ListOptions: ListOptions{PerPage: 1}, ProductKey: key})
 	if err != nil {

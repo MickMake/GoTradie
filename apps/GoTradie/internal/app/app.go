@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -16,10 +15,11 @@ import (
 	"github.com/MickMake/GoTradie/internal/bunnings"
 	"github.com/MickMake/GoTradie/internal/config"
 	"github.com/MickMake/GoTradie/internal/ninja"
+	"github.com/MickMake/GoTradie/internal/productsync"
 	"github.com/MickMake/GoTradie/internal/syncer"
 )
 
-const version = "v0.5.6"
+const version = "v0.5.7"
 
 var errExpenseImportStopped = errors.New("expense import stopped by operator")
 
@@ -63,13 +63,8 @@ func (a App) Run(ctx context.Context, args []string) int {
 	}
 	switch args[0] {
 	case "sync", "add-in":
-		if err := cfg.Validate(); err != nil {
+		if err := cfg.ValidateInvoiceNinja(); err != nil {
 			fmt.Fprintln(a.Err, "config error:", err)
-			return 2
-		}
-		bn, err := bunnings.New(cfg)
-		if err != nil {
-			fmt.Fprintln(a.Err, "bunnings client error:", err)
 			return 2
 		}
 		nj, err := ninja.New(cfg)
@@ -77,7 +72,24 @@ func (a App) Run(ctx context.Context, args []string) int {
 			fmt.Fprintln(a.Err, "invoice ninja client error:", err)
 			return 2
 		}
-		svc := syncer.Service{Bunnings: bn, Ninja: nj, BunningsCustom: cfg.ProductSync.CustomFields.BunningsIN}
+		var bn *bunnings.Service
+		if _, configured := cfg.Providers["bunnings"]; configured {
+			if err := cfg.ValidateBunnings(); err != nil {
+				fmt.Fprintln(a.Err, "config error:", err)
+				return 2
+			}
+			bn, err = bunnings.New(cfg)
+			if err != nil {
+				fmt.Fprintln(a.Err, "bunnings client error:", err)
+				return 2
+			}
+		}
+		if bn == nil && (args[0] == "add-in" || len(args) > 1 && (args[1] == "import" || args[1] == "search")) {
+			fmt.Fprintln(a.Err, "config error: missing required configuration: providers.bunnings")
+			return 2
+		}
+		productService := &productsync.Service{Config: cfg, Ninja: nj, Bunnings: bn, Now: a.Now}
+		svc := syncer.Service{Bunnings: bn, ProductSync: productService}
 		switch args[0] {
 		case "sync":
 			return a.runSyncNamespace(ctx, svc, args[1:])
@@ -160,7 +172,12 @@ func (a App) runSync(ctx context.Context, svc syncer.Service, args []string) int
 		fmt.Fprintln(a.Err, "usage: GoTradie sync refresh [--web] [--commit]")
 		return 2
 	}
-	svc.Bunnings.WithWeb(*web)
+	if svc.Bunnings != nil {
+		svc.Bunnings.WithWeb(*web)
+	} else if *web {
+		fmt.Fprintln(a.Err, "config error: --web requires providers.bunnings")
+		return 2
+	}
 	svc.DryRun = !*commit
 	results, err := svc.SyncExisting(ctx)
 	if err != nil {
@@ -786,14 +803,13 @@ func printProducts(w io.Writer, products []bunnings.Product) {
 }
 
 func printResults(w io.Writer, results []syncer.Result) {
-	sort.SliceStable(results, func(i, j int) bool { return results[i].ItemNumber < results[j].ItemNumber })
-	fmt.Fprintln(w, "IN\tProductKey\tAction\tChanges/Error")
+	fmt.Fprintln(w, "Provider\tProduct\tProductKey\tAction\tChanges/Error")
 	for _, r := range results {
 		detail := strings.Join(r.Changes, ",")
 		if r.Error != nil {
 			detail = r.Error.Error()
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", r.ItemNumber, r.ProductKey, r.Action, detail)
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", r.Provider, r.ItemNumber, r.ProductKey, r.Action, detail)
 	}
 }
 
@@ -807,9 +823,9 @@ func exitCode(results []syncer.Result) int {
 }
 
 func (a App) usage() {
-	fmt.Fprint(a.Out, `GoTradie syncs Bunnings products into Invoice Ninja.
+	fmt.Fprint(a.Out, `GoTradie synchronises Provider products with Invoice Ninja.
 
-Version: v0.5.6
+Version: v0.5.7
 
 Configuration:
   ~/.GoTradie/config.yaml is mandatory for operational commands.

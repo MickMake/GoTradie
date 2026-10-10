@@ -3,6 +3,24 @@
 
 ## Unreleased
 
+## v0.5.7
+
+- Added preview-by-default Product Sync across configured Bunnings API and
+  generic CSV/XLSX Providers.
+- Adopted `(Supplier, product_key)` Product identity and native `product_image`.
+  Supplier is canonical Provider text; native Product `vendor_id` is not used.
+- Fixed Product custom fields as Supplier, Store, Not Available and Last Sync
+  Date. Supply Unit and legacy Product migration are not part of Product Sync.
+- Retained required, unambiguous Invoice Ninja Vendor validation for every
+  configured Provider without writing Product-Vendor associations.
+- Added oldest-first Product refresh, explicit available/not-available/error
+  handling and per-Product successful sync dates.
+- Added content-hash freshness for file catalogues; successful fingerprints
+  include Supplier configuration and source mappings, and advance only after
+  every required Product succeeds, so partial runs retry the complete catalogue.
+- NST-specific mappings and live verification of Invoice Ninja native
+  `product_image` remain required pre-merge checks.
+
 ## v0.5.6
 
 - Added `ninja export financial` for unrestricted, financial-year/period and
