@@ -31,7 +31,3 @@ Product identity remains **(Supplier custom_value1, native product_key)**. Vendo
 - Block synchronisation for incompatible settings or unresolved/ambiguous Vendors; report actionable errors.
 - Report non-critical deviations as warnings.
 - Consider optional periodic checks later; avoid repeated noisy alerts.
-
-## Scope
-
-A future feature only. Do not modify Product Sync behaviour or expand the current v0.5.7 PR to implement this.
