@@ -3,6 +3,7 @@ package productsync
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -137,6 +138,93 @@ func TestBunningsAvailabilityAndErrorsRemainDistinct(t *testing.T) {
 	}
 	if len(ninja.updates) != 2 || ninja.updates[0].request.Values.CustomValue2 != "true" || ninja.updates[0].request.Values.CustomValue4 != "2026-10-10" || ninja.updates[1].request.Values.CustomValue2 != "false" {
 		t.Fatalf("updates = %#v", ninja.updates)
+	}
+}
+
+func TestBunningsPricingFailureDoesNotChangeExistingProduct(t *testing.T) {
+	ninja := &fakeNinja{
+		products: []invoiceninja.Product{{
+			Entity: invoiceninja.Entity{ID: "priced"}, VendorID: "vendor-bunnings", ProductKey: "0123456",
+			Price: 42.5, Quantity: 7, CustomValue2: "false", CustomValue4: "2026-01-01",
+		}},
+		vendors: []invoiceninja.Vendor{vendor("vendor-bunnings", "Bunnings")},
+	}
+	provider := &fakeBunnings{errors: map[string]error{
+		"0123456": &bunnings.PricingError{
+			ItemNumber: "0123456",
+			Err:        &gobunnings.APIError{StatusCode: http.StatusNotFound, Body: []byte("pricing unavailable")},
+		},
+	}}
+	service := bunningsService(ninja, provider, true)
+
+	results, err := service.Refresh(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Action != "error" || results[0].Error == nil || !strings.Contains(results[0].Error.Error(), "pricing unavailable") {
+		t.Fatalf("results = %#v", results)
+	}
+	if len(ninja.updates) != 0 {
+		t.Fatalf("pricing failure updated Product: %#v", ninja.updates)
+	}
+	product := ninja.products[0]
+	if product.Price != 42.5 || product.CustomValue2 != "false" || product.CustomValue4 != "2026-01-01" {
+		t.Fatalf("existing Product changed = %#v", product)
+	}
+}
+
+func TestProductUpdatePreservesOrChangesQuantity(t *testing.T) {
+	service := Service{Now: func() time.Time { return time.Date(2026, 10, 10, 12, 0, 0, 0, time.Local) }}
+	provider := config.ProviderConfig{Name: "Generic Supplier"}
+	vendor := vendor("vendor-1", "Generic Supplier")
+
+	tests := []struct {
+		name             string
+		existingQuantity float64
+		quantity         *float64
+		wantQuantity     float64
+		wantQuantityDiff bool
+	}{
+		{name: "metadata only", existingQuantity: 7, wantQuantity: 7},
+		{name: "metadata only with zero", wantQuantity: 0},
+		{name: "provider quantity", existingQuantity: 7, quantity: floatPointer(3), wantQuantity: 3, wantQuantityDiff: true},
+		{name: "provider zero quantity", existingQuantity: 7, quantity: floatPointer(0), wantQuantity: 0, wantQuantityDiff: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			existing := invoiceninja.Product{
+				Entity: invoiceninja.Entity{ID: "p1"}, VendorID: "vendor-1", ProductKey: "SKU-1",
+				Notes: "Old description", Quantity: test.existingQuantity, CustomValue4: "2026-01-01",
+			}
+			request, changes := service.updateRequest(provider, vendor, existing, productWork{observation: observation{
+				Key: "SKU-1", Description: stringPointer("New description"), Quantity: test.quantity,
+			}})
+			if contains(changes, "quantity") != test.wantQuantityDiff {
+				t.Fatalf("changes = %v", changes)
+			}
+			var payload map[string]json.RawMessage
+			encoded, err := json.Marshal(request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(encoded, &payload); err != nil {
+				t.Fatal(err)
+			}
+			var gotQuantity float64
+			if err := json.Unmarshal(payload["quantity"], &gotQuantity); err != nil {
+				t.Fatalf("quantity payload = %s: %v", payload["quantity"], err)
+			}
+			if gotQuantity != test.wantQuantity {
+				t.Fatalf("quantity = %v; want %v", gotQuantity, test.wantQuantity)
+			}
+		})
+	}
+}
+
+func TestBunningsObservationDoesNotInventQuantity(t *testing.T) {
+	got := bunningsObservation(bunnings.Product{ItemNumber: "0123456", Title: "Hammer"}, "0123456")
+	if got.Quantity != nil {
+		t.Fatalf("Bunnings quantity = %v; want nil", *got.Quantity)
 	}
 }
 

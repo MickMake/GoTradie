@@ -422,6 +422,7 @@ func (s Service) updateRequest(provider config.ProviderConfig, vendor invoicenin
 	}
 	addFloat("cost", existing.Cost, work.observation.Cost, &values.Cost)
 	addFloat("price", existing.Price, work.observation.Price, &values.Price)
+	values.Quantity = existing.Quantity
 	addFloat("quantity", existing.Quantity, work.observation.Quantity, &values.Quantity)
 
 	nextImage := work.observation.ImageURL
@@ -451,7 +452,11 @@ func (s Service) updateRequest(provider config.ProviderConfig, vendor invoicenin
 	addString("custom_value3", existing.CustomValue3, supplyUnit, &values.CustomValue3)
 	addString("custom_value4", existing.CustomValue4, s.today(), &values.CustomValue4)
 
-	return invoiceninja.NewSparseProductUpdateRequest(values).WithExplicitFields(fields...), fields
+	request := invoiceninja.NewSparseProductUpdateRequest(values).WithExplicitFields(fields...)
+	if len(fields) > 0 {
+		request = request.WithExplicitFields("quantity")
+	}
+	return request, fields
 }
 
 func resolveProviderVendor(provider config.ProviderConfig, vendors []invoiceninja.Vendor) (providerResolution, error) {
@@ -626,7 +631,7 @@ func bunningsObservation(product bunnings.Product, requestedKey string) observat
 	}
 	description := productNotes(product, key)
 	row := observation{
-		Key: key, Description: stringPointer(description), Quantity: floatPointer(1),
+		Key: key, Description: stringPointer(description),
 		Availability: availabilityAvailable,
 	}
 	if product.Price != 0 {
@@ -654,6 +659,10 @@ func productNotes(product bunnings.Product, key string) string {
 }
 
 func isBunningsNotFound(err error) bool {
+	var pricingError *bunnings.PricingError
+	if errors.As(err, &pricingError) {
+		return false
+	}
 	var apiError *gobunnings.APIError
 	return errors.As(err, &apiError) && apiError.StatusCode == http.StatusNotFound
 }

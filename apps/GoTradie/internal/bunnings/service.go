@@ -19,6 +19,17 @@ type Product struct {
 	RawItem     *gobunnings.Item
 }
 
+type PricingError struct {
+	ItemNumber string
+	Err        error
+}
+
+func (e *PricingError) Error() string {
+	return fmt.Sprintf("Bunnings pricing for Product %q: %v", e.ItemNumber, e.Err)
+}
+
+func (e *PricingError) Unwrap() error { return e.Err }
+
 type Service struct {
 	client   *gobunnings.Client
 	website  *gobunnings.WebsiteService
@@ -72,9 +83,10 @@ func (s *Service) GetProduct(ctx context.Context, itemNumber string) (Product, e
 		p.ItemNumber = itemNumber
 	}
 	price, err := s.price(ctx, p.ItemNumber)
-	if err == nil {
-		p.Price = price
+	if err != nil {
+		return Product{}, &PricingError{ItemNumber: p.ItemNumber, Err: err}
 	}
+	p.Price = price
 	return p, nil
 }
 
