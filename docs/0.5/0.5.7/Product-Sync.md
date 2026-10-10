@@ -2,7 +2,7 @@
 
 ## Status
 
-**Implementation-ready design — decisions resolved**
+**CLOSED**
 
 ## Final v0.5.7 identity decision
 
