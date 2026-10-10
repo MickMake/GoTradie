@@ -10,13 +10,6 @@ import (
 	"github.com/MickMake/GoTradie/internal/config"
 )
 
-const (
-	customStore        = 1
-	customNotAvailable = 2
-	customSupplyUnit   = 3
-	customLastSyncDate = 4
-)
-
 type InvoiceNinja interface {
 	ListAllProducts(context.Context) ([]invoiceninja.Product, error)
 	ListAllVendors(context.Context) ([]invoiceninja.Vendor, error)
@@ -62,7 +55,6 @@ type observation struct {
 	Price        *float64
 	Quantity     *float64
 	ImageURL     *string
-	SupplyUnit   *string
 	Availability availability
 }
 

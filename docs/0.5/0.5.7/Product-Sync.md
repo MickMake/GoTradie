@@ -4,11 +4,9 @@
 
 **Implementation-ready design — decisions resolved**
 
-## v0.5.3 transition constraint
+## Final v0.5.7 identity decision
 
-v0.5.3 deliberately deferred the Product identity/custom-field transition. It retained existing `BUNNINGS-<item number>` keys and the `bunnings_in` and `image_url` custom-field mappings through a temporary internal `BUNNINGS-` constant.
-
-v0.5.7 replaces that interim arrangement. Migrate existing Bunnings Product records safely and preserve their identities and existing data. Do not silently discard, duplicate or reassign Products. The transition must be explicitly tested.
+GoTradie has not previously populated Invoice Ninja Products, so v0.5.7 does not implement legacy Product migration. Product identity uses canonical Supplier text in `custom_value1` plus the native `product_key`. Native Product `vendor_id` is not used because Invoice Ninja v5.13.45 does not expose that relationship through its standard Product API.
 
 ## Core rule
 
@@ -26,35 +24,35 @@ The command processes all configured Providers. Without `--commit`, it previews 
 
 ## Vendor and Provider
 
-- **Vendor**: accounting supplier identity in Invoice Ninja.
+- **Supplier**: canonical Provider text stored in Product `custom_value1`.
+- **Vendor**: an Invoice Ninja accounting record used to validate that a configured Supplier exists.
 - **Provider**: configured external catalogue/API source.
 - A Vendor may exist without a Provider.
 - Each configured Provider has one canonical official supplier name and optional aliases.
-- Aliases are recognition inputs only; Store is separate metadata and must not become part of Vendor identity.
-- Unknown/non-provider Vendors remain valid accounting entities, but Product Sync skips them.
+- Aliases recognise existing Product Supplier text and Vendor names. Successfully updated alias Products are normalised to the canonical Supplier name.
+- Store is separate metadata and never participates in identity.
+- Products with blank or unrecognised Supplier text are skipped, regardless of `product_key`.
 
 Provider alias matching trims surrounding whitespace, compares case-insensitively, performs no fuzzy matching and never learns aliases automatically.
+
+Every sync invocation resolves each configured Provider name or alias against active Invoice Ninja Vendors. Resolution must produce one unambiguous Vendor; otherwise that Provider reports an error and synchronises no Products. This lookup is validation only: Product Sync does not set Product `vendor_id`, modify Vendors or create missing Vendors.
 
 ## Product identity
 
 Invoice Ninja Product identity is the combination:
 
 ```text
-(Vendor, Product)
+(Supplier, Product)
 ```
 
-- **Vendor** is the native Invoice Ninja `vendor_id`, referring to the canonical supplier Vendor record.
+- **Supplier** is the Provider's canonical name in Product `custom_value1`.
 - **Product** is the native Invoice Ninja `product_key`, holding the supplier's exact identifier (SKU, I/N, PartNo, item code, stock code, etc.).
 - Do not prepend Provider-specific prefixes such as `BUNNINGS-` to new identities.
-- Both fields participate in matching and deduplication. Store, Last Sync Date, Not Available and Supply Unit never participate in identity.
+- Both fields participate in matching and deduplication. Store, Not Available and Last Sync Date never participate in identity.
+- Identical Product keys under different Suppliers are valid and remain distinct.
+- Duplicate `(Supplier, Product)` identities are rejected.
 
-The native `vendor_id` association is the source of supplier identity; do not duplicate it in a `Supplier` Product custom field. Preflight must verify that the installed Invoice Ninja Product API persists and returns `vendor_id` correctly.
-
-### Existing Bunnings Product migration
-
-Existing `BUNNINGS-<item number>` keys and `bunnings_in` Product custom values must be recognised during the migration. Identify the original supplier item number, resolve the canonical Bunnings Vendor, and migrate the existing Product record to native `(vendor_id, product_key)` identity without unnecessary replacement or duplication.
-
-Handle collisions, missing identifiers or ambiguous Vendor mapping explicitly; do not guess. Preserve existing Product attributes. Retire the old `bunnings_in` custom-field mapping after a safe, verified transition.
+Do not introduce Product tags, a Supplier prefix in `product_key`, or a separate Product identity database.
 
 ## Native Product fields and custom fields
 
@@ -62,15 +60,18 @@ Use Invoice Ninja native Product fields wherever they already express the concep
 
 | Concept | Storage |
 |---|---|
-| Supplier | Native `vendor_id` |
+| Supplier | Product custom field 1 |
 | Supplier product identifier | Native `product_key` |
 | Image URL | Native `product_image` |
-| Store | Product custom field 1 |
-| Not Available | Product custom field 2 |
-| Supply Unit | Product custom field 3 |
+| Store | Product custom field 2 |
+| Not Available | Product custom field 3 |
 | Last Sync Date | Product custom field 4 |
 
-The existing Product custom `image_url` mapping is retired in favour of native `product_image`. Preserve existing image URLs during migration. The installed Invoice Ninja instance is confirmed to support URLs in `product_image`.
+Provider source `image_url` mappings target native `product_image`. The installed Invoice Ninja instance is confirmed to support URLs in `product_image`.
+
+### Supplier
+
+The canonical configured Provider name. New Products receive it directly. Existing Products using a recognised alias are normalised after a successful update.
 
 ### Store
 
@@ -90,15 +91,11 @@ availability cannot be determined           -> unchanged
 A Product may disappear and reappear. On confirmed reappearance retain its identity, set Not Available to false and record the successful sync date. Do not delete/recreate Products because availability changed. Do not use `discontinued` as a generic state.
 
 
-### Supply Unit
-
-A **free-form text field** for the Product's supply unit or pack description. The user will experiment with values before deciding on any convention. Preserve user-entered content; do not require a format, validate or parse units, perform conversions or add pack-size calculation logic in v0.5.7. It is metadata only and never part of Product identity.
-
 ### Last Sync Date
 
 The local calendar date on which that individual Invoice Ninja Product was last successfully synchronised against Provider data. It belongs to the Product, not its API request, source file, list or catalogue.
 
-- Multiple observations of the same Product resolve to the same `(Vendor, Product)` identity and one Last Sync Date.
+- Multiple observations of the same Product resolve to the same `(Supplier, Product)` identity and one Last Sync Date.
 - Do not advance the date on an attempted or failed refresh.
 - A Provider/API/source failure does not update the date.
 ## Existing-Product refresh ordering
@@ -106,7 +103,7 @@ The local calendar date on which that individual Invoice Ninja Product was last 
 Invoice Ninja Products form the durable refresh queue:
 
 1. Load existing Invoice Ninja Products.
-2. Resolve each Product Vendor to a configured Provider.
+2. Resolve each Product Supplier to a configured Provider.
 3. Skip Products with no supported Provider sync method.
 4. Sort Products missing Last Sync Date first.
 5. Then sort remaining Products by Last Sync Date, oldest first.
@@ -126,7 +123,6 @@ Cost
 Price
 Quantity
 Image URL (product_image)
-Vendor (vendor_id)
 Product custom fields
 ```
 
@@ -156,7 +152,9 @@ Avoid a complex partial-progress system. Supplier catalogue file sizes do not wa
 
 A source check and Product sync are different events. Checking an unchanged source may update non-authoritative check metadata, but it must not change Product Last Sync Date or mark an incompletely processed source as successful.
 
-A narrow persistent cache may record Provider identity, source URL, ETag, Last-Modified, content hash and last successful source check. **Only a hash representing fully successful Product processing may be used to skip future processing.** Any optional fetched-but-unprocessed fingerprint must not become the successful fingerprint.
+A narrow persistent cache may record Provider identity, canonical Supplier name, configured aliases, source field mappings, source URL, ETag, Last-Modified, content hash and last successful source check. Canonical Supplier, alias or mapping changes invalidate a prior fingerprint. Resolved Vendor IDs are not part of the fingerprint. **Only a hash representing fully successful Product processing may be used to skip future processing.** Any optional fetched-but-unprocessed fingerprint must not become the successful fingerprint.
+
+Vendor validation runs before the unchanged-source shortcut on every invocation.
 
 The cache must not become a second Product catalogue, Product identity database, accounting database or alternative Product-state store. Product state and sync metadata remain in Invoice Ninja.
 
@@ -166,7 +164,7 @@ Internally distinguish `available`, `not_available`, `unknown` and `error`. A fa
 
 ## Store analytics
 
-Store/location data stays independent of canonical Vendor identity. Analytics may group by Vendor, Store or Vendor + Store without changing Product identity.
+Store/location data stays independent of Supplier identity. Analytics may group by Supplier, Store or Supplier + Store without changing Product identity.
 
 ## Persistence
 
@@ -186,9 +184,9 @@ fields:
   image_url: ImageURL
 ```
 
-`product` is mandatory for a configurable syncing Provider. The Provider canonical `name` supplies Vendor identity, without repeating it in each source row. The `image_url` source-mapping concept targets native `product_image` and is **not** a Product custom field.
+`product` is mandatory for a configurable syncing Provider. The Provider canonical `name` supplies Product Supplier identity without repeating it in each source row. The `image_url` source-mapping concept targets native `product_image` and is **not** a Product custom field.
 
-Last Sync Date and Not Available are derived from sync results, not blindly copied from source files. Supply Unit is initially arbitrary user-editable metadata; do not impose a parsing scheme.
+Last Sync Date and Not Available are derived from sync results, not blindly copied from source files. Supply Unit is not part of Product Sync.
 
 ## Deferred scope
 

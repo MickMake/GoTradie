@@ -17,9 +17,8 @@ func TestAddByINUsesV057ProductIdentity(t *testing.T) {
 	ninjaClient := &fakeNinja{vendors: []invoiceninja.Vendor{{Entity: invoiceninja.Entity{ID: "vendor-1"}, Name: "Bunnings"}}}
 	productService := &productsync.Service{
 		Config: config.Config{
-			Tax:         config.TaxConfig{Name: "GST", Rate: 10},
-			ProductSync: config.ProductSyncConfig{CustomFields: config.ProductCustomFields{BunningsIN: 1, ImageURL: 2}},
-			Providers:   map[string]config.ProviderConfig{"bunnings": {Name: "Bunnings", Type: "api"}},
+			Tax:       config.TaxConfig{Name: "GST", Rate: 10},
+			Providers: map[string]config.ProviderConfig{"bunnings": {Name: "Bunnings", Type: "api"}},
 		},
 		Bunnings: bunningsClient, Ninja: ninjaClient, Commit: true,
 	}
@@ -30,7 +29,7 @@ func TestAddByINUsesV057ProductIdentity(t *testing.T) {
 	if result.Error != nil || result.Action != "created" || result.ProductKey != "0123456" {
 		t.Fatalf("result = %#v", result)
 	}
-	if ninjaClient.created.ProductKey != "0123456" || ninjaClient.created.VendorID != "vendor-1" || ninjaClient.created.ProductImage != "https://images.example/hammer.jpg" {
+	if ninjaClient.created.ProductKey != "0123456" || ninjaClient.created.VendorID != "" || ninjaClient.created.CustomValue1 != "Bunnings" || ninjaClient.created.ProductImage != "https://images.example/hammer.jpg" {
 		t.Fatalf("create request = %#v", ninjaClient.created)
 	}
 }

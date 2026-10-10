@@ -186,12 +186,6 @@ func TestLoadFilePreservesDefaultsAndProviderMapping(t *testing.T) {
   rate: 10
 
 `, "", 1)
-	body = strings.Replace(body, `product_sync:
-  custom_fields:
-    bunnings_in: 1
-    image_url: 2
-
-`, "", 1)
 	body = strings.Replace(body, "    environment: live\n", "", 1)
 	body = strings.Replace(body, "    country: AU\n", "", 1)
 
@@ -201,9 +195,6 @@ func TestLoadFilePreservesDefaultsAndProviderMapping(t *testing.T) {
 	}
 	if cfg.Tax.Name != "GST" || cfg.Tax.Rate != 10 {
 		t.Fatalf("tax defaults = %#v", cfg.Tax)
-	}
-	if cfg.ProductSync.CustomFields.BunningsIN != 1 || cfg.ProductSync.CustomFields.ImageURL != 2 {
-		t.Fatalf("product sync defaults = %#v", cfg.ProductSync.CustomFields)
 	}
 	bunnings := cfg.Providers["bunnings"]
 	if bunnings.Environment != "live" || bunnings.Country != "AU" {
@@ -268,14 +259,6 @@ func TestLoadFileRejectsUnsafeProviderAndProductMappings(t *testing.T) {
         product: SKU
 `,
 			"absolute http or https URL",
-		},
-		"duplicate product custom field": {
-			strings.Replace(validQuarterlyYAML(), "image_url: 2", "image_url: 1", 1),
-			"must use different custom fields",
-		},
-		"out of range product custom field": {
-			strings.Replace(validQuarterlyYAML(), "bunnings_in: 1", "bunnings_in: 5", 1),
-			"must be between 1 and 4",
 		},
 	}
 	for name, test := range tests {
@@ -354,11 +337,6 @@ bas:
 
 exports:
   directory: ~/Documents/GoTradie
-
-product_sync:
-  custom_fields:
-    bunnings_in: 1
-    image_url: 2
 
 providers:
   bunnings:

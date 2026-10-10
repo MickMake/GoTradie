@@ -13,6 +13,8 @@ import (
 
 type Fingerprint struct {
 	Provider            string                `json:"provider"`
+	Supplier            string                `json:"supplier"`
+	Aliases             []string              `json:"aliases,omitempty"`
 	Source              string                `json:"source"`
 	Hash                string                `json:"hash"`
 	Fields              config.ProviderFields `json:"fields"`

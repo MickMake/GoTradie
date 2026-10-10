@@ -34,7 +34,7 @@ func TestProductCSVUsesNativeProductImage(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := newProductTestService(t, server, productTestConfig(1, 2))
+	service := newProductTestService(t, server, productTestConfig())
 	var exported bytes.Buffer
 	if err := service.ExportProductsCSV(context.Background(), &exported); err != nil {
 		t.Fatal(err)
@@ -63,14 +63,10 @@ func TestProductCSVUsesNativeProductImage(t *testing.T) {
 	}
 }
 
-func productTestConfig(bunningsField, imageField int) config.Config {
+func productTestConfig() config.Config {
 	return config.Config{
 		InvoiceNinja: config.InvoiceNinjaConfig{Token: "token"},
 		Tax:          config.TaxConfig{Name: "GST", Rate: 10},
-		ProductSync: config.ProductSyncConfig{CustomFields: config.ProductCustomFields{
-			BunningsIN: bunningsField,
-			ImageURL:   imageField,
-		}},
 	}
 }
 

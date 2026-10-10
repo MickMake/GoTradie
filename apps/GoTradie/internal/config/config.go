@@ -26,7 +26,6 @@ type Config struct {
 	BAS          BASConfig                 `yaml:"bas"`
 	EOFY         EOFYConfig                `yaml:"eofy"`
 	Exports      ExportsConfig             `yaml:"exports"`
-	ProductSync  ProductSyncConfig         `yaml:"product_sync"`
 	Providers    map[string]ProviderConfig `yaml:"providers"`
 }
 
@@ -60,17 +59,6 @@ type EOFYConfig struct {
 
 type ExportsConfig struct {
 	Directory *string `yaml:"directory"`
-}
-
-type ProductSyncConfig struct {
-	CustomFields ProductCustomFields `yaml:"custom_fields"`
-}
-
-type ProductCustomFields struct {
-	// BunningsIN and ImageURL identify the pre-v0.5.7 custom fields during
-	// migration only. Product Sync uses the fixed v0.5.7 allocation thereafter.
-	BunningsIN int `yaml:"bunnings_in"`
-	ImageURL   int `yaml:"image_url"`
 }
 
 type ProviderConfig struct {
@@ -149,11 +137,7 @@ func loadFile(path string, getenv func(string) string) (Config, error) {
 
 func defaultConfig() Config {
 	return Config{
-		Tax: TaxConfig{Name: "GST", Rate: 10},
-		ProductSync: ProductSyncConfig{CustomFields: ProductCustomFields{
-			BunningsIN: 1,
-			ImageURL:   2,
-		}},
+		Tax:       TaxConfig{Name: "GST", Rate: 10},
 		Providers: make(map[string]ProviderConfig),
 	}
 }
@@ -216,9 +200,6 @@ func (c Config) ValidateConfiguration() error {
 	if c.Exports.Directory != nil && strings.TrimSpace(*c.Exports.Directory) == "" {
 		return fmt.Errorf("exports.directory must not be blank when present")
 	}
-	if err := validateProductSync(c.ProductSync); err != nil {
-		return err
-	}
 	return validateProviders(c.Providers)
 }
 
@@ -272,24 +253,6 @@ func (c Config) CanonicalProviderName(value string) string {
 		}
 	}
 	return value
-}
-
-func validateProductSync(sync ProductSyncConfig) error {
-	indexes := map[string]int{
-		"product_sync.custom_fields.bunnings_in": sync.CustomFields.BunningsIN,
-		"product_sync.custom_fields.image_url":   sync.CustomFields.ImageURL,
-	}
-	seen := make(map[int]string, len(indexes))
-	for name, index := range indexes {
-		if index < 1 || index > 4 {
-			return fmt.Errorf("%s must be between 1 and 4", name)
-		}
-		if previous, exists := seen[index]; exists {
-			return fmt.Errorf("%s and %s must use different custom fields", previous, name)
-		}
-		seen[index] = name
-	}
-	return nil
 }
 
 func validateProviders(providers map[string]ProviderConfig) error {

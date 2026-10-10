@@ -98,9 +98,10 @@ GoTradie sync refresh --commit
 `sync refresh` processes every configured Provider. API-backed Products are
 ordered by Last Sync Date; CSV/XLSX catalogues are mapped using their configured
 headers and skipped when their last fully processed content hash is unchanged.
-The Invoice Ninja identity is `(vendor_id, product_key)`. Product custom fields
-1–4 are Store, Not Available, Supply Unit and Last Sync Date respectively.
-Legacy Bunnings keys and image custom fields are migrated in place.
+Product identity is `(Supplier, product_key)`, with canonical Provider Supplier
+text stored in custom field 1. Custom fields 1–4 are Supplier, Store, Not
+Available and Last Sync Date respectively. Invoice Ninja Vendors are validated
+for each Provider, but native Product `vendor_id` is not used or written.
 
 ### Add or refresh by Bunnings IN
 
