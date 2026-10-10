@@ -17,10 +17,10 @@ implementation instructions, and supporting documentation.
 | v0.5.1 | Closed  | Historical expense importing and supplier-account settlement. |
 | v0.5.2 | Closed  | Expense import identity, validation, progress, batching, and receipt handling. |
 | v0.5.3 | Closed  | Hierarchical YAML configuration and provider definitions. |
-| v0.5.4 | Planned | BAS reporting and a shared Accounting Dataset. |
-| v0.5.5 | Planned | EOFY business tax-preparation reports. |
-| v0.5.6 | Planned | Financial data exports for analysis and diagnostics. |
-| v0.5.7 | Planned | Product synchronisation across configured suppliers and providers. |
+| v0.5.4 | Closed | BAS reporting and a shared Accounting Dataset. |
+| v0.5.5 | Closed | EOFY business tax-preparation reports. |
+| v0.5.6 | Closed | Financial data exports for analysis and diagnostics. |
+| v0.5.7 | Closed | Product synchronisation across configured suppliers and providers. |
 
 ## Documentation
 
