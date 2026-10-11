@@ -71,7 +71,7 @@ providers:
   #   fields:
   #     product: SKU
   #     description: Description
-  #     cost: Cost
-  #     price: Price
-  #     quantity: Quantity
+  #     cost: Cost		<- 
+  #     price: Price		<- Price per unit.
+  #     quantity: Quantity	<- Supplier stock available.
   #     image_url: ImageURL

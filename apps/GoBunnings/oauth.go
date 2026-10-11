@@ -49,6 +49,8 @@ func (t *ClientCredentialsTokenSource) Token(ctx context.Context) (string, error
 
 	form := url.Values{}
 	form.Set("grant_type", "client_credentials")
+	//form.Set("client_id", t.ClientID)         // MickMake
+	//form.Set("client_secret", t.ClientSecret) // MickMake
 	if len(t.Scopes) > 0 {
 		form.Set("scope", strings.Join(t.Scopes, " "))
 	}
@@ -63,6 +65,8 @@ func (t *ClientCredentialsTokenSource) Token(ctx context.Context) (string, error
 		client = http.DefaultClient
 	}
 	resp, err := client.Do(req)
+	//body, _ := io.ReadAll(resp.Body)         // MickMake
+	//fmt.Printf("OAuth response: %s\n", body) // MickMake
 	if err != nil {
 		return "", err
 	}
