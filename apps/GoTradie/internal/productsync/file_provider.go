@@ -7,6 +7,7 @@ import (
 	"encoding/csv"
 	"encoding/hex"
 	"fmt"
+	excelize "github.com/xuri/excelize/v2"
 	"io"
 	"math"
 	"net/http"
@@ -14,7 +15,6 @@ import (
 	"strings"
 
 	"github.com/MickMake/GoTradie/internal/config"
-	"github.com/xuri/excelize/v2"
 )
 
 type downloadedCatalogue struct {
@@ -56,7 +56,10 @@ func parseCatalogue(data []byte, provider config.ProviderConfig) ([]observation,
 	var err error
 	switch provider.Type {
 	case "csv":
-		records, err = csv.NewReader(bytes.NewReader(data)).ReadAll()
+		//records, err = csv.NewReader(bytes.NewReader(data)).ReadAll()
+		reader := csv.NewReader(bytes.NewReader(data))
+		reader.LazyQuotes = true
+		records, err = reader.ReadAll()
 	case "xlsx":
 		records, err = xlsxRecords(data)
 	default:
