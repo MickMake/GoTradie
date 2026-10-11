@@ -89,7 +89,11 @@ func (a App) Run(ctx context.Context, args []string) int {
 			return 2
 		}
 		productService := &productsync.Service{Config: cfg, Ninja: nj, Bunnings: bn, Now: a.Now}
-		svc := syncer.Service{Bunnings: bn, ProductSync: productService}
+		//svc := syncer.Service{Bunnings: bn, ProductSync: productService}
+		svc := syncer.Service{ProductSync: productService}
+		if bn != nil {
+			svc.Bunnings = bn
+		}
 		switch args[0] {
 		case "sync":
 			return a.runSyncNamespace(ctx, svc, args[1:])
