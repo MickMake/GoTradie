@@ -11,7 +11,6 @@
 - Follow the global [Implementation Workflow](../../Implementation-Workflow.md). Its preflight, explicit approval before branch creation/code changes, git safeguards, verification, maximum three review/fix cycles, and merge-approval checkpoint are mandatory; do not duplicate or override them here.
 - Read [Product Sync Updates](./Product-Sync-Updates.md), the existing [v0.5.7 Product Sync design](../0.5.7/Product-Sync.md), and the [global CLI contract](../../Command-Line-Spec.md). The v0.5.8 design supersedes v0.5.7 only for the explicitly changed behaviours.
 - This slice's **only** authoritative scope is the versioned release documentation linked here. Do not search for additional design requirements elsewhere or infer approval from a historical review comment.
-- The [Historical Review Fixes](./Version-Fixes.md) ledger is for **separate evidence-based triage**; it is not a blanket instruction to fix historical issues as part of this slice.
 
 ## Decisions settled for this slice
 
@@ -32,7 +31,6 @@
 - Preserve source parsing, Product identity, Vendor validation, availability, Price, image, Last Sync Date, duplicate protection and partial-failure safeguards.
 - Update CLI help, versioned release documentation and focused tests for implemented behaviour. Keep source adapters unchanged except for the narrowly required Description/mode integration.
 - If the current implementation or API cannot support an agreed requirement without broader work, **STOP and present that obstacle** instead of inventing a workaround or expanding the slice.
-- After the feature is approved and addressed, review historical findings through [Version-Fixes.md](./Version-Fixes.md) as a **separately approved phase**. Verify against latest `main`, including already-fixed/owner-waived findings; do not silently patch unrelated EOFY/BAS/Financial/Bunnings issues.
 
 ## Focused acceptance evidence
 

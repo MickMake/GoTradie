@@ -179,8 +179,6 @@ The following continue unchanged from v0.5.7:
 
 These are ideas for separately approved future work, **not an implementation queue**. The sandbox API includes test placeholders, empty values and zero measurements; do not treat its sample metadata as reliable production evidence.
 
-Historical PR-review findings are tracked separately in [Version-Fixes.md](./Version-Fixes.md). Their presence does not authorise unrelated fixes during the Product Sync implementation. Triage against current `main` and seek a separate approval checkpoint for any confirmed defect outside this slice.
-
 ## 8. Acceptance evidence
 
 - [ ] `sync` handles no-provider opt-in, one provider, one product key and dry-run/`--commit` correctly.
