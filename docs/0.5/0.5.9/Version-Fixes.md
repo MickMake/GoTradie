@@ -1,4 +1,4 @@
-# GoTradie v0.5.8 - Historical Review Fixes
+# v0.5.9 - Historical Code Review Fixes
 
 **Status:** Review triage ledger; no fixes have been authorised or applied by this document.  
 **GitHub baseline inspected:** 12 October 2026, `main` tree `127f949df43c85c8d0d34b2d4bb20d1669db06f6`.
