@@ -1,134 +1,85 @@
 # GoTradie - Product Sync CLI and Provider Design
 
-**Status:** Agreed design proposal; implementation pending  
-**Context:** GoTradie v0.5.7 Product Sync  
+**Status:** Agreed v0.5.8 design proposal; implementation pending  
+**Context:** Follow-up to the closed v0.5.7 Product Sync slice  
 **Date:** 12 October 2026
 
-## 1. Purpose
+## 1. Purpose and boundaries
 
-Provide a simple, supplier-aware way to bring products and public retail prices into Invoice Ninja and keep them up to date.
+Bring supplier products and public retail prices into Invoice Ninja using a small, predictable CLI. Keep the existing v0.5.7 Product identity and synchronisation rules.
 
-GoTradie is **not** intended to harvest every product from every supplier's API or become a generic website crawler.
+Separate four responsibilities:
 
-The design distinguishes:
+1. **Retrieval:** HTTP, HTTPS, FTP, or a local file.
+2. **Decoding:** CSV, XLSX, or a built-in supplier adapter.
+3. **Field mapping and description formatting:** source columns become named GoTradie values; a template formats Description.
+4. **Synchronisation:** match existing Invoice Ninja Products, preview changes, and optionally commit.
 
-1. **Source retrieval** - how data is obtained (HTTP, HTTPS, FTP, local file).
-2. **Source decoding** - how data is interpreted (CSV, XLSX, XLS, or a supplier API).
-3. **Field mapping** - how source fields become GoTradie product fields.
-4. **Product synchronisation** - identity matching, change detection, dry-run and updates in Invoice Ninja.
+The retrieval scheme must not determine the decoder. Do not build a generic website crawler or a second Product database.
 
-These are separate responsibilities. Retrieval should not dictate file format, and file decoding should not dictate sync behaviour.
-
-## 2. CLI
-
-### Proposed command
+## 2. Product Sync CLI
 
 ```text
 GoTradie sync [provider] [product-key] [--commit]
 ```
 
-- **Dry-run by default.** No Invoice Ninja writes unless `--commit` is supplied.
-- **No provider specified:** Run only configured providers with `auto_sync: true`.
-- **Provider specified:** Run that provider explicitly, whether or not `auto_sync` is enabled.
-- **Product key specified:** Sync only that product from the selected provider. An explicitly requested product may be created if missing from Invoice Ninja.
+- No provider: run only providers with `auto_sync: true` (default `false`).
+- Provider supplied: run exactly that configured provider, whether or not it is opted into automatic sync.
+- Product key supplied: synchronise only that key under the selected provider. A missing Product may be created.
+- Preview is the default. **Only `--commit` permits writes to Invoice Ninja.**
+- Do **not** add `--provider` to `sync` or `ninja import`.
 
-### Examples
+Examples:
 
 ```bash
-# Run all providers opted in to automatic sync (dry-run)
 GoTradie sync
-
-# Run all opted-in providers and write changes
 GoTradie sync --commit
-
-# Sync NST's complete catalogue
 GoTradie sync nst
-
-# Sync one NST catalogue item
-GoTradie sync nst 23423434
-
-# Refresh Bunnings products already recorded in Invoice Ninja
+GoTradie sync nst BBD025100
 GoTradie sync bunnings
-
-# Fetch and sync one Bunnings product by item number
 GoTradie sync bunnings 2582847
-
-# Use the specialised Bunnings website adapter instead
-GoTradie sync bunnings-web 2582847
-
-# Explicitly commit a single-product update
 GoTradie sync bunnings 2582847 --commit
 ```
 
-`GoTradie sync bunnings` **must never attempt to import the entire Bunnings catalogue**.
+The Bunnings source is selected through its configuration, **not** through `bunnings-web` as a separate provider and not through `--web` on `sync`.
 
-### Commands kept separate
+### Separate Invoice Ninja maintenance commands
 
-```bash
+```text
 GoTradie ninja export products products.csv
 GoTradie ninja import products products.csv
 ```
 
-These are direct **Invoice Ninja maintenance/import-export tools**, intended for backup, editing, migration and repair. They remain independent of supplier provider configuration and are **not** replaced by Product Sync.
+These remain native Invoice Ninja import/export commands. Do not connect them to supplier providers, Product Sync field mappings, or description templates. Do not redesign them for this slice.
 
-### Legacy Product Sync commands
+### Existing Product Sync forms
 
-The proposed unified CLI replaces the user-facing concepts of:
+The target `sync` interface replaces the older `sync refresh`, `sync import <Bunnings-item>`, and `--web` source selection on Product Sync. Update affected help, tests, and CLI examples together; do not silently retain competing interfaces. Unrelated Bunnings commands are outside this CLI change.
 
-- `sync refresh`
-- `sync import <bunnings-item-number>`
-- `--web` for selecting Bunnings website lookup
+## 3. Selection by source format
 
-A compatibility/deprecation period is an **implementation decision not yet made**. The target interface should not require those forms.
-
-## 3. Provider behaviour is determined by source type
-
-No separate `scope` setting is required.
-
-| Provider source | `GoTradie sync <provider>` | `GoTradie sync <provider> <product-key>` |
+| Provider type | `sync <provider>` | `sync <provider> <product-key>` |
 | --- | --- | --- |
-| CSV catalogue | Process all catalogue records | Select one matching record |
-| XLSX catalogue | Process all catalogue records | Select one matching record |
-| Other supported spreadsheet format (e.g. XLS) | Process all catalogue records | Select one matching record |
-| Supplier API | Refresh **only existing Invoice Ninja products** belonging to that supplier | Fetch and sync the specified product; create if missing |
-| Specialised Bunnings web adapter | Refresh **only existing Bunnings products** | Look up the specified Bunnings product |
+| CSV/XLSX catalogue | Create/update products from catalogue records | Select only the matching catalogue record |
+| API provider | Refresh only existing Invoice Ninja Products for the supplier | Fetch that product; create if missing |
+| Bunnings `mode: api` | Refresh only existing Bunnings Products | Fetch that product through the Bunnings API |
+| Bunnings `mode: web` | Refresh only existing Bunnings Products | Fetch that product through the existing Bunnings website adapter |
 
-For catalogue files, processing all records means **create new / update existing** as appropriate. It does **not** imply deleting Invoice Ninja products that are absent from the latest file.
+File catalogues may be retrieved and parsed when only one product key was requested, but only that one Product may be written. API-backed sources must not enumerate an entire supplier catalogue. Never delete Invoice Ninja Products merely because the latest file omits them.
 
-For API/website lookup providers, product keys for bulk refresh come from **Invoice Ninja's existing product list**, filtered by supplier identity. Do not enumerate or scrape an entire online catalogue.
-
-For a single product from a catalogue file, it is acceptable to retrieve and parse the catalogue to find that one key, but **only that product is synchronised**.
-
-## 4. `auto_sync` - explicit opt-in
-
-```yaml
-auto_sync: true
-```
-
-- Boolean provider setting.
-- **Default: `false`.**
-- Used **only** when running `GoTradie sync` without a provider name.
-- Does not prevent `GoTradie sync <provider>` from running explicitly.
-- Normally only one source for a given supplier should participate in the automatic sync. For example, Bunnings API on; Bunnings website off.
-
-No `include_in_all` and no `scope` setting.
-
-## 5. Proposed provider configuration
+## 4. Provider configuration
 
 ```yaml
 providers:
   bunnings:
     name: Bunnings
-    type: api
+    type: bunnings
+    mode: api       # exactly one of: api | web
     auto_sync: true
-    # Existing Bunnings API authentication/environment settings go here.
-
-  bunnings-web:
-    name: Bunnings
-    type: web
-    auto_sync: false
-    url: https://www.bunnings.com.au
-    # Uses a Bunnings-specific website extraction adapter.
+    aliases:
+      - Bunnings Warehouse
+    # Keep existing API authentication/environment settings here.
+    # API-only settings apply in api mode.
 
   nst:
     name: North Shore Timber
@@ -141,106 +92,140 @@ providers:
       product: CODE
       description: DESCRIPTION
       price: "PRICE (INC GST)"
+      category: CATEGORY
+      unit: UNIT
+    description_template: '{{.description}}{{if .category}} - {{.category}}{{end}}{{if .unit}} ({{.unit}}){{end}}'
 ```
 
-**This configuration is illustrative of the agreed target design**, not a claim that all keys/types are already accepted by v0.5.7.
+This YAML describes the agreed **target**, not a claim about what v0.5.7 already parses.
 
-The NST mapping deliberately does **not** map `PRICE (EX GST)` to `cost`: the requirement is to sync the **public GST-inclusive selling price** shown to customers. The supplier discount is not represented by this mapping.
+- `auto_sync` is an explicit opt-in, defaulting to `false`, and matters only when `sync` has no provider argument.
+- Bunnings has **one** provider configuration and one canonical Supplier. `mode` selects either the existing API adapter or the existing Bunnings website adapter; never both in one run.
+- `mode` is a Bunnings-specific option; do not add it to ordinary CSV/XLSX providers.
+- Validate only credentials and settings relevant to the chosen Bunnings mode.
+- Do not introduce a generic `type: web` implementation to support this special case.
+- Do not add a redundant `scope` or `include_in_all` option.
 
-Other NST columns currently left unmapped:
+## 5. Field mappings and description templates
 
-- `CATEGORY` and `UNIT` are valuable and should eventually appear in product descriptions, but description templating is **deferred**.
-- `quantity` is **optional** and left unmapped when supplier availability is not supplied. GoTradie should not attempt to manage the tradie's own stock from supplier catalogues.
+`fields` maps source field names to **GoTradie names**. Known names feed Invoice Ninja Product fields; additional mapped names are available to `description_template` without creating more Invoice Ninja fields.
 
-### Provider identity versus source
-
-`bunnings` and `bunnings-web` are **different source configurations for the same supplier**.
-
-Both must resolve to the same Invoice Ninja product identity:
+For NST the actual headings are:
 
 ```text
-Canonical Supplier + Product Key
+CATEGORY, CODE, DESCRIPTION, UNIT, PRICE (INC GST), PRICE (EX GST)
 ```
 
-They must not create duplicate products merely because one uses the API and the other uses the website. Supplier/vendor names and configured aliases follow the existing Product Sync identity rules.
+The example in section 4 maps `CODE`, `DESCRIPTION`, and `PRICE (INC GST)` to the required core Product data, plus `CATEGORY` and `UNIT` solely for description formatting.
 
-## 6. Catalogue retrieval and decoding
+### Core values
 
-`url` describes **where to obtain the source**, not how to parse it.
+- `product` (required for a configurable catalogue): native Invoice Ninja `product_key`, the supplier's own SKU/item number.
+- `description` (required): base Product description.
+- `price` (required for the currently supported catalogue pricing path): public **GST-inclusive** retail price. NST uses `PRICE (INC GST)`.
+- `supplier` (system-provided): canonical provider Supplier name, validated against Invoice Ninja Vendors. Do not map this from a CSV column.
+- Existing supported Product mappings such as `cost` and `image_url` retain their v0.5.7 semantics. For NST, do not map the alternate tax-exclusive price into `cost`.
 
-Intended URL schemes:
+**Pricing boundary for v0.5.8:** Use the known GST-inclusive NST price. Handling an exclusive-only price, automatic GST conversion, or changing Invoice Ninja Tax configuration is **deferred**. An exclusive source price must not be interpreted as a 0% tax rate. See `docs/FutureEnhancements/Others.md` for later consideration.
 
-- `https://` and `http://` - download a catalogue.
-- `ftp://` - retrieve a catalogue from an FTP server.
-- `file://` - read an already downloaded local catalogue.
+### Additional fields
 
-The source format (`type: csv`, `type: xlsx`, etc.) selects the decoder independently of the retrieval mechanism. All supported catalogue formats use the same `fields` mapping structure.
+- Any additional `fields` entry (for example, `category` or `unit`) can be used in the template.
+- The template uses GoTradie's **mapped keys**, not raw source column names. Keys are case-sensitive; use the same spelling as in `fields`.
+- Bunnings API and Bunnings Web map their supported data into the same normalised values before templating. A supplier-specific adapter may provide additional named values; templating itself stays shared.
+- `supplier` is always available to the template from provider configuration. Mapped `product` and `description` are always available when a record is valid.
+- Do not guess CSV headings, add a separate `extras` hierarchy, or introduce a generic field-mapping language.
 
-**Implementation boundary:** v0.5.7 already supports configured CSV/XLSX HTTP(S) catalogue workflows. Additional formats such as legacy XLS and retrieval schemes such as FTP and `file://` are **planned capabilities, not confirmed implemented features**. Add them as actual supplier needs arise.
+### Template behaviour
 
-A separate `--file` CLI override has **not** been agreed as a requirement; local files can be modelled as provider URLs when `file://` support is implemented.
+```yaml
+description_template: '{{.description}}{{if .category}} - {{.category}}{{end}}{{if .unit}} ({{.unit}}){{end}}'
+```
 
-## 7. Website scraping
+- Apply the same description-template mechanism to **all** providers, including Bunnings in either mode.
+- When no template is configured, use the base `description` unchanged (equivalent to `{{.description}}`).
+- Support ordinary Go `text/template` field substitution and conditionals. Avoid additional template dependencies or custom programming features.
+- A template reference to an unknown/unmapped field is a configuration error.
+- A supported optional field whose value is absent for an individual product is empty; the template can omit its surrounding punctuation using `if`.
+- Description rendering must not alter Product identity, Supplier matching, or pricing.
 
-**Generic web product discovery/scraping is out of scope unless a real supplier requires it.**
+The template defines **one final Invoice Ninja Description**; additional mapped fields are not separate custom fields.
 
-Reasons:
+## 6. Retrieval is independent from decoding
 
-- Suppliers use different page layouts, structured data, scripts and product identifiers.
-- Products may be distributed across category pages and multiple pagination levels.
-- Search strategies, pagination, category crawling and extraction rules are separate, potentially large projects.
-- Sites can change without notice and break extraction.
+`type: csv` or `type: xlsx` selects the decoder. `url` selects the retrieval method.
 
-The existing **Bunnings-specific website lookup** may be retained as a separate provider named `bunnings-web`. It is not a commitment to build a generic `type: web` crawling framework. A website provider needs its site URL, but URL alone is insufficient to define search and extraction behaviour.
+| URL scheme | Retrieval |
+| --- | --- |
+| `https://` | Download remote source |
+| `http://` | Download remote source |
+| `ftp://` | Retrieve public catalogue via FTP |
+| `file://` | Read local catalogue file |
 
-For now, prioritise API providers and supplier-provided catalogue files.
+The same CSV decoder must work with all supported retrieval schemes; likewise XLSX must not require a different retrieval architecture. In v0.5.8, add **FTP and local-file retrieval** to the existing HTTP(S) paths, with focused tests for CSV and XLSX.
 
-## 8. Common Product Sync rules
+Start with read-only public FTP catalogues; do not introduce FTP credential management without a real supplier need and separate approval. Local file URLs should be explicit `file:///absolute/path/catalog.csv` paths. No `--file` override is required.
 
-Regardless of source:
+Legacy XLS is **not** required for v0.5.8; add another decoder only when a real catalogue requires it. Do not introduce a generic downloader framework unrelated to these schemes.
 
-1. Resolve supplier and product identity consistently using **Supplier + Product Key**.
-2. Normalise provider results into the same internal product representation.
-3. Compare against Invoice Ninja before proposing changes.
-4. Report proposed creates/updates/errors in dry-run mode.
-5. Write only when explicitly passed `--commit`.
-6. Preserve supplier identity and existing Product Sync protections against ambiguous matches.
-7. **Do not automatically delete** products simply because they are absent from a supplier's newest catalogue.
-8. Keep GST handling consistent with the agreed public **GST-inclusive retail-price** convention; verify API price semantics per provider before assuming its values are GST-inclusive.
+## 7. Website-specific extraction
 
-This pipeline should be shared. A new CSV or API provider should not need a new product-matching or update algorithm.
+No generic website scraper, site search engine, page discovery, pagination system, or `type: web` framework.
 
-## 9. Explicit non-goals / deferred work
+Bunnings Web is an existing specialised adapter selected with `bunnings.mode: web`. For other websites, prefer small, independent supplier-specific utilities which produce a CSV/XLSX format GoTradie already understands. Such utilities are **not** part of v0.5.8.
 
-- Crawling the whole Bunnings catalogue (or any large supplier API).
-- A general-purpose web crawler or configurable multi-site search engine.
-- Category/page discovery rules for arbitrary retailers.
-- NST `CATEGORY`/`UNIT` description templates (useful, but deferred until after testing).
-- Automatic management of the tradie's stock quantity.
-- Automatic deletion of unavailable or missing catalogue products.
-- Redesigning `GoTradie ninja import/export`.
-- Introducing a redundant `scope: catalogue|existing` configuration key.
+## 8. Product identity and sync invariants
 
-## 10. v0.5.7 implementation gap / acceptance checklist
+Preserve the accepted v0.5.7 design:
 
-This document defines **desired behaviour**. The current v0.5.7 command handlers still use `sync refresh`, `sync import <Bunnings-IN>`, and `--web`; their behaviour must not be mistaken for the proposed CLI.
+1. Identity is `(canonical Supplier, native product_key)`; no provider-specific prefix.
+2. Supplier is stored in Product custom field 1; Store, Not Available, and Last Sync Date keep their established fields.
+3. Validate the configured canonical Supplier (and allowed aliases) against **one unambiguous active Invoice Ninja Vendor** for every selected provider. Vendor lookup is validation only; do not rely on native Product `vendor_id`.
+4. Recognised aliases may be normalised to the canonical Supplier after a successful Product update.
+5. Reject duplicate supplier/key identities; do not create duplicates when switching Bunnings modes.
+6. Preview proposed creates, updates, skips, and errors. Only `--commit` writes.
+7. Preserve existing successful-sync-date, availability, error, and file-source freshness behaviour. Do not interpret source failure as unavailability or a successful sync.
+8. Do not automatically delete Product records absent from a catalogue.
+9. Do not add new Product-state persistence or additional Bunnings-mode cache handling.
 
-Implementation and tests should establish:
+Use the **existing** Product Sync matching/update pipeline rather than implementing a second algorithm per transport or adapter.
 
-- [ ] `GoTradie sync` runs **only** providers with `auto_sync: true` (default false).
-- [ ] `GoTradie sync <provider>` selects exactly that configured provider.
-- [ ] `GoTradie sync <provider> <product-key>` syncs exactly one requested product.
-- [ ] File catalogue providers enumerate all records when no key is supplied.
-- [ ] API providers without a key refresh **only** their existing Invoice Ninja products.
-- [ ] Both Bunnings source adapters use the same canonical supplier identity.
-- [ ] `--commit` is the only switch that enables writes; dry-run remains the default.
-- [ ] `ninja import/export` remains unchanged as a maintenance facility.
-- [ ] File retrieval, decoding and field mapping are separable.
-- [ ] Add `file://`, FTP and XLS only when implemented and tested; do not advertise prematurely.
-- [ ] Missing catalogue rows do not trigger automatic product deletion.
-- [ ] NST imports `CODE`, `DESCRIPTION`, and public `PRICE (INC GST)` correctly.
-- [ ] Bunnings Live approval/credentials and any website extraction issues are treated as independent external/adapter concerns.
+## 9. Related Invoice Ninja setup checks
+
+`docs/FutureEnhancements/InvoiceNinjaSetup.md` describes separate `invoiceninja check` and `invoiceninja setup` operations, plus a read-only configuration preflight before Product Sync. When implementing those checks, retain its four Product custom-field definitions and Vendor validation rules.
+
+The global CLI contract remains authoritative: **`--commit` is required for any Invoice Ninja configuration write**. A setup command must also request explicit confirmation; inspection must never change settings silently. Keep this facility separate from `ninja import/export` and Product Sync provider selection.
+
+## 10. Deferred and explicitly excluded
+
+- `--provider` on Product Sync or native Invoice Ninja import.
+- Separate `bunnings-web` provider configuration.
+- General-purpose website scraping or additional website adapters.
+- Exclusive-only GST price conversion and Tax-field redesign.
+- Legacy XLS support until a supplier requires it.
+- Supplier stock-management features or automatic product deletion.
+- A second Product identity, Product-state database, or new cache architecture.
+- Any change to native `ninja import/export` semantics.
+- New persistence, generic plugins, or configuration abstractions invented for hypothetical providers.
+
+## 11. v0.5.8 acceptance checklist
+
+- [ ] `GoTradie sync` honours `auto_sync: true` with default false.
+- [ ] `GoTradie sync <provider> [product-key]` selects the specified provider and optional single product.
+- [ ] `--commit` alone enables Invoice Ninja writes; no `--provider` flag.
+- [ ] Bunnings has exactly one provider configuration and `mode: api | web` selection.
+- [ ] Either Bunnings mode uses the same Supplier/product identity and does not duplicate Products.
+- [ ] File catalogue mode creates/updates catalogue rows; API/Bunnings mode refreshes only known Products unless a key is explicit.
+- [ ] Required mappings reject missing `product`, `description`, or supported `price` data.
+- [ ] NST maps public `PRICE (INC GST)` to Product Price, without new GST calculations.
+- [ ] `category` and `unit` are available in description templates; optional absent values format cleanly.
+- [ ] A shared template renderer works for CSV, XLSX, and Bunnings; unknown tags fail clearly.
+- [ ] CSV and XLSX decoding operate independently of HTTP(S), FTP, and local-file retrieval.
+- [ ] Supplier/vendor validation and the existing v0.5.7 Product protections remain intact.
+- [ ] Native `ninja import/export` remains independent and unchanged.
+- [ ] CLI help, global CLI examples, tests, and release notes describe the actual implemented interface.
+- [ ] No generic web scraper, speculative supplier connectors, or unsupported tax rules are introduced.
 
 ---
 
-**Core design principle:** *One Product Sync engine; interchangeable data sources; simple commands; only sync what makes sense for each source.*
+**Design principle:** One Product Sync engine, one Bunnings provider with two modes, interchangeable file transports, and templates over named GoTradie fields. Implement what is needed, not what might one day be impressive.

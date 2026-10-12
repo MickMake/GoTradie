@@ -1,0 +1,437 @@
+{
+  "itemNumber": "2582847",
+  "brand": "Branch",
+  "comparisonUom": {
+    "comparisonUnit": 0,
+    "comparisonUnitOfMeasure": "m"
+  },
+  "description": {
+    "sectionDescription": "CUBE INSERT FLEXI STORAGE",
+    "productDescription": "33X33X27MM WINE RACK BLACK"
+  },
+  "familyTree": {
+    "iD": "13266",
+    "nodes": [
+      {
+        "name": "CATEGORY",
+        "level": 0,
+        "value": "PAINTING AND STORAGE"
+      },
+      {
+        "name": "DEPARTMENT",
+        "level": 0,
+        "value": "STORAGE AND ORGANISATION D"
+      },
+      {
+        "name": "SUB_DEPARTMENT",
+        "level": 0,
+        "value": "WARDROBE ORGANISATION SD"
+      },
+      {
+        "name": "CLASS",
+        "level": 0,
+        "value": "UTILITY STORAGE CL"
+      },
+      {
+        "name": "SUB_CLASS",
+        "level": 0,
+        "value": "CUBE STORAGE SC"
+      }
+    ]
+  },
+  "unspscCode": "24112401",
+  "startDate": "0001-01-01T00:00:00",
+  "endDate": "0001-01-01T00:00:00",
+  "lastUpdate": "0001-01-01T00:00:00",
+  "taxInformation": {
+    "taxCode": "P1AU",
+    "taxRate": 0
+  },
+  "itemType": "RETAIL",
+  "minimumGrades": [
+    {
+      "locationType": "Warehouse",
+      "grade": "C*"
+    }
+  ],
+  "saleUnitOfMeasure": "Each",
+  "productOffer": "Standard",
+  "barcodes": [
+    {
+      "number": "9341136008791",
+      "level": "Consumer",
+      "packaging": [
+        {
+          "part": 0,
+          "dimension": {
+            "unitOfMeasure": "MM",
+            "length": 0,
+            "width": 0,
+            "height": 0
+          },
+          "volume": {
+            "unitOfMeasure": "M3",
+            "value": 0
+          },
+          "weight": {
+            "unitOfMeasure": "KG",
+            "net": 0,
+            "gross": 0
+          }
+        }
+      ],
+      "hierarchy": {
+        "childBarcode": "ABC1234456670",
+        "childQuantity": 0,
+        "baseUnitBarcode": "ABC1234567890",
+        "baseUnitQuantity": 0
+      },
+      "AdditionalDescription": "This is additional description."
+    }
+  ],
+  "sourcing": {
+    "suppliers": [
+      {
+        "jurisdiction": "Domestic",
+        "supplierCode": "str1234",
+        "startDate": "0001-01-01T00:00:00",
+        "endDate": "0001-01-01T00:00:00",
+        "packQty": 0,
+        "packUOM": "125",
+        "supplierBarcodes": [
+          {
+            "primary": false,
+            "number": "str12340",
+            "level": "1",
+            "packaging": [
+              {
+                "part": 0,
+                "dimension": {
+                  "unitOfMeasure": "Kg",
+                  "length": 0,
+                  "width": 0,
+                  "height": 0
+                },
+                "volume": {
+                  "unitOfMeasure": "lt",
+                  "value": 0
+                },
+                "weight": {
+                  "unitOfMeasure": "kg",
+                  "net": 0,
+                  "gross": 0
+                }
+              }
+            ],
+            "hierarchy": {
+              "childBarcode": "Consumer",
+              "childQuantity": 0,
+              "baseUnitBarcode": "Case12345",
+              "baseUnitQuantity": 0
+            },
+            "AdditionalDescription": "The description"
+          }
+        ],
+        "countriesOfOrigin": [
+          {
+            "country": "st",
+            "factory": "str1234"
+          }
+        ]
+      }
+    ],
+    "overridingSuppliers": [
+      {
+        "reason": "reason",
+        "supplierCode": "str1234",
+        "startDate": "0001-01-01T00:00:00",
+        "endDate": "0001-01-01T00:00:00",
+        "packQty": 0,
+        "supplierBarcodes": [
+          {
+            "primary": false,
+            "number": "str12340",
+            "level": "1",
+            "packaging": [
+              {
+                "part": 0,
+                "dimension": {
+                  "unitOfMeasure": "Kg",
+                  "length": 0,
+                  "width": 0,
+                  "height": 0
+                },
+                "volume": {
+                  "unitOfMeasure": "lt",
+                  "value": 0
+                },
+                "weight": {
+                  "unitOfMeasure": "kg",
+                  "net": 0,
+                  "gross": 0
+                }
+              }
+            ],
+            "hierarchy": {
+              "childBarcode": "Consumer",
+              "childQuantity": 0,
+              "baseUnitBarcode": "Case12345",
+              "baseUnitQuantity": 0
+            },
+            "AdditionalDescription": "The description"
+          }
+        ],
+        "countriesOfOrigin": [
+          {
+            "country": "st",
+            "factory": "str1234"
+          }
+        ]
+      }
+    ]
+  },
+  "zoningInformation": [
+    {
+      "retailZone": "AU RZ 4",
+      "region": "SA",
+      "status": "Live",
+      "pendingStatus": {
+        "status": "str1234",
+        "date": "0001-01-01T00:00:00"
+      },
+      "restrictions": [
+        {
+          "type": "RESTRICTED",
+          "locations": {
+            "location": [
+              "AU"
+            ]
+          },
+          "locationRestrictions": "NONE",
+          "saleQuantity": {
+            "iD": "324324",
+            "alertBaseMessage": "This is alert based message",
+            "alertCustomerMessage": "This is alert based message",
+            "restrictionSizing": {
+              "maxQuantity": 0,
+              "maxLength": 0
+            },
+            "validTransactions": {
+              "transaction": "SALE"
+            }
+          },
+          "minimumAge": 0
+        }
+      ],
+      "fulfilmentDetails": {
+        "deliveryType": {
+          "code": "MET_PARCEL",
+          "description": "Metro Parcel"
+        },
+        "freightType": {
+          "code": "MET_PARCEL",
+          "description": "Metro Parcel"
+        },
+        "isDirectDelivery": false,
+        "leadTimes": {
+          "supplierDispatch": "3",
+          "supplierToBunnings": "3",
+          "supplierToCustomer": "2",
+          "bunningsDispatch": "1"
+        }
+      },
+      "webCommerceAttributes": {
+        "visible": false,
+        "transactable": false,
+        "inStorePickup": false,
+        "AvailableForDelivery": false,
+        "comment": "Click and Collect/Deliver"
+      }
+    }
+  ],
+  "ratingsRiskAndCompliance": {
+    "highRisk": "true",
+    "supplierDeclarationsOfConformity": [
+      {
+        "Description": "str1234",
+        "URL": "https://www.tempUri.Org"
+      }
+    ],
+    "weightRating": {
+      "unitOfMeasure": "str1234",
+      "value": 0
+    },
+    "safetyStandards": {
+      "aCCCMandatoryStandard": "true",
+      "standards": [
+        {
+          "standardName": "str1234",
+          "referenceNumber": "str1234"
+        }
+      ],
+      "safetyDataSheet": {
+        "Description": "This description",
+        "URL": "https://www.tempUri.Org"
+      }
+    },
+    "dangerousGood": {
+      "class": "str1234",
+      "classPackagingGroup": "str1234",
+      "hazardClassifications": [
+        "str1234"
+      ],
+      "hazardousContent": {
+        "measure": {
+          "unitOfMeasure": "kg",
+          "value": 0
+        },
+        "chemicalIngredients": {
+          "ingredient": [
+            "str1234"
+          ]
+        }
+      }
+    },
+    "timberProduct": {
+      "supplierCompliance": [
+        {
+          "supplierCode": "str123",
+          "certificationClaim": "str1234",
+          "certificationCode": "str1234"
+        }
+      ]
+    },
+    "buildingProduct": {
+      "installationDocuments": [
+        {
+          "Description": "This description",
+          "URL": "https://www.tempUri.Org"
+        }
+      ],
+      "conformanceDocuments": [
+        {
+          "Description": "This description",
+          "URL": "https://www.tempUri.Org"
+        }
+      ],
+      "otherDocuments": [
+        {
+          "Description": "str1234",
+          "URL": "https://www.tempUri.Org"
+        }
+      ]
+    },
+    "wels": {
+      "watermarkCertificate": "str1234",
+      "starRating": 0,
+      "consumption": {
+        "unitOfMeasure": "str1234",
+        "value": 0
+      },
+      "toilet": {
+        "fullFlush": {
+          "unitOfMeasure": "str1234",
+          "value": 0
+        },
+        "halfFlush": {
+          "unitOfMeasure": "str1234",
+          "value": 0
+        },
+        "averageFlush": {
+          "unitOfMeasure": "str1234",
+          "value": 0
+        }
+      },
+      "dishwasher": {
+        "placeSettings": "str1234",
+        "consumptionPerPlaceSetting": {
+          "unitOfMeasure": "str1234",
+          "value": 0
+        }
+      }
+    },
+    "energyRatings": {
+      "starRating": 0,
+      "powerConsumption": {
+        "unitOfMeasure": "str1234",
+        "value": 0
+      },
+      "externalPowerSupplyMaxOutput": {
+        "unitOfMeasure": "str1234",
+        "value": 0
+      },
+      "heatingAndCooling": {
+        "rating": [
+          {
+            "ratingName": "Air Conditioning Efficiency Ratio",
+            "value": {
+              "unitOfMeasure": "str1234",
+              "value": 0
+            }
+          }
+        ]
+      },
+      "lighting": {
+        "rating": [
+          {
+            "ratingName": "Ballast Lamp Rating",
+            "value": {
+              "unitOfMeasure": "str1234",
+              "value": 0
+            }
+          }
+        ]
+      }
+    }
+  },
+  "usageAttributes": {
+    "productCoverage": {
+      "unitOfMeasure": "kg",
+      "value": 0
+    }
+  },
+  "saleUomSplittingRules": {
+    "minimum": 0,
+    "maximum": 0
+  },
+  "relationships": [
+    {
+      "type": "test",
+      "linkedTimberParentRelationship": {
+        "parentItemNumber": "0000836",
+        "MultipleOfParent": 0
+      },
+      "linkedTimberChildRelationship": {
+        "childItem": [
+          {
+            "itemNumber": "0028745",
+            "multiple": 0
+          },
+          {
+            "itemNumber": "0000828",
+            "multiple": 0
+          }
+        ]
+      }
+    }
+  ],
+  "_meta": {
+    "serverState": "AlJJVE06MDAzL2RldGFpbC9Db3VudHJ5Q29kZS9JdGVtTnVtYmVyL0dFVA4yNTgyODQ3AAjYicKPrAAA"
+  },
+  "_links": [
+    {
+      "rel": "ITM:002/details/CountryCode/GET",
+      "href": "/details/",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "rel": "ITM:003/detail/CountryCode/ItemNumber/GET",
+      "href": "/details//",
+      "methods": [
+        "GET"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,587 @@
+BUNNINGS QUERY ITEM API v1.4 - FIELD NAME INDEX
+==============================================
+Source (official OpenAPI YAML):
+https://developer.live.bunnings.com.au/sites/default/files/open-api-ref/Item.Query_.API_.v1_4.oas_.yaml
+
+Scope: product DETAIL response fields and nested fields, then other Query Item responses.
+These are POSSIBLE schema properties, not guaranteed to be present or usable for
+every product/account/scope, and NOT necessarily supported as GoTradie template tags.
+[] means an array; {key} means a dynamic metadata key.
+
+1. PRODUCT DETAIL - ALL FIELDS
+--------------------------------
+[_meta] (1 leaf paths)
+  _meta.{key}
+
+[_links] (3 leaf paths)
+  _links[].rel
+  _links[].href
+  _links[].methods[]
+
+[itemNumber] (1 leaf paths)
+  itemNumber
+
+[brand] (1 leaf paths)
+  brand
+
+[comparisonUom] (2 leaf paths)
+  comparisonUom.comparisonUnit
+  comparisonUom.comparisonUnitOfMeasure
+
+[description] (2 leaf paths)
+  description.sectionDescription
+  description.productDescription
+
+[familyTree] (4 leaf paths)
+  familyTree.iD
+  familyTree.nodes[].name
+  familyTree.nodes[].level
+  familyTree.nodes[].value
+
+[unspscCode] (1 leaf paths)
+  unspscCode
+
+[startDate] (1 leaf paths)
+  startDate
+
+[endDate] (1 leaf paths)
+  endDate
+
+[lastUpdate] (1 leaf paths)
+  lastUpdate
+
+[taxInformation] (2 leaf paths)
+  taxInformation.taxCode
+  taxInformation.taxRate
+
+[itemType] (1 leaf paths)
+  itemType
+
+[minimumGrades] (2 leaf paths)
+  minimumGrades[].locationType
+  minimumGrades[].grade
+
+[saleUnitOfMeasure] (1 leaf paths)
+  saleUnitOfMeasure
+
+[productOffer] (1 leaf paths)
+  productOffer
+
+[barcodes] (18 leaf paths)
+  barcodes[].number
+  barcodes[].level
+  barcodes[].packaging[].part
+  barcodes[].packaging[].dimension.unitOfMeasure
+  barcodes[].packaging[].dimension.length
+  barcodes[].packaging[].dimension.width
+  barcodes[].packaging[].dimension.height
+  barcodes[].packaging[].volume.unitOfMeasure
+  barcodes[].packaging[].volume.value
+  barcodes[].packaging[].weight.unitOfMeasure
+  barcodes[].packaging[].weight.net
+  barcodes[].packaging[].weight.gross
+  barcodes[].hierarchy.childBarcode
+  barcodes[].hierarchy.childQuantity
+  barcodes[].hierarchy.baseUnitBarcode
+  barcodes[].hierarchy.baseUnitQuantity
+  barcodes[].AdditionalDescription
+  barcodes[].supplierItemNumber
+
+[sourcing] (62 leaf paths)
+  sourcing.suppliers[].supplierCode
+  sourcing.suppliers[].startDate
+  sourcing.suppliers[].endDate
+  sourcing.suppliers[].packQty
+  sourcing.suppliers[].packUOM
+  sourcing.suppliers[].supplierBarcodes[].number
+  sourcing.suppliers[].supplierBarcodes[].level
+  sourcing.suppliers[].supplierBarcodes[].packaging[].part
+  sourcing.suppliers[].supplierBarcodes[].packaging[].dimension.unitOfMeasure
+  sourcing.suppliers[].supplierBarcodes[].packaging[].dimension.length
+  sourcing.suppliers[].supplierBarcodes[].packaging[].dimension.width
+  sourcing.suppliers[].supplierBarcodes[].packaging[].dimension.height
+  sourcing.suppliers[].supplierBarcodes[].packaging[].volume.unitOfMeasure
+  sourcing.suppliers[].supplierBarcodes[].packaging[].volume.value
+  sourcing.suppliers[].supplierBarcodes[].packaging[].weight.unitOfMeasure
+  sourcing.suppliers[].supplierBarcodes[].packaging[].weight.net
+  sourcing.suppliers[].supplierBarcodes[].packaging[].weight.gross
+  sourcing.suppliers[].supplierBarcodes[].hierarchy.childBarcode
+  sourcing.suppliers[].supplierBarcodes[].hierarchy.childQuantity
+  sourcing.suppliers[].supplierBarcodes[].hierarchy.baseUnitBarcode
+  sourcing.suppliers[].supplierBarcodes[].hierarchy.baseUnitQuantity
+  sourcing.suppliers[].supplierBarcodes[].AdditionalDescription
+  sourcing.suppliers[].supplierBarcodes[].supplierItemNumber
+  sourcing.suppliers[].supplierBarcodes[].primary
+  sourcing.suppliers[].countriesOfOrigin[].country
+  sourcing.suppliers[].countriesOfOrigin[].factory
+  sourcing.suppliers[].costs[].costZone
+  sourcing.suppliers[].costs[].cost
+  sourcing.suppliers[].costs[].costUnitPrice
+  sourcing.suppliers[].jurisdiction
+  sourcing.suppliers[].foreignSupplier.incoTerms
+  sourcing.suppliers[].foreignSupplier.foreignSupplierCode
+  sourcing.overridingSuppliers[].supplierCode
+  sourcing.overridingSuppliers[].startDate
+  sourcing.overridingSuppliers[].endDate
+  sourcing.overridingSuppliers[].packQty
+  sourcing.overridingSuppliers[].packUOM
+  sourcing.overridingSuppliers[].supplierBarcodes[].number
+  sourcing.overridingSuppliers[].supplierBarcodes[].level
+  sourcing.overridingSuppliers[].supplierBarcodes[].packaging[].part
+  sourcing.overridingSuppliers[].supplierBarcodes[].packaging[].dimension.unitOfMeasure
+  sourcing.overridingSuppliers[].supplierBarcodes[].packaging[].dimension.length
+  sourcing.overridingSuppliers[].supplierBarcodes[].packaging[].dimension.width
+  sourcing.overridingSuppliers[].supplierBarcodes[].packaging[].dimension.height
+  sourcing.overridingSuppliers[].supplierBarcodes[].packaging[].volume.unitOfMeasure
+  sourcing.overridingSuppliers[].supplierBarcodes[].packaging[].volume.value
+  sourcing.overridingSuppliers[].supplierBarcodes[].packaging[].weight.unitOfMeasure
+  sourcing.overridingSuppliers[].supplierBarcodes[].packaging[].weight.net
+  sourcing.overridingSuppliers[].supplierBarcodes[].packaging[].weight.gross
+  sourcing.overridingSuppliers[].supplierBarcodes[].hierarchy.childBarcode
+  sourcing.overridingSuppliers[].supplierBarcodes[].hierarchy.childQuantity
+  sourcing.overridingSuppliers[].supplierBarcodes[].hierarchy.baseUnitBarcode
+  sourcing.overridingSuppliers[].supplierBarcodes[].hierarchy.baseUnitQuantity
+  sourcing.overridingSuppliers[].supplierBarcodes[].AdditionalDescription
+  sourcing.overridingSuppliers[].supplierBarcodes[].supplierItemNumber
+  sourcing.overridingSuppliers[].supplierBarcodes[].primary
+  sourcing.overridingSuppliers[].countriesOfOrigin[].country
+  sourcing.overridingSuppliers[].countriesOfOrigin[].factory
+  sourcing.overridingSuppliers[].costs[].costZone
+  sourcing.overridingSuppliers[].costs[].cost
+  sourcing.overridingSuppliers[].costs[].costUnitPrice
+  sourcing.overridingSuppliers[].reason
+
+[zoningInformation] (29 leaf paths)
+  zoningInformation[].retailZone
+  zoningInformation[].region
+  zoningInformation[].status
+  zoningInformation[].pendingStatus.status
+  zoningInformation[].pendingStatus.date
+  zoningInformation[].restrictions[].type
+  zoningInformation[].restrictions[].locations.location[]
+  zoningInformation[].restrictions[].locationRestrictions
+  zoningInformation[].restrictions[].saleQuantity.iD
+  zoningInformation[].restrictions[].saleQuantity.alertBaseMessage
+  zoningInformation[].restrictions[].saleQuantity.alertCustomerMessage
+  zoningInformation[].restrictions[].saleQuantity.restrictionSizing.maxQuantity
+  zoningInformation[].restrictions[].saleQuantity.restrictionSizing.maxLength
+  zoningInformation[].restrictions[].saleQuantity.validTransactions.transaction
+  zoningInformation[].restrictions[].minimumAge
+  zoningInformation[].fulfilmentDetails.deliveryType.code
+  zoningInformation[].fulfilmentDetails.deliveryType.description
+  zoningInformation[].fulfilmentDetails.freightType.code
+  zoningInformation[].fulfilmentDetails.freightType.description
+  zoningInformation[].fulfilmentDetails.isDirectDelivery
+  zoningInformation[].fulfilmentDetails.leadTimes.supplierDispatch
+  zoningInformation[].fulfilmentDetails.leadTimes.supplierToBunnings
+  zoningInformation[].fulfilmentDetails.leadTimes.supplierToCustomer
+  zoningInformation[].fulfilmentDetails.leadTimes.bunningsDispatch
+  zoningInformation[].webCommerceAttributes.visible
+  zoningInformation[].webCommerceAttributes.transactable
+  zoningInformation[].webCommerceAttributes.inStorePickup
+  zoningInformation[].webCommerceAttributes.AvailableForDelivery
+  zoningInformation[].webCommerceAttributes.comment
+
+[ratingsRiskAndCompliance] (49 leaf paths)
+  ratingsRiskAndCompliance.highRisk
+  ratingsRiskAndCompliance.supplierDeclarationsOfConformity[].Description
+  ratingsRiskAndCompliance.supplierDeclarationsOfConformity[].URL
+  ratingsRiskAndCompliance.weightRating.unitOfMeasure
+  ratingsRiskAndCompliance.weightRating.value
+  ratingsRiskAndCompliance.safetyStandards.aCCCMandatoryStandard
+  ratingsRiskAndCompliance.safetyStandards.standards[].standardName
+  ratingsRiskAndCompliance.safetyStandards.standards[].referenceNumber
+  ratingsRiskAndCompliance.safetyStandards.safetyDataSheet.Description
+  ratingsRiskAndCompliance.safetyStandards.safetyDataSheet.URL
+  ratingsRiskAndCompliance.dangerousGood.class
+  ratingsRiskAndCompliance.dangerousGood.classPackagingGroup
+  ratingsRiskAndCompliance.dangerousGood.hazardClassifications[]
+  ratingsRiskAndCompliance.dangerousGood.hazardousContent.measure.unitOfMeasure
+  ratingsRiskAndCompliance.dangerousGood.hazardousContent.measure.value
+  ratingsRiskAndCompliance.dangerousGood.hazardousContent.chemicalIngredients.ingredient[]
+  ratingsRiskAndCompliance.timberProduct.supplierCompliance[].supplierCode
+  ratingsRiskAndCompliance.timberProduct.supplierCompliance[].certificationClaim
+  ratingsRiskAndCompliance.timberProduct.supplierCompliance[].certificationCode
+  ratingsRiskAndCompliance.buildingProduct.installationDocuments[].Description
+  ratingsRiskAndCompliance.buildingProduct.installationDocuments[].URL
+  ratingsRiskAndCompliance.buildingProduct.conformanceDocuments[].Description
+  ratingsRiskAndCompliance.buildingProduct.conformanceDocuments[].URL
+  ratingsRiskAndCompliance.buildingProduct.otherDocuments[].Description
+  ratingsRiskAndCompliance.buildingProduct.otherDocuments[].URL
+  ratingsRiskAndCompliance.wels.watermarkCertificate
+  ratingsRiskAndCompliance.wels.starRating
+  ratingsRiskAndCompliance.wels.consumption.unitOfMeasure
+  ratingsRiskAndCompliance.wels.consumption.value
+  ratingsRiskAndCompliance.wels.toilet.fullFlush.unitOfMeasure
+  ratingsRiskAndCompliance.wels.toilet.fullFlush.value
+  ratingsRiskAndCompliance.wels.toilet.halfFlush.unitOfMeasure
+  ratingsRiskAndCompliance.wels.toilet.halfFlush.value
+  ratingsRiskAndCompliance.wels.toilet.averageFlush.unitOfMeasure
+  ratingsRiskAndCompliance.wels.toilet.averageFlush.value
+  ratingsRiskAndCompliance.wels.dishwasher.placeSettings
+  ratingsRiskAndCompliance.wels.dishwasher.consumptionPerPlaceSetting.unitOfMeasure
+  ratingsRiskAndCompliance.wels.dishwasher.consumptionPerPlaceSetting.value
+  ratingsRiskAndCompliance.energyRatings.starRating
+  ratingsRiskAndCompliance.energyRatings.powerConsumption.unitOfMeasure
+  ratingsRiskAndCompliance.energyRatings.powerConsumption.value
+  ratingsRiskAndCompliance.energyRatings.externalPowerSupplyMaxOutput.unitOfMeasure
+  ratingsRiskAndCompliance.energyRatings.externalPowerSupplyMaxOutput.value
+  ratingsRiskAndCompliance.energyRatings.heatingAndCooling.rating[].ratingName
+  ratingsRiskAndCompliance.energyRatings.heatingAndCooling.rating[].value.unitOfMeasure
+  ratingsRiskAndCompliance.energyRatings.heatingAndCooling.rating[].value.value
+  ratingsRiskAndCompliance.energyRatings.lighting.rating[].ratingName
+  ratingsRiskAndCompliance.energyRatings.lighting.rating[].value.unitOfMeasure
+  ratingsRiskAndCompliance.energyRatings.lighting.rating[].value.value
+
+[usageAttributes] (2 leaf paths)
+  usageAttributes.productCoverage.unitOfMeasure
+  usageAttributes.productCoverage.value
+
+[wholeUnitOnly] (1 leaf paths)
+  wholeUnitOnly
+
+[searchable] (1 leaf paths)
+  searchable
+
+[sellable] (1 leaf paths)
+  sellable
+
+[tradeOnlyItem] (1 leaf paths)
+  tradeOnlyItem
+
+[saleUomSplittingRules] (3 leaf paths)
+  saleUomSplittingRules.minimum
+  saleUomSplittingRules.maximum
+  saleUomSplittingRules.increment
+
+[enrichedData] (154 leaf paths)
+  enrichedData.name
+  enrichedData.origin
+  enrichedData.description
+  enrichedData.baseProduct.code
+  enrichedData.baseProduct.name
+  enrichedData.baseProduct.isDummy
+  enrichedData.baseProduct.variantCategories[]
+  enrichedData.variantValueCategories[].variantValueCategory
+  enrichedData.variantValueCategories[].variantCategory
+  enrichedData.brand.code
+  enrichedData.brand.name
+  enrichedData.brand.description
+  enrichedData.brand.leadingBrand
+  enrichedData.brand.tradeBrand
+  enrichedData.brand.marketplaceBrand
+  enrichedData.brand.logo.code
+  enrichedData.brand.logo.primaryAssetURL
+  enrichedData.brand.logo.secondaryAssetURL
+  enrichedData.brand.logo.name
+  enrichedData.brand.logo.disclaimer
+  enrichedData.brand.logo.mime
+  enrichedData.brand.logo.associatedTo
+  enrichedData.brand.logo.associatedToSpecified
+  enrichedData.otherImages[].code
+  enrichedData.otherImages[].primaryAssetURL
+  enrichedData.otherImages[].secondaryAssetURL
+  enrichedData.otherImages[].name
+  enrichedData.otherImages[].disclaimer
+  enrichedData.otherImages[].mime
+  enrichedData.otherImages[].associatedTo
+  enrichedData.otherImages[].associatedToSpecified
+  enrichedData.videos[].code
+  enrichedData.videos[].primaryAssetURL
+  enrichedData.videos[].secondaryAssetURL
+  enrichedData.videos[].name
+  enrichedData.videos[].disclaimer
+  enrichedData.videos[].mime
+  enrichedData.videos[].associatedTo
+  enrichedData.videos[].associatedToSpecified
+  enrichedData.keySellingPoints[]
+  enrichedData.microSiteKeySellingPoint[]
+  enrichedData.warrantyInformation
+  enrichedData.installationInformation
+  enrichedData.sustainabilityInformation
+  enrichedData.deliveryInformation
+  enrichedData.showServices
+  enrichedData.availableServices[].serviceName
+  enrichedData.availableServices[].serviceID
+  enrichedData.availableServices[].description
+  enrichedData.availableServices[].serviceIcon
+  enrichedData.availableServices[].serviceStatus
+  enrichedData.availableServices[].batchCountry
+  enrichedData.productDimensions[].productDimensionLabel
+  enrichedData.productDimensions[].productDimensionWidth
+  enrichedData.productDimensions[].productDimensionHeight
+  enrichedData.productDimensions[].productDimensionDepth
+  enrichedData.classification.code
+  enrichedData.classification.name
+  enrichedData.classification.features[].attributeName
+  enrichedData.classification.features[].attributeValue
+  enrichedData.warrantyDocument.code
+  enrichedData.warrantyDocument.primaryAssetURL
+  enrichedData.warrantyDocument.secondaryAssetURL
+  enrichedData.warrantyDocument.name
+  enrichedData.warrantyDocument.disclaimer
+  enrichedData.warrantyDocument.mime
+  enrichedData.warrantyDocument.associatedTo
+  enrichedData.warrantyDocument.associatedToSpecified
+  enrichedData.specificationsDocument.code
+  enrichedData.specificationsDocument.primaryAssetURL
+  enrichedData.specificationsDocument.secondaryAssetURL
+  enrichedData.specificationsDocument.name
+  enrichedData.specificationsDocument.disclaimer
+  enrichedData.specificationsDocument.mime
+  enrichedData.specificationsDocument.associatedTo
+  enrichedData.specificationsDocument.associatedToSpecified
+  enrichedData.brochureDocument.code
+  enrichedData.brochureDocument.primaryAssetURL
+  enrichedData.brochureDocument.secondaryAssetURL
+  enrichedData.brochureDocument.name
+  enrichedData.brochureDocument.disclaimer
+  enrichedData.brochureDocument.mime
+  enrichedData.brochureDocument.associatedTo
+  enrichedData.brochureDocument.associatedToSpecified
+  enrichedData.installationGuideDocument.code
+  enrichedData.installationGuideDocument.primaryAssetURL
+  enrichedData.installationGuideDocument.secondaryAssetURL
+  enrichedData.installationGuideDocument.name
+  enrichedData.installationGuideDocument.disclaimer
+  enrichedData.installationGuideDocument.mime
+  enrichedData.installationGuideDocument.associatedTo
+  enrichedData.installationGuideDocument.associatedToSpecified
+  enrichedData.userGuideDocument.code
+  enrichedData.userGuideDocument.primaryAssetURL
+  enrichedData.userGuideDocument.secondaryAssetURL
+  enrichedData.userGuideDocument.name
+  enrichedData.userGuideDocument.disclaimer
+  enrichedData.userGuideDocument.mime
+  enrichedData.userGuideDocument.associatedTo
+  enrichedData.userGuideDocument.associatedToSpecified
+  enrichedData.instructionsDocument.code
+  enrichedData.instructionsDocument.primaryAssetURL
+  enrichedData.instructionsDocument.secondaryAssetURL
+  enrichedData.instructionsDocument.name
+  enrichedData.instructionsDocument.disclaimer
+  enrichedData.instructionsDocument.mime
+  enrichedData.instructionsDocument.associatedTo
+  enrichedData.instructionsDocument.associatedToSpecified
+  enrichedData.materialSafetyDataSheet.code
+  enrichedData.materialSafetyDataSheet.primaryAssetURL
+  enrichedData.materialSafetyDataSheet.secondaryAssetURL
+  enrichedData.materialSafetyDataSheet.name
+  enrichedData.materialSafetyDataSheet.disclaimer
+  enrichedData.materialSafetyDataSheet.mime
+  enrichedData.materialSafetyDataSheet.associatedTo
+  enrichedData.materialSafetyDataSheet.associatedToSpecified
+  enrichedData.sDoCForm.code
+  enrichedData.sDoCForm.primaryAssetURL
+  enrichedData.sDoCForm.secondaryAssetURL
+  enrichedData.sDoCForm.name
+  enrichedData.sDoCForm.disclaimer
+  enrichedData.sDoCForm.mime
+  enrichedData.sDoCForm.associatedTo
+  enrichedData.sDoCForm.associatedToSpecified
+  enrichedData.webDisclaimer
+  enrichedData.forHireFlag
+  enrichedData.fscFlag
+  enrichedData.bestSellerFlag
+  enrichedData.newArrivalFlag
+  enrichedData.picture.code
+  enrichedData.picture.primaryAssetURL
+  enrichedData.picture.secondaryAssetURL
+  enrichedData.picture.name
+  enrichedData.picture.disclaimer
+  enrichedData.picture.mime
+  enrichedData.picture.associatedTo
+  enrichedData.picture.associatedToSpecified
+  enrichedData.size
+  enrichedData.weight
+  enrichedData.volume
+  enrichedData.modelName
+  enrichedData.modelNumber
+  enrichedData.colour
+  enrichedData.familyColour
+  enrichedData.hexCodeColour
+  enrichedData.material
+  enrichedData.suppliers[].code
+  enrichedData.suppliers[].name
+  enrichedData.isWebVisible
+  enrichedData.familyTree
+  enrichedData.webPurchasable
+  enrichedData.navCategories[].code
+  enrichedData.navCategories[].name
+  enrichedData.navCategories[].level
+
+[relationships] (5 leaf paths)
+  relationships[].type
+  relationships[].linkedTimberParentRelationship.parentItemNumber
+  relationships[].linkedTimberParentRelationship.MultipleOfParent
+  relationships[].linkedTimberChildRelationship.childItem[].itemNumber
+  relationships[].linkedTimberChildRelationship.childItem[].multiple
+
+[correlation] (2 leaf paths)
+  correlation.correlationId
+  correlation.commonItemNumberFlag
+
+[packagingHierarchy] (38 leaf paths)
+  packagingHierarchy.outerBarcodes.barcode[].number
+  packagingHierarchy.outerBarcodes.barcode[].level
+  packagingHierarchy.outerBarcodes.barcode[].packaging[].part
+  packagingHierarchy.outerBarcodes.barcode[].packaging[].dimension.unitOfMeasure
+  packagingHierarchy.outerBarcodes.barcode[].packaging[].dimension.length
+  packagingHierarchy.outerBarcodes.barcode[].packaging[].dimension.width
+  packagingHierarchy.outerBarcodes.barcode[].packaging[].dimension.height
+  packagingHierarchy.outerBarcodes.barcode[].packaging[].volume.unitOfMeasure
+  packagingHierarchy.outerBarcodes.barcode[].packaging[].volume.value
+  packagingHierarchy.outerBarcodes.barcode[].packaging[].weight.unitOfMeasure
+  packagingHierarchy.outerBarcodes.barcode[].packaging[].weight.net
+  packagingHierarchy.outerBarcodes.barcode[].packaging[].weight.gross
+  packagingHierarchy.outerBarcodes.barcode[].hierarchy.childBarcode
+  packagingHierarchy.outerBarcodes.barcode[].hierarchy.childQuantity
+  packagingHierarchy.outerBarcodes.barcode[].hierarchy.baseUnitBarcode
+  packagingHierarchy.outerBarcodes.barcode[].hierarchy.baseUnitQuantity
+  packagingHierarchy.outerBarcodes.barcode[].AdditionalDescription
+  packagingHierarchy.outerBarcodes.barcode[].supplierItemNumber
+  packagingHierarchy.outerBarcodes.barcode[].itemNumber
+  packagingHierarchy.innerBarcodes.barcode[].number
+  packagingHierarchy.innerBarcodes.barcode[].level
+  packagingHierarchy.innerBarcodes.barcode[].packaging[].part
+  packagingHierarchy.innerBarcodes.barcode[].packaging[].dimension.unitOfMeasure
+  packagingHierarchy.innerBarcodes.barcode[].packaging[].dimension.length
+  packagingHierarchy.innerBarcodes.barcode[].packaging[].dimension.width
+  packagingHierarchy.innerBarcodes.barcode[].packaging[].dimension.height
+  packagingHierarchy.innerBarcodes.barcode[].packaging[].volume.unitOfMeasure
+  packagingHierarchy.innerBarcodes.barcode[].packaging[].volume.value
+  packagingHierarchy.innerBarcodes.barcode[].packaging[].weight.unitOfMeasure
+  packagingHierarchy.innerBarcodes.barcode[].packaging[].weight.net
+  packagingHierarchy.innerBarcodes.barcode[].packaging[].weight.gross
+  packagingHierarchy.innerBarcodes.barcode[].hierarchy.childBarcode
+  packagingHierarchy.innerBarcodes.barcode[].hierarchy.childQuantity
+  packagingHierarchy.innerBarcodes.barcode[].hierarchy.baseUnitBarcode
+  packagingHierarchy.innerBarcodes.barcode[].hierarchy.baseUnitQuantity
+  packagingHierarchy.innerBarcodes.barcode[].AdditionalDescription
+  packagingHierarchy.innerBarcodes.barcode[].supplierItemNumber
+  packagingHierarchy.innerBarcodes.barcode[].itemNumber
+
+2. LOCATION-SPECIFIC ITEM RESPONSE
+------------------------------------
+The location endpoint also exposes the complete Item under itemDetail when requested.
+  _meta.{key}
+  _links[].rel
+  _links[].href
+  _links[].methods[]
+  itemNumber
+  locationCode
+  itemStatus
+  itemDetail.*    [full product detail above]
+  isOnRecall
+  isRanged
+  availability
+  primaryBarcode
+  inStoreLocations[].aisle
+  inStoreLocations[].aisleIsLabeled
+  inStoreLocations[].aisleDescription
+  inStoreLocations[].bay
+  inStoreLocations[].sequence
+  suppliers[].supplierCode
+  suppliers[].siteCode
+  suppliers[].priority
+  suppliers[].startDate
+  suppliers[].endDate
+  isSellableInStore
+  messages[].messageId
+  messages[].itemNumber
+  messages[].locationCode
+  messages[].country
+  messages[].text
+  messages[].caption
+  messages[].icon
+  messages[].helpContext
+  messages[].severity
+  messages[].displayRule
+  messages[].saleRule
+  messages[].showContact
+  messages[].familyTreeList
+  messages[].endDate
+  messages[].lastUpdated
+
+3. LOCATION SEARCH RESPONSE
+----------------------------
+  _meta.{key}
+  _links[].rel
+  _links[].href
+  _links[].methods[]
+  itemNumber
+  locationCode
+  itemStatus
+  isOnRecall
+  isRanged
+  availability
+  primaryBarcode
+  inStoreLocations[].aisle
+  inStoreLocations[].aisleIsLabeled
+  inStoreLocations[].aisleDescription
+  inStoreLocations[].bay
+  inStoreLocations[].sequence
+  suppliers[].supplierCode
+  suppliers[].siteCode
+  suppliers[].priority
+  suppliers[].startDate
+  suppliers[].endDate
+  messages[].messageId
+  messages[].itemNumber
+  messages[].locationCode
+  messages[].country
+  messages[].text
+  messages[].caption
+  messages[].icon
+  messages[].helpContext
+  messages[].severity
+  messages[].displayRule
+  messages[].saleRule
+  messages[].showContact
+  messages[].familyTreeList
+  messages[].endDate
+  messages[].lastUpdated
+
+4. SEARCH RESPONSE
+------------------
+  _meta.{key}
+  _links[].rel
+  _links[].href
+  _links[].methods[]
+  results[]._meta.{key}
+  results[]._links[].rel
+  results[]._links[].href
+  results[]._links[].methods[]
+  results[].title
+  results[].itemNumber
+  facets[].id
+  facets[].displayName
+  facets[].type
+  facets[].values[].displayName
+  facets[].values[].isSelected
+  facets[].values[].resultCount
+  facets[].values[].value
+  facets[].values[].endInclusive
+  facets[].values[].startRange
+  facets[].values[].endRange
+
+5. SEPARATE BUNNINGS PRICING API
+--------------------------------
+These are NOT Query Item v1.4 fields; they are from the current GoBunnings Pricing API SDK.
+GoTradie fetches price separately from Item Detail.
+  prices[].itemNumber
+  prices[].unitPrice
+  prices[].lineUnitPrice
+  prices[].priceId
+  prices[]._meta.{key}
+  prices[]._links[].rel
+  prices[]._links[].href
+  prices[]._links[].methods[]
+
+NOTES
+-----
+- Item.enrichedData is the official OpenAPI field name for enhanced product information.
+- The Item detail root brand field is a string; enrichedData.brand is a structured object.
+- In the Bunnings API, costs under sourcing are Bunnings supplier costs, NOT customer retail prices.
+- Search results have their own title field; the detail endpoint has other descriptions.
+- This is a schema inventory, not a GoTradie implementation proposal.
