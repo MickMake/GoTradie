@@ -9,9 +9,6 @@
 ## Common implementation rules
 
 - Follow the global [Implementation Workflow](../../Implementation-Workflow.md).
-- Run preflight against the current repository and current `origin/main`, checking for unmerged PRs. State intended code changes and branch, and stop for approval before editing code.
-- Preserve preview-by-default behaviour; only `--commit` mutates Invoice Ninja.
-- Keep the implementation focused and avoid unrelated Vendor or historical accounting migrations.
 
 ## Decisions settled for this slice
 
