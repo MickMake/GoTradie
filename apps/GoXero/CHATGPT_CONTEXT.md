@@ -2,9 +2,9 @@
 
 ## Purpose
 
-`GoXero` is the reusable Go SDK for Invoice Ninja v5 API access.
+`GoXero` is the reusable Go SDK for Xero v5 API access.
 
-It should stay focused on Invoice Ninja authentication, typed clients/services, request/response models, pagination helpers, upload helpers, and API error handling.
+It should stay focused on Xero authentication, typed clients/services, request/response models, pagination helpers, upload helpers, and API error handling.
 
 ## Role in the wider workspace
 
@@ -23,7 +23,7 @@ GoInvoiceNinja  -> reusable Invoice Ninja API SDK
 - `GoXero` must not import `GoBunnings`.
 - `GoXero` must not import `GoInvoiceNinja`.
 - Keep Bunnings-specific logic out of this package.
-- Bunnings-to-Invoice Ninja conversion belongs in `GoTradie`.
+- Bunnings-to-Xero conversion belongs in `GoTradie`.
 
 ## Go version
 

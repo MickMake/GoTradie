@@ -1,6 +1,6 @@
 # GoXero module
 
-This module is an independent reusable library/application.
+This module is an independent reusable library.
 
 This module MUST remain standalone.
 

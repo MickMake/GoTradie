@@ -1,12 +1,13 @@
 # GoBunnings module
 
-This module is an independent reusable library/application.
+This module is an independent reusable library.
 
 This module MUST remain standalone.
 
 Forbidden imports:
 - apps/GoTradie
 - apps/GoInvoiceNinja
+- apps/GoXero
 
 Rules:
 - Bunnings website lookup/search helpers belong in this module when they are reusable.

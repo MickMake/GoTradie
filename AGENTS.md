@@ -6,15 +6,20 @@ Modules:
 - apps/GoTradie
 - apps/GoBunnings
 - apps/GoInvoiceNinja
+- apps/GoXero
 
 Allowed dependencies:
 - GoTradie -> GoBunnings
 - GoTradie -> GoInvoiceNinja
+- GoTradie -> GoXero
 
 Forbidden dependencies:
-- GoBunnings -> GoTradie
 - GoInvoiceNinja -> GoTradie
+- GoBunnings -> GoTradie
+- GoXero -> GoTradie
 - GoBunnings <-> GoInvoiceNinja
+- GoInvoiceNinja <-> GoXero
+- GoXero <-> GoBunnings
 
 Rules:
 - Preserve module boundaries.
@@ -30,4 +35,4 @@ Rules:
 
 Repository intent:
 - GoTradie is the primary application/orchestration module.
-- GoBunnings and GoInvoiceNinja are standalone reusable modules.
+- GoXero, GoBunnings and GoInvoiceNinja are standalone reusable modules.

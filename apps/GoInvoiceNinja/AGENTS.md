@@ -1,12 +1,13 @@
 # GoInvoiceNinja module
 
-This module is an independent reusable library/application.
+This module is an independent reusable library.
 
 This module MUST remain standalone.
 
 Forbidden imports:
 - apps/GoTradie
 - apps/GoBunnings
+- apps/GoXero
 
 Rules:
 - Do not refactor across module boundaries unless explicitly instructed.

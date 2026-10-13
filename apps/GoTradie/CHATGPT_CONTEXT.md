@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`GoTradie` is the application/CLI that composes `GoBunnings` and `GoInvoiceNinja`.
+`GoTradie` is the application/CLI that composes `GoXero`, GoBunnings` and `GoInvoiceNinja`.
 
 It owns the workflow that turns Bunnings product data into safe Invoice Ninja product updates/imports/exports.
 
