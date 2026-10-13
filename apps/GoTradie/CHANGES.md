@@ -3,6 +3,14 @@
 
 ## Unreleased
 
+## v0.5.10
+
+- Added Xero OAuth2 authentication using PKCE S256 and callback state validation.
+- Added safe local token rotation and selected-organisation persistence under
+  `~/.GoTradie/keys/xero.json` with a read-only connection check.
+- Added strict Xero authentication configuration without making Xero a Product
+  Sync supplier or adding any Xero accounting-data writes.
+
 ## v0.5.7
 
 - Added preview-by-default Product Sync across configured Bunnings API and

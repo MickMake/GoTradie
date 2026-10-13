@@ -9,7 +9,7 @@ This ecosystem is made of four separate Go modules that are developed together l
 | `GoBunnings`     | Reusable Bunnings API SDK               | Standard library and external SDK dependencies only |
 | `GoInvoiceNinja` | Reusable Invoice Ninja v5 API SDK       | Standard library and external SDK dependencies only |
 | `GoXero`         | Reusable Xero API SDK                   | Standard library and external SDK dependencies only |
-| `GoTradie`       | CLI/application that composes both SDKs | `GoBunnings`, `GoInvoiceNinja`, `GoXero`            |
+| `GoTradie`       | CLI/application that composes three SDKs | `GoBunnings`, `GoInvoiceNinja`, `GoXero`           |
 
 ## Dependency direction
 

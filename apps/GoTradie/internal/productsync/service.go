@@ -61,6 +61,9 @@ func (s Service) Refresh(ctx context.Context) ([]Result, error) {
 	results := make([]Result, 0)
 	states := make([]*providerState, 0, len(s.Config.Providers))
 	for _, providerID := range sortedProviderIDs(s.Config.Providers) {
+		if providerID == "xero" {
+			continue
+		}
 		provider := s.Config.Providers[providerID]
 		if !(providerID == "bunnings" && provider.Type == "api") && provider.Type != "csv" && provider.Type != "xlsx" {
 			results = append(results, Result{Provider: provider.Name, Action: "skipped", Changes: []string{"no supported Product Sync adapter"}})

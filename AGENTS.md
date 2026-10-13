@@ -1,6 +1,6 @@
 # Repository architecture
 
-This repository contains three independent Go modules.
+This repository contains four independent Go modules.
 
 Modules:
 - apps/GoTradie

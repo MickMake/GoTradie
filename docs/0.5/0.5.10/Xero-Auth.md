@@ -62,14 +62,14 @@ providers:
       redirect_uri: "http://localhost:8080/callback"
       scopes:
         - offline_access
-        - accounting.invoices.read
+        - accounting.invoices
 ```
 
 - `verbose` is at the **root**; default is `false` if omitted. For this slice, it controls only safe additional Xero-auth diagnostics. Other CLI behaviour need not be expanded.
 - `providers.xero.auth.client_id` is the registered public Xero client ID (not a secret).
 - `XERO_CLIENT_ID` is the one newly approved environment override. When it contains a non-blank value, it overrides `providers.xero.auth.client_id`; otherwise the YAML value is used. It is a public identifier, not a secret.
 - `redirect_uri` must match the Xero application registration exactly and use a loopback callback; its current registered value is shown above.
-- `scopes` is a YAML sequence. `offline_access` enables refresh tokens; `accounting.invoices.read` anticipates the first read-only billing use. The connection check itself uses `/connections`.
+- `scopes` is a YAML sequence. `offline_access` enables refresh tokens; Xero's current granular `accounting.invoices` scope anticipates the first billing use. GoTradie performs no invoice write in this slice, and the connection check itself uses only `/connections`.
 - Do **not** request attachments write permissions in this slice. Adding permissions for receipt uploads will require later approval and a new consent flow.
 - Xero PKCE does not use a client secret. Access/refresh tokens are **never** stored in this YAML file.
 

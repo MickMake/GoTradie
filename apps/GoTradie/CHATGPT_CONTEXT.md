@@ -2,14 +2,14 @@
 
 ## Purpose
 
-`GoTradie` is the application/CLI that composes `GoXero`, GoBunnings` and `GoInvoiceNinja`.
+`GoTradie` is the application/CLI that composes `GoXero`, `GoBunnings` and `GoInvoiceNinja`.
 
 It owns the workflow that turns Bunnings product data into safe Invoice Ninja product updates/imports/exports.
 
 ## Related repositories
 
 ```text
-GoTradie        -> application/CLI that imports both SDKs
+GoTradie        -> application/CLI that imports the three SDKs
 GoBunnings      -> reusable Bunnings API SDK
 GoXero          -> reusable Xero API SDK
 GoInvoiceNinja  -> reusable Invoice Ninja API SDK
@@ -19,8 +19,10 @@ GoInvoiceNinja  -> reusable Invoice Ninja API SDK
 
 - `GoTradie` may import `GoBunnings`.
 - `GoTradie` may import `GoInvoiceNinja`.
+- `GoTradie` may import `GoXero`.
 - `GoBunnings` must not import `GoInvoiceNinja` or `GoTradie`.
 - `GoInvoiceNinja` must not import `GoBunnings` or `GoTradie`.
+- `GoXero` must not import `GoBunnings`, `GoInvoiceNinja` or `GoTradie`.
 - Mapping logic belongs in `GoTradie`, preferably under `internal/mapper` or the relevant workflow package.
 
 ## Go version
@@ -38,20 +40,21 @@ go build ./cmd/GoTradie
 
 ## Local multi-repo development
 
-Develop all three repos in one parent folder using a local `go.work` file:
+Develop all four modules in one parent folder using a local `go.work` file:
 
 ```text
 GoNinjaWorkspace/
 ├── go.work
 ├── GoBunnings/
 ├── GoInvoiceNinja/
+├── GoXero/
 └── GoTradie/
 ```
 
 Create the workspace from the parent folder:
 
 ```bash
-go work init ./GoBunnings ./GoInvoiceNinja ./GoTradie
+go work init ./GoBunnings ./GoInvoiceNinja ./GoXero ./GoTradie
 go work sync
 ```
 
@@ -71,4 +74,5 @@ Avoid putting here:
 
 - low-level Bunnings API transport logic
 - low-level Invoice Ninja API transport logic
-- reusable SDK code that belongs upstream in `GoBunnings` or `GoInvoiceNinja`
+- low-level Xero API transport logic
+- reusable SDK code that belongs upstream in `GoBunnings`, `GoInvoiceNinja` or `GoXero`

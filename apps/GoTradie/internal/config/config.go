@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -21,6 +22,7 @@ const (
 )
 
 type Config struct {
+	Verbose      bool                      `yaml:"verbose"`
 	InvoiceNinja InvoiceNinjaConfig        `yaml:"invoice_ninja"`
 	Tax          TaxConfig                 `yaml:"tax"`
 	BAS          BASConfig                 `yaml:"bas"`
@@ -62,17 +64,24 @@ type ExportsConfig struct {
 }
 
 type ProviderConfig struct {
-	Name         string         `yaml:"name"`
-	Type         string         `yaml:"type"`
-	Aliases      []string       `yaml:"aliases"`
-	Environment  string         `yaml:"environment"`
-	ClientID     string         `yaml:"client_id"`
-	ClientSecret string         `yaml:"client_secret"`
-	Scopes       []string       `yaml:"scopes"`
-	Country      string         `yaml:"country"`
-	Location     string         `yaml:"location"`
-	URL          string         `yaml:"url"`
-	Fields       ProviderFields `yaml:"fields"`
+	Name         string          `yaml:"name"`
+	Type         string          `yaml:"type"`
+	Aliases      []string        `yaml:"aliases"`
+	Environment  string          `yaml:"environment"`
+	ClientID     string          `yaml:"client_id"`
+	ClientSecret string          `yaml:"client_secret"`
+	Scopes       []string        `yaml:"scopes"`
+	Country      string          `yaml:"country"`
+	Location     string          `yaml:"location"`
+	URL          string          `yaml:"url"`
+	Fields       ProviderFields  `yaml:"fields"`
+	Auth         *XeroAuthConfig `yaml:"auth"`
+}
+
+type XeroAuthConfig struct {
+	ClientID    string   `yaml:"client_id"`
+	RedirectURI string   `yaml:"redirect_uri"`
+	Scopes      []string `yaml:"scopes"`
 }
 
 type ProviderFields struct {
@@ -128,7 +137,7 @@ func loadFile(path string, getenv func(string) string) (Config, error) {
 	}
 
 	applyProviderDefaults(&cfg)
-	applySecretOverrides(&cfg, getenv)
+	applyEnvironmentOverrides(&cfg, getenv)
 	if err := cfg.ValidateConfiguration(); err != nil {
 		return Config{}, fmt.Errorf("validate config %s: %w", path, err)
 	}
@@ -159,7 +168,7 @@ func applyProviderDefaults(cfg *Config) {
 	cfg.Providers["bunnings"] = bunnings
 }
 
-func applySecretOverrides(cfg *Config, getenv func(string) string) {
+func applyEnvironmentOverrides(cfg *Config, getenv func(string) string) {
 	if value := strings.TrimSpace(getenv("INVOICE_NINJA_TOKEN")); value != "" {
 		cfg.InvoiceNinja.Token = value
 	}
@@ -168,6 +177,13 @@ func applySecretOverrides(cfg *Config, getenv func(string) string) {
 		if ok {
 			bunnings.ClientSecret = value
 			cfg.Providers["bunnings"] = bunnings
+		}
+	}
+	if value := strings.TrimSpace(getenv("XERO_CLIENT_ID")); value != "" {
+		xero, ok := cfg.Providers["xero"]
+		if ok && xero.Auth != nil {
+			xero.Auth.ClientID = value
+			cfg.Providers["xero"] = xero
 		}
 	}
 }
@@ -235,13 +251,52 @@ func (c Config) ValidateBunnings() error {
 	return nil
 }
 
+func (c Config) ValidateXero() error {
+	provider, ok := c.Providers["xero"]
+	if !ok || provider.Auth == nil {
+		return fmt.Errorf("missing required configuration: providers.xero.auth")
+	}
+	auth := provider.Auth
+	var missing []string
+	if strings.TrimSpace(auth.ClientID) == "" {
+		missing = append(missing, "providers.xero.auth.client_id or XERO_CLIENT_ID")
+	}
+	if strings.TrimSpace(auth.RedirectURI) == "" {
+		missing = append(missing, "providers.xero.auth.redirect_uri")
+	}
+	if len(auth.Scopes) == 0 {
+		missing = append(missing, "providers.xero.auth.scopes")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("missing required configuration: %s", strings.Join(missing, ", "))
+	}
+	if err := validateXeroRedirectURI(auth.RedirectURI, true); err != nil {
+		return err
+	}
+	requiredScopes := map[string]bool{"offline_access": false, "accounting.invoices": false}
+	for _, scope := range auth.Scopes {
+		if _, required := requiredScopes[strings.TrimSpace(scope)]; required {
+			requiredScopes[strings.TrimSpace(scope)] = true
+		}
+	}
+	for _, scope := range []string{"offline_access", "accounting.invoices"} {
+		if !requiredScopes[scope] {
+			return fmt.Errorf("providers.xero.auth.scopes must include %s", scope)
+		}
+	}
+	return nil
+}
+
 func (c Config) CanonicalProviderName(value string) string {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return ""
 	}
 	match := strings.ToLower(value)
-	for _, provider := range c.Providers {
+	for id, provider := range c.Providers {
+		if id == "xero" {
+			continue
+		}
 		name := strings.TrimSpace(provider.Name)
 		if strings.ToLower(name) == match {
 			return name
@@ -267,6 +322,15 @@ func validateProviders(providers map[string]ProviderConfig) error {
 		provider := providers[id]
 		if strings.TrimSpace(id) == "" {
 			return fmt.Errorf("provider identifier must not be blank")
+		}
+		if id == "xero" {
+			if err := validateXeroProvider(provider); err != nil {
+				return err
+			}
+			continue
+		}
+		if provider.Auth != nil {
+			return fmt.Errorf("providers.%s.auth is only supported for providers.xero", id)
 		}
 		name := strings.TrimSpace(provider.Name)
 		if name == "" {
@@ -316,6 +380,53 @@ func validateProviders(providers map[string]ProviderConfig) error {
 			}
 			aliases[key] = id
 		}
+	}
+	return nil
+}
+
+func validateXeroProvider(provider ProviderConfig) error {
+	if provider.Auth == nil {
+		return fmt.Errorf("providers.xero.auth is required")
+	}
+	if strings.TrimSpace(provider.Name) != "" || strings.TrimSpace(provider.Type) != "" || len(provider.Aliases) > 0 ||
+		strings.TrimSpace(provider.Environment) != "" || strings.TrimSpace(provider.ClientID) != "" ||
+		strings.TrimSpace(provider.ClientSecret) != "" || len(provider.Scopes) > 0 || strings.TrimSpace(provider.Country) != "" ||
+		strings.TrimSpace(provider.Location) != "" || strings.TrimSpace(provider.URL) != "" || provider.Fields != (ProviderFields{}) {
+		return fmt.Errorf("providers.xero must contain only auth settings")
+	}
+	if err := validateXeroRedirectURI(provider.Auth.RedirectURI, false); err != nil {
+		return err
+	}
+	seen := make(map[string]struct{}, len(provider.Auth.Scopes))
+	for _, scope := range provider.Auth.Scopes {
+		scope = strings.TrimSpace(scope)
+		if scope == "" {
+			return fmt.Errorf("providers.xero.auth.scopes must not contain blank values")
+		}
+		if _, exists := seen[scope]; exists {
+			return fmt.Errorf("providers.xero.auth.scopes contains duplicate %q", scope)
+		}
+		seen[scope] = struct{}{}
+	}
+	return nil
+}
+
+func validateXeroRedirectURI(value string, required bool) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		if required {
+			return fmt.Errorf("providers.xero.auth.redirect_uri is required")
+		}
+		return nil
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "http" || parsed.Host == "" || parsed.Port() == "" || parsed.Path == "" || parsed.User != nil || parsed.Fragment != "" {
+		return fmt.Errorf("providers.xero.auth.redirect_uri must be an absolute http loopback URL with a port")
+	}
+	host := parsed.Hostname()
+	address := net.ParseIP(host)
+	if !strings.EqualFold(host, "localhost") && (address == nil || !address.IsLoopback()) {
+		return fmt.Errorf("providers.xero.auth.redirect_uri must use localhost or a loopback IP address")
 	}
 	return nil
 }

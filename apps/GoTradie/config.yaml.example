@@ -1,6 +1,8 @@
 # Copy this file to ~/.GoTradie/config.yaml.
 # Unknown fields are rejected. Keep accounting settings explicit.
 
+verbose: false
+
 invoice_ninja:
   url: https://your.invoice-ninja.example
   token: ""
@@ -43,6 +45,15 @@ exports:
   directory: ~/Documents/GoTradie
 
 providers:
+  # Xero is authentication-only in v0.5.10. It is not a Product Sync supplier.
+  xero:
+    auth:
+      client_id: ""
+      redirect_uri: http://localhost:8080/callback
+      scopes:
+        - offline_access
+        - accounting.invoices
+
   # Product custom fields are fixed as Supplier, Store, Not Available and Last
   # Sync Date (custom fields 1-4 respectively). Provider name supplies Supplier;
   # aliases recognise existing Supplier text and Invoice Ninja Vendors. Location
