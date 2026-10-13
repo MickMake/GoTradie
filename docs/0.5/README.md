@@ -23,6 +23,7 @@ implementation instructions, and supporting documentation.
 | v0.5.7  | Closed | Product synchronisation across configured suppliers and providers. |
 | v0.5.8  | Planned | Product Sync CLI and configuration updates, unified Description templates, and catalogue retrieval options. |
 | v0.5.9  | Planned | Historical Code Review Fixes. |
+| v0.5.10 | Planned | Xero OAuth2 PKCE authentication, local credential storage, and read-only connection verification. |
 
 ## Documentation
 
@@ -37,6 +38,7 @@ Each release has its own directory:
 - [v0.5.7](./0.5.7/)
 - [v0.5.8](./0.5.8/)
 - [v0.5.9](./0.5.9/)
+- [v0.5.10](./0.5.10/)
 
 Shared documentation:
 
@@ -45,7 +47,11 @@ Shared documentation:
 
 ## Release progression
 
-Releases are implemented sequentially, building upon
-capabilities established by earlier releases.
+Version numbers identify independently useful, reviewable slices.
+They do **not** impose a blanket requirement that all earlier slices
+must be implemented first. A later planned slice may proceed while an
+earlier slice remains unimplemented, provided there is no actual technical
+dependency. Check dependencies, active branches and pull requests during
+the mandatory implementation preflight.
 
-Status is updated as each release progresses.
+Each slice's status is tracked independently as its work progresses.

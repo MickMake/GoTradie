@@ -50,7 +50,7 @@ go work sync
 Expected `go.work` shape:
 
 ```go
-go 1.22
+go 1.25
 
 use (
     ./GoBunnings

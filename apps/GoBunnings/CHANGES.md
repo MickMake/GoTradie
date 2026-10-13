@@ -15,7 +15,7 @@
 - Verified `Barcode.AdditionalDescription` uses the capitalized `AdditionalDescription` JSON key used by the Bunnings Query Item OpenAPI schema and response examples.
 - Added a regression test for `Barcode.AdditionalDescription` decoding.
 - Updated the default user agent to `GoBunnings/0.4`.
-- Verified with `go test ./...` and `go vet ./...` on Go 1.22.
+- Verified with `go test ./...` and `go vet ./...` on Go 1.25.
 
 ## v0.3 - Typed item image URL support
 
@@ -24,7 +24,7 @@
 - Added fallback image extraction from related media fields such as `enrichedItem.otherImages`.
 - Kept `Item.Raw` populated as a fallback for unmodelled product fields.
 - Added tests for products with a primary image, products with fallback images, and products without images.
-- Verified with `go test ./...` on Go 1.22.
+- Verified with `go test ./...` on Go 1.25.
 
 ## v0.2 - Raw JSON preservation for items
 
@@ -40,4 +40,4 @@
 - Added shared HTTP client, auth/token support, common request handling, retry configuration, and error handling.
 - Added typed service areas for item/product, pricing, inventory, location, and order status APIs.
 - Added initial tests and basic usage example.
-- Set module target to Go 1.22.
+- Set module target to Go 1.25.

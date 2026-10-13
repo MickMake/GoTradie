@@ -11,21 +11,23 @@ It should stay focused on Bunnings API transport, authentication, typed requests
 `GoBunnings` is consumed by `GoTradie`.
 
 ```text
+GoTradie        -> application/CLI that imports both SDKs
 GoBunnings      -> reusable Bunnings API SDK
+GoXero          -> reusable Xero API SDK
 GoInvoiceNinja  -> reusable Invoice Ninja API SDK
-GoTradie -> application/CLI that imports both SDKs
 ```
 
 ## Dependency rules
 
 - `GoBunnings` must not import `GoTradie`.
 - `GoBunnings` must not import `GoInvoiceNinja`.
+- `GoBunnings` must not import `GoXero`.
 - Keep business workflow and mapping logic out of this package.
 - Bunnings-to-Invoice Ninja conversion belongs in `GoTradie`.
 
 ## Go version
 
-Go `1.22`.
+Go `1.25`.
 
 ## Common commands
 
@@ -55,4 +57,4 @@ Avoid:
 
 ## Development workflow
 
-When developing this repo together with `GoInvoiceNinja` and `GoTradie`, use a parent folder with a local `go.work` file. Do not commit local absolute-path `replace` directives to this repo.
+When developing this repo together with `GoTradie`, `GoInvoiceNinja` and `GoXero`, use a parent folder with a local `go.work` file. Do not commit local absolute-path `replace` directives to this repo.

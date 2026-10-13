@@ -151,7 +151,7 @@
 
 - Updated the project version to `v0.3`.
 - Kept the zip as client-only; `GoBunnings` and `GoInvoiceNinja` remain external local dependencies via `go.mod` `replace` directives.
-- Kept `go 1.22`.
+- Kept `go 1.25`.
 - Updated Invoice Ninja product and client listing to use `GoInvoiceNinja` v0.2 `ListAll` pagination helpers.
 - Added full-page exports for Invoice Ninja quotes, invoices, and payments.
 - Changed the Invoice Ninja CSV command layout from flat command names to grouped subcommands:
@@ -187,5 +187,5 @@
 - Added `VERSION`.
 - Added `CHANGES.md` retrospectively.
 - Added `WEIRD_STUFF.md` with integration notes and prompts for upstream package fixes.
-- Set `go 1.22`.
+- Set `go 1.25`.
 - Added local filesystem `replace` directives for `GoBunnings` and `GoInvoiceNinja`.

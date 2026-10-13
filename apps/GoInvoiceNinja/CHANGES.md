@@ -75,7 +75,7 @@ Initial development version for GoTradie integration work.
 - Added product document/image upload helpers for `/api/v1/products/{id}/upload`.
 - Added concise validation-aware API error formatting.
 - Added a `VERSION` file.
-- Set the Go version to 1.22.
+- Set the Go version to 1.25.
 
 ### Tested
 

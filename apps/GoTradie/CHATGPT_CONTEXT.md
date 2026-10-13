@@ -9,9 +9,10 @@ It owns the workflow that turns Bunnings product data into safe Invoice Ninja pr
 ## Related repositories
 
 ```text
+GoTradie        -> application/CLI that imports both SDKs
 GoBunnings      -> reusable Bunnings API SDK
+GoXero          -> reusable Xero API SDK
 GoInvoiceNinja  -> reusable Invoice Ninja API SDK
-GoTradie -> application/CLI that imports both SDKs
 ```
 
 ## Dependency rules
@@ -24,7 +25,7 @@ GoTradie -> application/CLI that imports both SDKs
 
 ## Go version
 
-Go `1.22`.
+Go `1.25`.
 
 ## Common commands
 
