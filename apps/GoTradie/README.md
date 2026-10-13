@@ -13,6 +13,7 @@ octopus.
 
 - Go `1.25`
 - Local checkout of `GoBunnings`
+- Local checkout of `GoXero`
 - Local checkout of `GoInvoiceNinja` v0.5 or later
 
 ## Multi-repo development
@@ -24,6 +25,7 @@ GoNinjaWorkspace/
 ├── go.work
 ├── GoBunnings/
 ├── GoInvoiceNinja/
+├── GoXero/
 └── GoTradie/
 ```
 
@@ -32,7 +34,7 @@ From the parent folder:
 ```bash
 git clone git@github.com:MickMake/GoTradie.git
 
-go work init ./GoBunnings ./GoInvoiceNinja ./GoTradie
+go work init ./GoBunnings ./GoInvoiceNinja ./GoTradie ./GoXero
 go work sync
 ```
 
@@ -61,6 +63,7 @@ Only these secret environment variables may override YAML:
 
 ```text
 INVOICE_NINJA_TOKEN
+XERO_CLIENT_ID
 BUNNINGS_CLIENT_SECRET
 ```
 

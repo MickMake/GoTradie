@@ -16,9 +16,9 @@ Use:
 --commit
 ```
 
-for persistent Invoice Ninja application or database changes.
+for persistent Invoice Ninja / Xero application or database changes.
 
-Without `--commit`, Invoice Ninja write-capable operations preview or refuse writes.
+Without `--commit`, Invoice Ninja / Xero write-capable operations preview or refuse writes.
 
 ## Local export replacement
 
@@ -32,12 +32,12 @@ to overwrite an existing local output file or export directory contents.
 
 Creating new export output does not require `--force`.
 
-`--force` never permits Invoice Ninja writes.
+`--force` never permits Invoice Ninja / Xero writes.
 
 ## Flag meanings
 
 ```text
---commit = persist Invoice Ninja changes
+--commit = persist Invoice Ninja / Xero changes
 --force  = replace existing local output
 ```
 
