@@ -23,10 +23,11 @@ import (
 )
 
 const (
-	xeroCredentialDirectory = "keys"
-	xeroCredentialFilename  = "xero.json"
-	xeroCallbackTimeout     = 3 * time.Minute
-	xeroExpirySkew          = time.Minute
+	xeroCredentialDirectory  = "keys"
+	xeroCredentialFilename   = "xero.json"
+	xeroCallbackTimeout      = 3 * time.Minute
+	xeroBrowserLaunchTimeout = 5 * time.Second
+	xeroExpirySkew           = time.Minute
 )
 
 type xeroAuthRuntime struct {
@@ -40,6 +41,7 @@ type xeroAuthRuntime struct {
 
 type xeroCredentialFile struct {
 	ClientID     string    `json:"client_id"`
+	Scopes       []string  `json:"scopes,omitempty"`
 	AccessToken  string    `json:"access_token"`
 	RefreshToken string    `json:"refresh_token"`
 	Expiry       time.Time `json:"expiry"`
@@ -88,7 +90,9 @@ func (a App) authenticateXero(ctx context.Context, cfg config.Config) error {
 	if err != nil {
 		return err
 	}
-	if found && credentials.ClientID == strings.TrimSpace(auth.ClientID) {
+	clientMatches := credentials.ClientID == strings.TrimSpace(auth.ClientID)
+	scopesMatch := xeroScopeSetsEqual(credentials.Scopes, auth.Scopes)
+	if found && clientMatches && scopesMatch {
 		connected, err := a.useSavedXeroCredentials(ctx, client, credentialPath, credentials, cfg.Verbose, runtime)
 		if err != nil {
 			return err
@@ -96,10 +100,12 @@ func (a App) authenticateXero(ctx context.Context, cfg config.Config) error {
 		if connected {
 			return nil
 		}
-	} else if found {
+	} else if found && !clientMatches {
 		fmt.Fprintln(a.Out, "Saved Xero credentials belong to a different client; starting a new authorization.")
+	} else if found {
+		fmt.Fprintln(a.Out, "Saved Xero authorization scopes changed; starting a new authorization.")
 	}
-	return a.authorizeXeroInteractively(ctx, client, auth.RedirectURI, auth.ClientID, credentialPath, cfg.Verbose, runtime)
+	return a.authorizeXeroInteractively(ctx, client, auth.RedirectURI, auth.ClientID, auth.Scopes, credentialPath, cfg.Verbose, runtime)
 }
 
 func (a App) useSavedXeroCredentials(
@@ -169,6 +175,7 @@ func (a App) authorizeXeroInteractively(
 	client *goxero.Client,
 	redirectURI string,
 	clientID string,
+	scopes []string,
 	credentialPath string,
 	verbose bool,
 	runtime xeroAuthRuntime,
@@ -198,6 +205,10 @@ func (a App) authorizeXeroInteractively(
 			code: strings.TrimSpace(request.URL.Query().Get("code")), state: request.URL.Query().Get("state"),
 			oauthError: strings.TrimSpace(request.URL.Query().Get("error")),
 		}
+		if err := client.ValidateCallback(session, callback.state); err != nil {
+			http.Error(writer, "invalid Xero authorization callback", http.StatusBadRequest)
+			return
+		}
 		select {
 		case callbackChannel <- callback:
 			writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -214,12 +225,7 @@ func (a App) authorizeXeroInteractively(
 		}
 	}()
 	xeroDiagnostic(a.Err, verbose, "Xero callback listener started")
-	if err := runtime.openURL(authorizationURL); err != nil {
-		fmt.Fprintln(a.Out, "Open this URL in a browser on this computer:")
-		fmt.Fprintln(a.Out, authorizationURL)
-	} else {
-		fmt.Fprintln(a.Out, "Waiting for Xero authorization in your browser...")
-	}
+	launchXeroAuthorization(a.Out, runtime.openURL, authorizationURL)
 
 	timer := time.NewTimer(runtime.timeout)
 	defer timer.Stop()
@@ -247,7 +253,10 @@ func (a App) authorizeXeroInteractively(
 	if err != nil {
 		return err
 	}
-	credentials := xeroCredentialFile{ClientID: strings.TrimSpace(clientID)}
+	credentials := xeroCredentialFile{
+		ClientID: strings.TrimSpace(clientID),
+		Scopes:   normalizedXeroScopes(scopes),
+	}
 	credentials.setTokens(tokens)
 	if err := saveXeroCredentials(credentialPath, credentials); err != nil {
 		return err
@@ -337,18 +346,37 @@ func (a App) resolvedXeroRuntime() xeroAuthRuntime {
 }
 
 func openBrowser(target string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), xeroBrowserLaunchTimeout)
+	defer cancel()
+
 	var command *exec.Cmd
 	switch runtime.GOOS {
 	case "darwin":
-		command = exec.Command("open", target)
+		command = exec.CommandContext(ctx, "open", target)
 	case "linux":
-		command = exec.Command("xdg-open", target)
+		command = exec.CommandContext(ctx, "xdg-open", target)
 	case "windows":
-		command = exec.Command("rundll32", "url.dll,FileProtocolHandler", target)
+		command = exec.CommandContext(ctx, "rundll32", "url.dll,FileProtocolHandler", target)
 	default:
 		return fmt.Errorf("opening a browser is unsupported on %s", runtime.GOOS)
 	}
-	return command.Start()
+	return runBrowserCommand(command)
+}
+
+func runBrowserCommand(command *exec.Cmd) error {
+	if err := command.Run(); err != nil {
+		return fmt.Errorf("launch browser: %w", err)
+	}
+	return nil
+}
+
+func launchXeroAuthorization(writer io.Writer, openURL func(string) error, authorizationURL string) {
+	if err := openURL(authorizationURL); err != nil {
+		fmt.Fprintln(writer, "Open this URL in a browser on this computer:")
+		fmt.Fprintln(writer, authorizationURL)
+		return
+	}
+	fmt.Fprintln(writer, "Waiting for Xero authorization in your browser...")
 }
 
 func xeroCredentialPath(homeDir func() (string, error)) (string, error) {
@@ -493,6 +521,37 @@ func (credentials *xeroCredentialFile) setConnection(connection goxero.Connectio
 	credentials.TenantID = connection.TenantID
 	credentials.TenantName = connection.TenantName
 	credentials.TenantType = connection.TenantType
+}
+
+func normalizedXeroScopes(scopes []string) []string {
+	normalized := make([]string, len(scopes))
+	for index, scope := range scopes {
+		normalized[index] = strings.TrimSpace(scope)
+	}
+	return normalized
+}
+
+func xeroScopeSetsEqual(stored, configured []string) bool {
+	if len(stored) == 0 || len(stored) != len(configured) {
+		return false
+	}
+	storedSet := make(map[string]struct{}, len(stored))
+	for _, scope := range stored {
+		scope = strings.TrimSpace(scope)
+		if scope == "" {
+			return false
+		}
+		if _, duplicate := storedSet[scope]; duplicate {
+			return false
+		}
+		storedSet[scope] = struct{}{}
+	}
+	for _, scope := range configured {
+		if _, exists := storedSet[strings.TrimSpace(scope)]; !exists {
+			return false
+		}
+	}
+	return true
 }
 
 func xeroReauthorizationRequired(err error) bool {

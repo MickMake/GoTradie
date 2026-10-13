@@ -3,11 +3,14 @@ package app
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -36,7 +39,8 @@ func TestXeroCredentialStorageIsAtomicAndRestrictive(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("load credentials: found=%t err=%v", found, err)
 	}
-	if loaded.AccessToken != "rotated-access" || loaded.RefreshToken != "rotated-refresh" {
+	if loaded.AccessToken != "rotated-access" || loaded.RefreshToken != "rotated-refresh" ||
+		!xeroScopeSetsEqual(loaded.Scopes, []string{"offline_access", "accounting.invoices"}) {
 		t.Fatalf("loaded credentials = %#v", loaded)
 	}
 	entries, err := os.ReadDir(filepath.Dir(path))
@@ -60,7 +64,7 @@ func TestXeroCredentialStorageIsAtomicAndRestrictive(t *testing.T) {
 	assertMode(t, path, 0o600)
 }
 
-func TestAuthenticateXeroReusesSavedConnectionWithoutBrowser(t *testing.T) {
+func TestAuthenticateXeroReusesSavedConnectionWhenScopeOrderChanges(t *testing.T) {
 	home := t.TempDir()
 	path := filepath.Join(home, ".GoTradie", "keys", "xero.json")
 	if err := saveXeroCredentials(path, testXeroCredentials(time.Now().Add(time.Hour))); err != nil {
@@ -86,7 +90,9 @@ func TestAuthenticateXeroReusesSavedConnectionWithoutBrowser(t *testing.T) {
 			now:        time.Now,
 		},
 	}
-	if err := application.authenticateXero(context.Background(), testXeroConfig("http://localhost:8080/callback", false)); err != nil {
+	cfg := testXeroConfig("http://localhost:8080/callback", false)
+	cfg.Providers["xero"].Auth.Scopes = []string{"accounting.invoices", "offline_access"}
+	if err := application.authenticateXero(context.Background(), cfg); err != nil {
 		t.Fatal(err)
 	}
 	if browserCalled {
@@ -97,6 +103,63 @@ func TestAuthenticateXeroReusesSavedConnectionWithoutBrowser(t *testing.T) {
 	}
 	if diagnostics.Len() != 0 {
 		t.Fatalf("diagnostics = %q", diagnostics.String())
+	}
+}
+
+func TestAuthenticateXeroChangedOrMissingStoredScopesRequireFreshAuthorization(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		scopes []string
+	}{
+		{name: "missing"},
+		{name: "changed", scopes: []string{"offline_access"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			home := t.TempDir()
+			path := filepath.Join(home, ".GoTradie", "keys", "xero.json")
+			credentials := testXeroCredentials(time.Now().Add(time.Hour))
+			credentials.Scopes = test.scopes
+			if err := saveXeroCredentials(path, credentials); err != nil {
+				t.Fatal(err)
+			}
+
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			redirectURI := "http://" + listener.Addr().String() + "/callback"
+			browserCalled := false
+			httpCalled := false
+			var output bytes.Buffer
+			application := App{
+				In: strings.NewReader(""), Out: &output, Err: io.Discard,
+				xeroRuntime: &xeroAuthRuntime{
+					httpClient: &http.Client{Transport: appRoundTripFunc(func(*http.Request) (*http.Response, error) {
+						httpCalled = true
+						return nil, errors.New("unexpected Xero request before fresh callback")
+					})},
+					openURL: func(string) error {
+						browserCalled = true
+						return errors.New("browser unavailable")
+					},
+					homeDir: func() (string, error) { return home, nil },
+					listen:  func(string, string) (net.Listener, error) { return listener, nil },
+					timeout: 10 * time.Millisecond,
+					now:     time.Now,
+				},
+			}
+			err = application.authenticateXero(context.Background(), testXeroConfig(redirectURI, false))
+			if err == nil || !strings.Contains(err.Error(), "timed out waiting for Xero callback") {
+				t.Fatalf("error = %v; want fresh authorization timeout", err)
+			}
+			if !browserCalled || httpCalled {
+				t.Fatalf("browserCalled=%t httpCalled=%t", browserCalled, httpCalled)
+			}
+			if got := output.String(); !strings.Contains(got, "authorization scopes changed") ||
+				!strings.Contains(got, "Open this URL in a browser on this computer:") {
+				t.Fatalf("output = %q", got)
+			}
+		})
 	}
 }
 
@@ -187,7 +250,7 @@ func TestRejectedRefreshRequiresFreshAuthorization(t *testing.T) {
 	}
 }
 
-func TestAuthenticateXeroFirstRunCompletesCallbackAndSelectsOnlyOrganisation(t *testing.T) {
+func TestAuthenticateXeroRejectsInvalidStateThenAcceptsValidCallback(t *testing.T) {
 	home := t.TempDir()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -212,6 +275,7 @@ func TestAuthenticateXeroFirstRunCompletesCallbackAndSelectsOnlyOrganisation(t *
 		}
 	})}
 	listenCalled := false
+	callbackResult := make(chan error, 1)
 	var output, diagnostics bytes.Buffer
 	application := App{
 		In: strings.NewReader(""), Out: &output, Err: &diagnostics,
@@ -227,11 +291,31 @@ func TestAuthenticateXeroFirstRunCompletesCallbackAndSelectsOnlyOrganisation(t *
 					t.Fatalf("authorization URL = %s", rawAuthorizationURL)
 				}
 				go func() {
+					invalidURL := redirectURI + "?code=ignored&state=invalid-state"
+					invalidResponse, callbackErr := http.Get(invalidURL)
+					if callbackErr != nil {
+						callbackResult <- callbackErr
+						return
+					}
+					_, _ = io.Copy(io.Discard, invalidResponse.Body)
+					_ = invalidResponse.Body.Close()
+					if invalidResponse.StatusCode != http.StatusBadRequest {
+						callbackResult <- fmt.Errorf("invalid callback status = %d; want %d", invalidResponse.StatusCode, http.StatusBadRequest)
+						return
+					}
 					callbackURL := redirectURI + "?code=authorization-code&state=" + url.QueryEscape(state)
 					response, callbackErr := http.Get(callbackURL)
-					if callbackErr == nil {
-						_ = response.Body.Close()
+					if callbackErr != nil {
+						callbackResult <- callbackErr
+						return
 					}
+					_, _ = io.Copy(io.Discard, response.Body)
+					_ = response.Body.Close()
+					if response.StatusCode != http.StatusOK {
+						callbackResult <- fmt.Errorf("valid callback status = %d; want %d", response.StatusCode, http.StatusOK)
+						return
+					}
+					callbackResult <- nil
 				}()
 				return nil
 			},
@@ -247,8 +331,12 @@ func TestAuthenticateXeroFirstRunCompletesCallbackAndSelectsOnlyOrganisation(t *
 			now:     time.Now,
 		},
 	}
-	if err := application.authenticateXero(context.Background(), testXeroConfig(redirectURI, true)); err != nil {
-		t.Fatal(err)
+	authErr := application.authenticateXero(context.Background(), testXeroConfig(redirectURI, true))
+	if callbackErr := <-callbackResult; callbackErr != nil {
+		t.Fatal(callbackErr)
+	}
+	if authErr != nil {
+		t.Fatal(authErr)
 	}
 	if !listenCalled {
 		t.Fatal("callback listener was not started")
@@ -286,7 +374,8 @@ func TestInteractiveXeroAuthorizationTimesOutWithoutCallback(t *testing.T) {
 	}
 	application := App{In: strings.NewReader(""), Out: io.Discard, Err: io.Discard}
 	err = application.authorizeXeroInteractively(
-		context.Background(), client, redirectURI, "client-id", filepath.Join(t.TempDir(), "xero.json"), false,
+		context.Background(), client, redirectURI, "client-id",
+		[]string{"offline_access", "accounting.invoices"}, filepath.Join(t.TempDir(), "xero.json"), false,
 		xeroAuthRuntime{
 			openURL: func(string) error { return nil },
 			listen:  func(string, string) (net.Listener, error) { return listener, nil },
@@ -295,6 +384,54 @@ func TestInteractiveXeroAuthorizationTimesOutWithoutCallback(t *testing.T) {
 	)
 	if err == nil || !strings.Contains(err.Error(), "timed out waiting for Xero callback") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestLaunchXeroAuthorizationShowsManualURLAfterLauncherProcessFails(t *testing.T) {
+	const authorizationURL = "https://login.xero.com/authorize?redacted=true"
+	var output bytes.Buffer
+	launchXeroAuthorization(&output, func(string) error {
+		command := exec.Command(os.Args[0], "-test.run=TestBrowserLauncherHelperProcess", "--", "fail")
+		command.Env = append(os.Environ(), "GOTRADIE_BROWSER_HELPER=1")
+		return runBrowserCommand(command)
+	}, authorizationURL)
+
+	got := output.String()
+	if !strings.Contains(got, "Open this URL in a browser on this computer:\n"+authorizationURL+"\n") {
+		t.Fatalf("output = %q", got)
+	}
+	if strings.Contains(got, "Waiting for Xero authorization") {
+		t.Fatalf("output incorrectly claimed browser success: %q", got)
+	}
+}
+
+func TestRunBrowserCommandHonoursContextDeadline(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancel()
+	command := exec.CommandContext(ctx, os.Args[0], "-test.run=TestBrowserLauncherHelperProcess", "--", "hang")
+	command.Env = append(os.Environ(), "GOTRADIE_BROWSER_HELPER=1")
+	started := time.Now()
+	err := runBrowserCommand(command)
+	if err == nil {
+		t.Fatal("runBrowserCommand returned nil for timed-out launcher")
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("launcher took %s; want bounded failure", elapsed)
+	}
+}
+
+func TestBrowserLauncherHelperProcess(t *testing.T) {
+	if os.Getenv("GOTRADIE_BROWSER_HELPER") != "1" {
+		return
+	}
+	switch os.Args[len(os.Args)-1] {
+	case "fail":
+		os.Exit(7)
+	case "hang":
+		time.Sleep(10 * time.Second)
+		os.Exit(0)
+	default:
+		os.Exit(2)
 	}
 }
 
@@ -356,7 +493,8 @@ func testXeroConfig(redirectURI string, verbose bool) config.Config {
 
 func testXeroCredentials(expiry time.Time) xeroCredentialFile {
 	return xeroCredentialFile{
-		ClientID: "client-id", AccessToken: "saved-access", RefreshToken: "saved-refresh", Expiry: expiry,
+		ClientID: "client-id", Scopes: []string{"offline_access", "accounting.invoices"},
+		AccessToken: "saved-access", RefreshToken: "saved-refresh", Expiry: expiry,
 		TenantID: "tenant-1", TenantName: "Acme Tradies", TenantType: "ORGANISATION",
 	}
 }

@@ -1,6 +1,6 @@
 # GoTradie
 
-`GoTradie` is a small CLI client that composes the local `GoBunnings`, `GoInvoiceNinja` and `GoXero` packages.
+`GoTradie` is a small CLI client that composes the `GoBunnings`, `GoInvoiceNinja` and `GoXero` modules in this repository.
 
 Version: `v0.5.10`
 
@@ -12,34 +12,22 @@ octopus.
 ## Requirements
 
 - Go `1.25`
-- Local checkout of `GoBunnings`
-- Local checkout of `GoXero`
-- Local checkout of `GoInvoiceNinja` v0.5 or later
 
-## Multi-repo development
+## Repository layout
 
-Develop the four modules side by side in one parent folder with a local Go workspace:
+This is one repository containing four independent Go modules under `apps/`. The committed root `go.work` connects them for local development:
 
 ```text
-GoNinjaWorkspace/
+GoTradie/
 ├── go.work
-├── GoBunnings/
-├── GoInvoiceNinja/
-├── GoXero/
-└── GoTradie/
+└── apps/
+    ├── GoBunnings/
+    ├── GoInvoiceNinja/
+    ├── GoTradie/
+    └── GoXero/
 ```
 
-From the parent folder:
-
-```bash
-git clone git@github.com:MickMake/GoTradie.git
-
-go work init ./GoBunnings ./GoInvoiceNinja ./GoTradie ./GoXero
-go work sync
-```
-
-The local `go.work` file replaces the old committed absolute-path `replace` directives. Keep `go.mod` portable and use the workspace for local multi-repo editing.
-The local `go.work` file is the preferred way to develop the four modules together. `GoTradie/go.mod` may also use relative local `replace` directives for simple single-machine development.
+Clone the repository once and use the existing workspace; do not create separate sibling repository checkouts or reinitialise `go.work`.
 
 See `ECOSYSTEM.md` for the dependency rules and release workflow.
 

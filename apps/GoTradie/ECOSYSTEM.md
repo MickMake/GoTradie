@@ -1,15 +1,15 @@
-# GoBunnings Ninja Ecosystem
+# GoTradie Ecosystem
 
-This ecosystem is made of four separate Go modules that are developed together locally.
+This repository contains four independent Go modules that are developed together through the committed root `go.work` workspace.
 
-## Repositories
+## Modules
 
-| Repository       | Role                                    | Imports                                             |
-|------------------|-----------------------------------------|-----------------------------------------------------|
-| `GoBunnings`     | Reusable Bunnings API SDK               | Standard library and external SDK dependencies only |
-| `GoInvoiceNinja` | Reusable Invoice Ninja v5 API SDK       | Standard library and external SDK dependencies only |
-| `GoXero`         | Reusable Xero API SDK                   | Standard library and external SDK dependencies only |
-| `GoTradie`       | CLI/application that composes three SDKs | `GoBunnings`, `GoInvoiceNinja`, `GoXero`           |
+| Module                 | Role                                     | Imports                                             |
+|------------------------|------------------------------------------|-----------------------------------------------------|
+| `apps/GoBunnings`      | Reusable Bunnings API SDK                | Standard library and external SDK dependencies only |
+| `apps/GoInvoiceNinja`  | Reusable Invoice Ninja v5 API SDK        | Standard library and external SDK dependencies only |
+| `apps/GoXero`          | Reusable Xero API SDK                    | Standard library and external SDK dependencies only |
+| `apps/GoTradie`        | CLI/application that composes three SDKs | `GoBunnings`, `GoInvoiceNinja`, `GoXero`            |
 
 ## Dependency direction
 
@@ -26,26 +26,18 @@ Rules:
 - `GoTradie` may import `GoBunnings`, `GoInvoiceNinja` & `GoXero` APIs.
 - Bunnings-to-Invoice Ninja mapping belongs in `GoTradie`.
 
-## Local development layout
+## Repository layout
 
-Use one parent folder and a local Go workspace:
+Use the existing workspace at the repository root:
 
 ```text
-GoNinjaWorkspace/
+GoTradie/
 ├── go.work
-├── GoBunnings/
-├── GoInvoiceNinja/
-├── GoXero/
-└── GoTradie/
-```
-
-From the parent folder:
-
-```bash
-git clone git@github.com:MickMake/GoTradie.git
-
-go work init ./GoBunnings ./GoInvoiceNinja ./GoTradie ./GoXero
-go work sync
+└── apps/
+    ├── GoBunnings/
+    ├── GoInvoiceNinja/
+    ├── GoTradie/
+    └── GoXero/
 ```
 
 Expected `go.work` shape:
@@ -54,14 +46,14 @@ Expected `go.work` shape:
 go 1.25
 
 use (
-    ./GoBunnings
-    ./GoInvoiceNinja
-	./GoXero
-    ./GoTradie
+    ./apps/GoBunnings
+    ./apps/GoInvoiceNinja
+    ./apps/GoTradie
+    ./apps/GoXero
 )
 ```
 
-`go.work` is intentionally local to the workspace. It should normally not be committed to any individual repo.
+The root `go.work` is part of this repository. Do not run `go work init` or create separate sibling checkouts for these modules.
 
 ## Release order
 
@@ -70,13 +62,13 @@ When SDK changes are needed, release in dependency order:
 1. `GoBunnings`, when Bunnings SDK changes are required.
 2. `GoInvoiceNinja`, when Invoice Ninja SDK changes are required.
 3. `GoXero`, when Xero SDK changes are required.
-4. `GoTradie`, after updating its `go.mod` to the tagged SDK versions.
+4. `GoTradie`, after any required SDK module changes.
 
-During active development, the local `go.work` file lets `GoTradie` use local SDK checkouts without committed absolute-path `replace` directives.
+During active development, the root `go.work` lets `GoTradie` use the other modules directly from this checkout.
 
 ## Command checklist
 
-Run from each repo as relevant:
+Run from each module directory as relevant:
 
 ```bash
 go test ./...
@@ -84,7 +76,7 @@ go vet ./...
 go mod tidy
 ```
 
-For the app repo:
+For the application module:
 
 ```bash
 go build ./cmd/GoTradie
