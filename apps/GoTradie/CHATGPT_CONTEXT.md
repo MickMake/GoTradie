@@ -2,25 +2,27 @@
 
 ## Purpose
 
-`GoTradie` is the application/CLI that composes `GoXero`, GoBunnings` and `GoInvoiceNinja`.
+`GoTradie` is the application/CLI that composes `GoXero`, `GoBunnings` and `GoInvoiceNinja`.
 
 It owns the workflow that turns Bunnings product data into safe Invoice Ninja product updates/imports/exports.
 
-## Related repositories
+## Repository modules
 
 ```text
-GoTradie        -> application/CLI that imports both SDKs
-GoBunnings      -> reusable Bunnings API SDK
-GoXero          -> reusable Xero API SDK
-GoInvoiceNinja  -> reusable Invoice Ninja API SDK
+apps/GoTradie        -> application/CLI that imports the three SDKs
+apps/GoBunnings      -> reusable Bunnings API SDK
+apps/GoXero          -> reusable Xero API SDK
+apps/GoInvoiceNinja  -> reusable Invoice Ninja API SDK
 ```
 
 ## Dependency rules
 
 - `GoTradie` may import `GoBunnings`.
 - `GoTradie` may import `GoInvoiceNinja`.
+- `GoTradie` may import `GoXero`.
 - `GoBunnings` must not import `GoInvoiceNinja` or `GoTradie`.
 - `GoInvoiceNinja` must not import `GoBunnings` or `GoTradie`.
+- `GoXero` must not import `GoBunnings`, `GoInvoiceNinja` or `GoTradie`.
 - Mapping logic belongs in `GoTradie`, preferably under `internal/mapper` or the relevant workflow package.
 
 ## Go version
@@ -36,26 +38,21 @@ go mod tidy
 go build ./cmd/GoTradie
 ```
 
-## Local multi-repo development
+## Monorepo development
 
-Develop all three repos in one parent folder using a local `go.work` file:
+This is one repository with four independent modules under `apps/`. Use the existing committed root `go.work` workspace:
 
 ```text
-GoNinjaWorkspace/
+GoTradie/
 ├── go.work
-├── GoBunnings/
-├── GoInvoiceNinja/
-└── GoTradie/
+└── apps/
+    ├── GoBunnings/
+    ├── GoInvoiceNinja/
+    ├── GoTradie/
+    └── GoXero/
 ```
 
-Create the workspace from the parent folder:
-
-```bash
-go work init ./GoBunnings ./GoInvoiceNinja ./GoTradie
-go work sync
-```
-
-The `go.work` file is a local development convenience. The app module should not depend on absolute-path `replace` directives committed to `go.mod`.
+Do not create separate sibling repositories or run `go work init`; the repository workspace already connects the modules.
 
 ## Application boundaries
 
@@ -71,4 +68,5 @@ Avoid putting here:
 
 - low-level Bunnings API transport logic
 - low-level Invoice Ninja API transport logic
-- reusable SDK code that belongs upstream in `GoBunnings` or `GoInvoiceNinja`
+- low-level Xero API transport logic
+- reusable SDK code that belongs upstream in `GoBunnings`, `GoInvoiceNinja` or `GoXero`

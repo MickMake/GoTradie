@@ -158,12 +158,13 @@ func TestLoadFileAppliesOnlySupportedSecretOverrides(t *testing.T) {
 	env := map[string]string{
 		"INVOICE_NINJA_TOKEN":    "env-token",
 		"BUNNINGS_CLIENT_SECRET": "env-secret",
+		"XERO_CLIENT_ID":         "env-xero-client",
 		"INVOICE_NINJA_URL":      "https://ignored.example",
 		"BUNNINGS_CLIENT_ID":     "ignored-client",
 		"TAX_NAME":               "Ignored Tax",
 		"TAX_RATE":               "99",
 	}
-	cfg, err := loadYAML(t, validQuarterlyYAML(), func(key string) string { return env[key] })
+	cfg, err := loadYAML(t, validXeroYAML(), func(key string) string { return env[key] })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,10 +174,99 @@ func TestLoadFileAppliesOnlySupportedSecretOverrides(t *testing.T) {
 	if cfg.Providers["bunnings"].ClientSecret != "env-secret" {
 		t.Fatalf("secret = %q; want env-secret", cfg.Providers["bunnings"].ClientSecret)
 	}
+	if cfg.Providers["xero"].Auth.ClientID != "env-xero-client" {
+		t.Fatalf("Xero client ID = %q; want env-xero-client", cfg.Providers["xero"].Auth.ClientID)
+	}
 	if cfg.InvoiceNinja.URL != "https://yaml.example.test" ||
 		cfg.Providers["bunnings"].ClientID != "yaml-client" ||
 		cfg.Tax.Name != "GST" || cfg.Tax.Rate != 10 {
 		t.Fatalf("generic environment value overrode YAML: %#v", cfg)
+	}
+}
+
+func TestLoadFileAcceptsXeroAuthWithoutAddingAProductProvider(t *testing.T) {
+	cfg, err := loadYAML(t, "verbose: true\n"+validXeroYAML(), emptyEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.Verbose {
+		t.Fatal("verbose = false; want true")
+	}
+	if err := cfg.ValidateXero(); err != nil {
+		t.Fatalf("ValidateXero: %v", err)
+	}
+	if got := cfg.CanonicalProviderName("Xero"); got != "Xero" {
+		t.Fatalf("canonical provider = %q; want unchanged Xero", got)
+	}
+}
+
+func TestXeroClientIDOverrideUsesNonBlankEnvironmentOnly(t *testing.T) {
+	for name, value := range map[string]string{"unset": "", "blank": "  "} {
+		t.Run(name, func(t *testing.T) {
+			cfg, err := loadYAML(t, validXeroYAML(), func(key string) string {
+				if key == "XERO_CLIENT_ID" {
+					return value
+				}
+				return ""
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.Providers["xero"].Auth.ClientID != "yaml-xero-client" {
+				t.Fatalf("client ID = %q; want YAML fallback", cfg.Providers["xero"].Auth.ClientID)
+			}
+		})
+	}
+}
+
+func TestLoadFileRejectsInvalidXeroConfiguration(t *testing.T) {
+	tests := map[string]struct {
+		body string
+		want string
+	}{
+		"unknown auth field": {
+			strings.Replace(validXeroYAML(), "      client_id: yaml-xero-client", "      client_id: yaml-xero-client\n      secret: forbidden", 1),
+			"field secret not found",
+		},
+		"product fields": {
+			strings.Replace(validXeroYAML(), "  xero:\n", "  xero:\n    name: Xero\n", 1),
+			"must contain only auth settings",
+		},
+		"remote redirect": {
+			strings.Replace(validXeroYAML(), "http://localhost:8080/callback", "https://remote.example/callback", 1),
+			"loopback",
+		},
+		"duplicate scope": {
+			strings.Replace(validXeroYAML(), "        - accounting.invoices", "        - accounting.invoices\n        - accounting.invoices", 1),
+			"duplicate",
+		},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			_, err := loadYAML(t, test.body, emptyEnv)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v; want %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestValidateXeroRequiresAuthenticationSettings(t *testing.T) {
+	cfg, err := loadYAML(t, validQuarterlyYAML(), emptyEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.ValidateXero(); err == nil || !strings.Contains(err.Error(), "providers.xero.auth") {
+		t.Fatalf("error = %v; want missing Xero auth", err)
+	}
+
+	cfg, err = loadYAML(t, validXeroYAML(), emptyEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.Providers["xero"].Auth.Scopes = []string{"offline_access"}
+	if err := cfg.ValidateXero(); err == nil || !strings.Contains(err.Error(), "accounting.invoices") {
+		t.Fatalf("error = %v; want missing invoice scope", err)
 	}
 }
 
@@ -352,6 +442,17 @@ providers:
     scopes: []
     country: AU
     location: ""
+`
+}
+
+func validXeroYAML() string {
+	return validQuarterlyYAML() + `  xero:
+    auth:
+      client_id: yaml-xero-client
+      redirect_uri: http://localhost:8080/callback
+      scopes:
+        - offline_access
+        - accounting.invoices
 `
 }
 

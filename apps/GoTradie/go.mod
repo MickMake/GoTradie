@@ -5,6 +5,7 @@ go 1.25.0
 require (
 	github.com/MickMake/GoBunnings v0.0.0
 	github.com/MickMake/GoInvoiceNinja v0.0.0
+	github.com/MickMake/GoXero v0.0.0
 	github.com/xuri/excelize/v2 v2.11.0
 	go.yaml.in/yaml/v3 v3.0.5
 )
@@ -23,3 +24,5 @@ require (
 replace github.com/MickMake/GoBunnings => ../GoBunnings
 
 replace github.com/MickMake/GoInvoiceNinja => ../GoInvoiceNinja
+
+replace github.com/MickMake/GoXero => ../GoXero

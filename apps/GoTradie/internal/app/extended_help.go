@@ -14,7 +14,7 @@ Configuration
 
   Operational commands require ~/.GoTradie/config.yaml.
   The file uses strict hierarchical YAML; unknown fields are rejected.
-  Only INVOICE_NINJA_TOKEN and BUNNINGS_CLIENT_SECRET may override YAML.
+  Only INVOICE_NINJA_TOKEN, BUNNINGS_CLIENT_SECRET and XERO_CLIENT_ID may override YAML.
 
 Top-level commands
 
@@ -42,7 +42,25 @@ Top-level commands
         GoTradie version
 
       Example output:
-        v0.5.7
+        v0.5.10
+
+Xero authentication
+
+  auth xero
+      Authenticate a Xero desktop application using OAuth2 PKCE, or reuse and
+      refresh saved credentials, then verify the selected organisation with a
+      read-only connection request.
+
+      This command may persist local credentials without --commit. It accepts
+      neither --commit nor --force and does not write Xero accounting data.
+
+      Example:
+        GoTradie auth xero
+
+      Example output:
+        Xero authentication: OK
+        Organisation: Example Pty Ltd
+        Connection: OK
 
 Bunnings commands
 

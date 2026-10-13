@@ -45,7 +45,7 @@ func New(cfg config.Config) (*Service, error) {
 	if err != nil {
 		return nil, err
 	}
-	client, err := gobunnings.New(environment, ts, gobunnings.WithUserAgent("GoTradie/v0.5.7"))
+	client, err := gobunnings.New(environment, ts, gobunnings.WithUserAgent("GoTradie/v0.5.10"))
 	if err != nil {
 		return nil, err
 	}

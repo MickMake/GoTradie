@@ -19,7 +19,7 @@ import (
 	"github.com/MickMake/GoTradie/internal/syncer"
 )
 
-const version = "v0.5.7"
+const version = "v0.5.10"
 
 var errExpenseImportStopped = errors.New("expense import stopped by operator")
 
@@ -28,6 +28,8 @@ type App struct {
 	Out io.Writer
 	Err io.Writer
 	Now func() time.Time
+
+	xeroRuntime *xeroAuthRuntime
 }
 
 func (a App) Run(ctx context.Context, args []string) int {
@@ -62,6 +64,8 @@ func (a App) Run(ctx context.Context, args []string) int {
 		return 2
 	}
 	switch args[0] {
+	case "auth":
+		return a.runAuth(ctx, cfg, args[1:])
 	case "sync", "add-in":
 		if err := cfg.ValidateInvoiceNinja(); err != nil {
 			fmt.Fprintln(a.Err, "config error:", err)
@@ -829,13 +833,14 @@ func exitCode(results []syncer.Result) int {
 func (a App) usage() {
 	fmt.Fprint(a.Out, `GoTradie synchronises Provider products with Invoice Ninja.
 
-Version: v0.5.7
+Version: v0.5.10
 
 Configuration:
   ~/.GoTradie/config.yaml is mandatory for operational commands.
-  INVOICE_NINJA_TOKEN and BUNNINGS_CLIENT_SECRET may override YAML secrets.
+  INVOICE_NINJA_TOKEN, BUNNINGS_CLIENT_SECRET and XERO_CLIENT_ID may override YAML.
 
 Commands:
+  auth xero                             Authenticate and verify a read-only Xero connection.
   bunnings find <query>                 Fuzzy Bunnings discovery (CSV output).
   bunnings get <IN...>                  Exact Bunnings lookup (CSV output).
   bunnings lookup <IN...>               Exact Bunnings lookup (human-readable output).
@@ -860,6 +865,7 @@ Commands:
 
 Examples:
   GoTradie commands
+  GoTradie auth xero
   GoTradie bunnings find "merbau decking" --limit=10
   GoTradie bunnings get 0123456 0987654
   GoTradie bunnings lookup 0123456

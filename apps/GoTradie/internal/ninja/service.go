@@ -13,7 +13,7 @@ type Service struct {
 }
 
 func New(cfg config.Config) (*Service, error) {
-	opts := []invoiceninja.Option{invoiceninja.WithUserAgent("GoTradie/v0.5.7")}
+	opts := []invoiceninja.Option{invoiceninja.WithUserAgent("GoTradie/v0.5.10")}
 	if cfg.InvoiceNinja.URL != "" {
 		opts = append(opts, invoiceninja.WithBaseURL(cfg.InvoiceNinja.URL))
 	}

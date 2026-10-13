@@ -1,0 +1,42 @@
+name: GoXero
+
+on:
+  pull_request:
+    paths:
+      - 'apps/GoXero/**'
+      - '.github/workflows/goxero.yml'
+
+  push:
+    branches:
+      - main
+    paths:
+      - 'apps/GoXero/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: apps/GoXero
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build
+        run: go build ./...
+
+      - name: Test
+        run: go test ./...
+
+      - name: Vet
+        run: go vet ./...

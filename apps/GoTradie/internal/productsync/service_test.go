@@ -51,6 +51,26 @@ func TestNewBunningsProductUsesFinalIdentityAndCustomFields(t *testing.T) {
 	}
 }
 
+func TestRefreshExcludesXeroFromProductProviders(t *testing.T) {
+	ninja := &fakeNinja{}
+	service := Service{
+		Config: config.Config{Providers: map[string]config.ProviderConfig{
+			"xero": {Auth: &config.XeroAuthConfig{
+				ClientID: "client", RedirectURI: "http://localhost:8080/callback",
+				Scopes: []string{"offline_access", "accounting.invoices"},
+			}},
+		}},
+		Ninja: ninja,
+	}
+	results, err := service.Refresh(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("results = %#v; want Xero excluded from Product Sync", results)
+	}
+}
+
 func TestAliasSupplierIsRecognizedAndNormalized(t *testing.T) {
 	ninja := &fakeNinja{
 		products: []invoiceninja.Product{{
