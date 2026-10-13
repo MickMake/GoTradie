@@ -39,6 +39,8 @@ GoTradie uses distinct flags for distinct kinds of persistent effects:
 
 These meanings must never overlap.
 
+Authentication is a separate case: `GoTradie auth xero` may create or refresh credentials under `~/.GoTradie/keys/` without `--commit`. This is local authentication state, not a persistent accounting-data write to Xero. The command does not accept `--commit` or `--force`.
+
 ## Write safety
 
 | Operation | Default | Override |
@@ -47,6 +49,9 @@ These meanings must never overlap.
 | Create new local output file | Allowed | none |
 | Overwrite existing local output file | Refuse | `--force` |
 | Read-only discovery/API lookup | Allowed | none |
+| Local Xero login/token persistence and refresh | Allowed | none |
+
+The `xero import` and `xero export` examples below illustrate potential future use of the shared flag conventions. They are not implemented commands or approved command signatures for v0.5.10, whose only new command is `GoTradie auth xero`.
 
 ### `--commit`
 

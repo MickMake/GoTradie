@@ -22,10 +22,10 @@ This is the foundation for later receipt-to-existing-bill matching, not that fea
 ```text
 MickMake/GoTradie (monorepo; Go 1.25)
   apps/GoTradie/          existing CLI / orchestration
-  apps/GoXero/            NEW reusable Go library
+  apps/GoXero/            module scaffold exists; reusable Go library
   apps/GoBunnings/        existing; unchanged
   apps/GoInvoiceNinja/    existing; unchanged
-  go.work                 include apps/GoXero after approval
+  go.work                 already includes apps/GoXero
 ```
 
 Allowed new dependency: `GoTradie -> GoXero`.
@@ -67,6 +67,7 @@ providers:
 
 - `verbose` is at the **root**; default is `false` if omitted. For this slice, it controls only safe additional Xero-auth diagnostics. Other CLI behaviour need not be expanded.
 - `providers.xero.auth.client_id` is the registered public Xero client ID (not a secret).
+- `XERO_CLIENT_ID` is the one newly approved environment override. When it contains a non-blank value, it overrides `providers.xero.auth.client_id`; otherwise the YAML value is used. It is a public identifier, not a secret.
 - `redirect_uri` must match the Xero application registration exactly and use a loopback callback; its current registered value is shown above.
 - `scopes` is a YAML sequence. `offline_access` enables refresh tokens; `accounting.invoices.read` anticipates the first read-only billing use. The connection check itself uses `/connections`.
 - Do **not** request attachments write permissions in this slice. Adding permissions for receipt uploads will require later approval and a new consent flow.
@@ -74,7 +75,7 @@ providers:
 
 The existing `providers` map currently represents supplier/Product Sync providers and validates their `name`, `type` and fields. Xero is a special, non-product entry under this same parent. Extend strict parsing/validation narrowly so that Xero does not appear as a supplier, require `fields.product`, enter Product Sync iteration, or affect provider aliases. Avoid a provider-schema rewrite. Keep existing Bunnings fields where they are; moving Bunnings settings under `auth` is **explicitly deferred**.
 
-Existing required configuration sections and secret-override behaviour remain unchanged. No new environment-variable overrides or CLI flags.
+Existing required configuration sections and the `INVOICE_NINJA_TOKEN` and `BUNNINGS_CLIENT_SECRET` overrides remain unchanged. The only new environment override is `XERO_CLIENT_ID`. Do not add generic environment overrides or new CLI flags.
 
 ## 4. Registered Xero application
 
@@ -96,6 +97,8 @@ Exactly one new command:
 ```sh
 GoTradie auth xero
 ```
+
+The command may store and refresh local authentication credentials without `--commit`. This is not a Xero accounting-data write. Future remote Xero data mutations follow the same `--commit` rule as Invoice Ninja, but none are included in this slice.
 
 ### First run (no usable saved credentials)
 
@@ -191,6 +194,7 @@ Never print raw bearer tokens, refresh tokens, authorisation codes, PKCE verifie
 ## 9. Acceptance criteria
 
 - Works with the existing strict YAML, while leaving Bunnings and existing Product Sync providers alone.
+- `XERO_CLIENT_ID` with a non-blank value overrides the YAML client ID, and an unset/blank variable uses the YAML value. The override does not enable any other environment configuration fields.
 - OAuth2 PKCE `S256` and callback state checking work using deterministic fake HTTP services.
 - First run obtains tokens; after a process restart the same selected organisation passes the `/connections` check without a new browser login.
 - Expired access token refreshes; both rotated tokens are persisted safely; invalid grants lead to re-authorisation instead of fabricated success.
