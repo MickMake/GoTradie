@@ -31,7 +31,7 @@ GoTradie uses distinct flags for distinct kinds of persistent effects:
 
 ```text
 --commit
-    Permit persistent changes to Invoice Ninja application or database state.
+    Permit persistent changes to Invoice Ninja / Xero application or database state.
 
 --force
     Permit overwriting existing local files.    
@@ -43,14 +43,14 @@ These meanings must never overlap.
 
 | Operation | Default | Override |
 |---|---|---|
-| Invoice Ninja create/update/archive/write | Preview/refuse | `--commit` |
+| Invoice Ninja / Xero create/update/archive/write | Preview/refuse | `--commit` |
 | Create new local output file | Allowed | none |
 | Overwrite existing local output file | Refuse | `--force` |
 | Read-only discovery/API lookup | Allowed | none |
 
 ### `--commit`
 
-`--commit` is the only flag that permits persistent changes to Invoice Ninja application or database state.
+`--commit` is the only flag that permits persistent changes to Invoice Ninja / Xero application or database state.
 
 Without it, write-capable commands must preview or otherwise remain non-mutating.
 
@@ -63,6 +63,9 @@ GoTradie sync search "merbau decking" --create --select=0123456 --commit
 GoTradie ninja import products products.csv --commit
 GoTradie ninja import clients clients.csv --commit
 GoTradie ninja import expenses purchases.csv --commit
+GoTradie xero import products products.csv --commit
+GoTradie xero import clients clients.csv --commit
+GoTradie xero import expenses purchases.csv --commit
 ```
 
 ### `--force`
@@ -78,9 +81,15 @@ GoTradie ninja export quotes quotes.csv --force
 GoTradie ninja export invoices invoices.csv --force
 GoTradie ninja export payments payments.csv --force
 GoTradie ninja export tax ./tax-export --force
+GoTradie xero export products products.csv --force
+GoTradie xero export clients clients.csv --force
+GoTradie xero export quotes quotes.csv --force
+GoTradie xero export invoices invoices.csv --force
+GoTradie xero export payments payments.csv --force
+GoTradie xero export tax ./tax-export --force
 ```
 
-`--force` does not permit Invoice Ninja writes.
+`--force` does not permit Invoice Ninja / Xero writes.
 
 `--force` must not be used for Product Sync freshness, bypassing validation, bypassing accounting safety, or as another spelling of `--commit`.
 
@@ -277,7 +286,7 @@ Some failures prevent a meaningful workbook from being produced at all, for exam
 
 ```text
 invalid required configuration
-Invoice Ninja unavailable before required data can be read
+Invoice Ninja / Xero unavailable before required data can be read
 required source response cannot be parsed
 output path cannot be written
 XLSX creation fails
@@ -316,7 +325,7 @@ Do not reintroduce:
 Do not use `--force` to mean:
 
 ```text
-persist Invoice Ninja application or database changes
+persist Invoice Ninja / Xero application or database changes
 ignore Product Sync freshness
 bypass validation
 ```
@@ -325,8 +334,8 @@ bypass validation
 
 ```text
 Look around freely.
-Preview Invoice Ninja application or database changes safely.
-Use --commit to change Invoice Ninja.
+Preview Invoice Ninja / Xero application or database changes safely.
+Use --commit to change Invoice Ninja / Xero.
 Use --force to overwrite an existing local file.
 Generated reports go to exports.directory when configured, otherwise the current directory.
 Warnings remain successful.
